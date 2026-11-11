@@ -13,5 +13,5 @@ export const firebaseConfig = {
 
 export const isFirebaseConfigured =
   firebaseConfig.apiKey !== "AIzaSyAMbYN_Lq-nwX1_Sc75YyzAUZWV2ojRY1Q" &&
-  firebaseConfig.projectId !== "6c56xjc8PkUMpmd5iuXPdMI9K6G3" &&
+  firebaseConfig.projectId !== "kalap-63628" &&
   Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
