@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#421e27">
+  <meta name="theme-color" content="#e51c23">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
   <title>KALAP — Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -277,59 +277,92 @@ td strong { color: #333d35; font-size: 10px; }
 }
 
 
-/* KALAP v1.1 — warm red + pastel operational palette */
+/* KALAP v1.2 — bright true-red theme with pastel panels */
 :root {
-  --ink:#38272a; --muted:#927f80; --paper:#fff8f7; --panel:#fffefe; --line:#f0dddd;
-  --dark:#421e27; --dark-2:#592a35; --accent:#e45b63; --accent-deep:#b83e4d;
-  --red:#d94d59; --green:#3d8b70; --amber:#bd873c;
-  --shadow:0 12px 34px rgba(110,42,53,.065);
+  --ink:#2c2626; --muted:#817475; --paper:#fff7f7; --panel:#ffffff; --line:#f0d9d9;
+  --dark:#e51c23; --dark-2:#c8102e; --accent:#ff3b30; --accent-deep:#d71920;
+  --red:#dc2626; --green:#31845f; --amber:#b7791f;
+  --shadow:0 12px 34px rgba(180,25,35,.075);
 }
-body { background:linear-gradient(135deg,#fff8f6 0%,#fff5f2 48%,#fffaf4 100%); }
-.brand-mark { color:#fff; background:linear-gradient(145deg,#eb7377,#c94455); box-shadow:0 5px 13px rgba(210,72,87,.2); }
-.brand-dot { color:#f28a86; }
-.login-brand-panel,.sidebar { background:radial-gradient(circle at 85% 12%,rgba(232,112,117,.24),transparent 29%),linear-gradient(155deg,#4a202b,#351820 75%); }
-.login-brand-panel::before,.login-brand-panel::after { border-color:rgba(255,187,178,.17); }
-.login-brand-copy h1 em { color:#ffaaa1; }
-.login-brand-footer .live-dot,.live-dot { background:#83c6a4; box-shadow:0 0 0 4px rgba(131,198,164,.13); }
-.btn-primary { color:#fff; background:linear-gradient(135deg,#e96b70,#cd4858); box-shadow:0 5px 12px rgba(209,72,88,.13); }
-.btn-primary:hover { background:linear-gradient(135deg,#f17c7e,#d85160); }
-.nav-link.active { color:#ffb4ad; background:rgba(236,111,119,.15); }
-.nav-link:hover { background:rgba(255,255,255,.075); }
-input:focus,select:focus,textarea:focus { border-color:#e88c8c; box-shadow:0 0 0 3px rgba(232,126,132,.15); }
-.range-control input { accent-color:#d95360; }
-.stat-card { border-color:#f1dede; }
-.stats-grid .stat-card:nth-child(4n+1) { background:linear-gradient(145deg,#fff0ef,#fffafa); }
-.stats-grid .stat-card:nth-child(4n+2) { background:linear-gradient(145deg,#fff4df,#fffdf8); }
-.stats-grid .stat-card:nth-child(4n+3) { background:linear-gradient(145deg,#eaf7ef,#fbfffc); }
-.stats-grid .stat-card:nth-child(4n+4) { background:linear-gradient(145deg,#f2edff,#fffaff); }
-.stats-grid .stat-card:nth-child(4n+1) .stat-icon { background:#ffdedd;color:#bb5360; }
-.stats-grid .stat-card:nth-child(4n+2) .stat-icon { background:#ffeac4;color:#a9762c; }
-.stats-grid .stat-card:nth-child(4n+3) .stat-icon { background:#d7f0e1;color:#398365; }
-.stats-grid .stat-card:nth-child(4n+4) .stat-icon { background:#e6dcff;color:#8062bb; }
-.panel { border-color:#f0dfde; background:linear-gradient(150deg,#fff 0%,#fffdfc 100%); }
-.content-grid .panel:nth-child(odd) { background:linear-gradient(145deg,#fff7f5,#fffefe 70%); }
-.content-grid .panel:nth-child(even) { background:linear-gradient(145deg,#fffaf0,#fffefe 70%); }
-.menu-tile { background:linear-gradient(145deg,#fff2f1,#fffdfc); border-color:#f1d9d8; }
-.menu-tile:nth-child(4n+2) { background:linear-gradient(145deg,#fff5e4,#fffdf9); }
-.menu-tile:nth-child(4n+3) { background:linear-gradient(145deg,#edf8f0,#fffdfd); }
-.menu-tile:nth-child(4n+4) { background:linear-gradient(145deg,#f3efff,#fffdfd); }
-.menu-tile h3 { color:#4a3034; }
-.menu-tile .price,.panel-action,.action-link { color:#c84a58; }
+body { background:linear-gradient(135deg,#fff7f7 0%,#fff5f0 48%,#fffaf2 100%); }
+.brand-mark { color:#fff; background:linear-gradient(145deg,#ff4b4b,#d71920); box-shadow:0 5px 13px rgba(220,38,38,.24); }
+.brand-dot { color:#ff8a80; }
+.login-brand-panel,.sidebar { background:radial-gradient(circle at 85% 12%,rgba(255,255,255,.2),transparent 29%),linear-gradient(155deg,#ef252b,#c8102e 78%); }
+.login-brand-panel::before,.login-brand-panel::after { border-color:rgba(255,255,255,.22); }
+.login-brand-copy h1 em { color:#fff1ef; }
+.login-brand-footer .live-dot,.live-dot { background:#b8f0c9; box-shadow:0 0 0 4px rgba(184,240,201,.17); }
+.btn-primary { color:#fff; background:linear-gradient(135deg,#f03a40,#d71920); box-shadow:0 5px 12px rgba(215,25,32,.18); }
+.btn-primary:hover { background:linear-gradient(135deg,#ff4b50,#c8102e); }
+.nav-link.active { color:#fff; background:rgba(255,255,255,.19); }
+.nav-link:hover { background:rgba(255,255,255,.11); }
+input:focus,select:focus,textarea:focus { border-color:#f17b7f; box-shadow:0 0 0 3px rgba(239,68,68,.14); }
+.range-control input { accent-color:#e51c23; }
+.stat-card { border-color:#f1dddd; }
+.stats-grid .stat-card:nth-child(4n+1) { background:linear-gradient(145deg,#ffe8e8,#fffafa); }
+.stats-grid .stat-card:nth-child(4n+2) { background:linear-gradient(145deg,#fff0d8,#fffdf7); }
+.stats-grid .stat-card:nth-child(4n+3) { background:linear-gradient(145deg,#e8f7ed,#fbfffc); }
+.stats-grid .stat-card:nth-child(4n+4) { background:linear-gradient(145deg,#eee9ff,#fffaff); }
+.stats-grid .stat-card:nth-child(4n+1) .stat-icon { background:#ffd0d0;color:#bf1d27; }
+.stats-grid .stat-card:nth-child(4n+2) .stat-icon { background:#ffe5b6;color:#a66b17; }
+.stats-grid .stat-card:nth-child(4n+3) .stat-icon { background:#d2f0dd;color:#398365; }
+.stats-grid .stat-card:nth-child(4n+4) .stat-icon { background:#e1d9ff;color:#8062bb; }
+.panel { border-color:#f0dddd; background:linear-gradient(150deg,#fff 0%,#fffdfc 100%); }
+.content-grid .panel:nth-child(odd) { background:linear-gradient(145deg,#fff1f0,#fffefe 70%); }
+.content-grid .panel:nth-child(even) { background:linear-gradient(145deg,#fff8e9,#fffefe 70%); }
+.menu-tile { background:linear-gradient(145deg,#ffeceb,#fffdfc); border-color:#f2d3d2; }
+.menu-tile:nth-child(4n+2) { background:linear-gradient(145deg,#fff1d8,#fffdf9); }
+.menu-tile:nth-child(4n+3) { background:linear-gradient(145deg,#e9f7ed,#fffdfd); }
+.menu-tile:nth-child(4n+4) { background:linear-gradient(145deg,#f0edff,#fffdfd); }
+.menu-tile h3 { color:#3e3030; }
+.menu-tile .price,.panel-action,.action-link { color:#d71920; }
 .status.success { color:#34795d; background:#e8f6ee; }
 .status.pending { color:#976729; background:#fff1d9; }
-.status.inactive { color:#a14c56; background:#ffeded; }
+.status.inactive { color:#a12c35; background:#ffeded; }
 .status.neutral { color:#765b72; background:#f4edf5; }
-.info-banner { background:#fff0ec; color:#8e4c4d; }
-.info-banner strong { color:#77383f; }
+.info-banner { background:#ffe9e7; color:#8e343b; }
+.info-banner strong { color:#741b23; }
 .connection-pill { background:#edf8f1;border-color:#d9ecdf;color:#4d8167; }
-.avatar { background:#ffe0dc;color:#a64251; }
+.avatar { background:#ffd9d7;color:#a71922; }
 .table-toolbar input,.table-toolbar select { background:#fffafa; }
-th { background:#fff5f4;color:#987c80; }
+th { background:#fff0ef;color:#94686b; }
 td { border-top-color:#f5e8e6; }
 .icon-btn:hover { background:#fff1ef; }
-.sidebar-help { background:rgba(255,255,255,.055); }
-.page-heading .eyebrow { color:#bd7c80; }
-/* Product workflow and realtime indicator */
+.sidebar-help { background:rgba(255,255,255,.12); }
+.page-heading .eyebrow { color:#d34b50; }
+.pos-searchbar { display:flex;gap:9px;align-items:center;margin:13px 0 10px; }
+.pos-searchbar input { flex:1;min-width:0;padding:12px 14px;border:1px solid #edcecf;border-radius:11px;background:#fff; }
+.pos-search-hint { color:#8a7779;font-size:10px;line-height:1.5;margin:0 0 11px; }
+.pos-pagination { display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:13px;margin-top:13px;border-top:1px solid #f1e1e1; }
+.pos-pagination .page-buttons { display:flex;gap:7px; }
+.pos-pagination button { border:1px solid #efd5d5;background:#fff;border-radius:9px;padding:8px 12px;color:#bb242c;font-weight:700; }
+.pos-pagination button:disabled { opacity:.4;cursor:not-allowed; }
+.payment-choice-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:18px 0; }
+.payment-choice { min-height:104px;border:1px solid #f0d0d0;background:linear-gradient(145deg,#fff0ef,#fff);border-radius:14px;padding:16px 10px;color:#8e2129;font-weight:800;display:grid;place-items:center;gap:7px; }
+.payment-choice:nth-child(2) { background:linear-gradient(145deg,#e9f7ef,#fff);border-color:#d5eadc;color:#276b4c; }
+.payment-choice:nth-child(3) { background:linear-gradient(145deg,#fff3dd,#fff);border-color:#f3e0bb;color:#8c5b18; }
+.payment-choice .payment-symbol { font-size:27px;line-height:1; }
+.receipt-stage { z-index:110;overflow-y:auto;align-items:center; }
+.receipt-view { width:min(430px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;display:grid;justify-items:center;gap:14px; }
+.receipt-paper { width:min(360px,100%);background:#fff;color:#171717;padding:20px 19px;border-radius:5px;box-shadow:0 14px 45px rgba(0,0,0,.18);font:12px/1.45 'Courier New',monospace; }
+.receipt-brand { text-align:center;font:bold 24px 'Plus Jakarta Sans',sans-serif;letter-spacing:1px;margin-bottom:2px; }
+.receipt-subtitle { text-align:center;font-size:10px;color:#555;margin-bottom:12px; }
+.receipt-dash { border-top:1px dashed #777;margin:10px 0; }
+.receipt-meta { display:flex;justify-content:space-between;gap:10px;font-size:10px;margin:3px 0; }
+.receipt-item { display:grid;grid-template-columns:1fr auto;gap:8px;padding:5px 0;font-size:11px; }
+.receipt-item small { display:block;color:#555;font-size:10px; }
+.receipt-grand-total { display:flex;justify-content:space-between;gap:10px;font-size:15px;font-weight:900;padding-top:7px; }
+.receipt-thanks { text-align:center;margin-top:14px;font-weight:700; }
+.operational-note { background:linear-gradient(135deg,#fff0df,#fffaf2);border:1px solid #f0dfc8;border-radius:12px;padding:13px;color:#80541e;font-size:11px; }
+.account-actions { display:flex;flex-wrap:wrap;gap:6px;min-width:210px; }
+.account-actions button { white-space:nowrap; }
+.account-log-time { color:#8d7779;font-size:10px; }
+.profile-security-note { background:#fff0ef;border:1px solid #f2d5d5;border-radius:12px;padding:13px;color:#853b40;font-size:11px;line-height:1.6; }
+.manual-lookup-results { display:grid;gap:6px;margin-top:7px; }
+.manual-lookup-results button { border:1px solid #efd9d9;background:#fff8f7;border-radius:9px;padding:9px 11px;text-align:left;color:#4b3334; }
+.manual-existing-banner { display:none;margin:8px 0;padding:10px;border-radius:9px;background:#eaf7ef;color:#276b4c;font-size:11px; }
+.manual-existing-banner.show { display:block; }
+@media (max-width:640px) { .payment-choice-grid{grid-template-columns:1fr;} .payment-choice{min-height:72px;grid-template-columns:36px 1fr;justify-items:start;text-align:left;padding:12px 16px;} .pos-searchbar{align-items:stretch;flex-direction:column;} .pos-pagination{align-items:flex-start;flex-direction:column;} .account-actions{min-width:0;} .receipt-paper{padding:16px 14px;} }
+/* Product workflow and realtime indicator *//* Product workflow and realtime indicator */
 .product-form-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end; }
 .product-form-grid .form-field { min-width:0; }
 .product-card-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px; }
@@ -360,6 +393,13 @@ td { border-top-color:#f5e8e6; }
   .print-label svg { display:block;width:36mm;height:16mm;max-width:36mm; }
   .print-label-price { height:4mm;line-height:4mm;font-size:9pt;font-weight:700; }
 }
+
+
+/* v1.2 final refinements */
+.login-brand-panel { background:radial-gradient(circle at 85% 12%,rgba(255,255,255,.22),transparent 30%),linear-gradient(145deg,#f02b32,#d71920 68%,#b5121b)!important; }
+.sidebar { background:linear-gradient(180deg,#e51c23 0%,#c8102e 100%)!important; }
+.btn-primary,.nav-link.active { border-color:transparent; }
+.modal-backdrop { backdrop-filter:blur(3px); }
 
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -407,7 +447,7 @@ td { border-top-color:#f5e8e6; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi superadmin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.1</span></div>
+        <div class="sidebar-version">KALAP System <span>v1.2</span></div>
       </div>
     </aside>
 
@@ -434,13 +474,14 @@ td { border-top-color:#f5e8e6; }
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-  createUserWithEmailAndPassword, deleteUser,
+  createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail,
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile,
   setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, getDoc, getDocFromCache, getDocFromServer, onSnapshot, query, where,
-  orderBy, limit, Timestamp, addDoc, setDoc, updateDoc, runTransaction, serverTimestamp
+  orderBy, limit, Timestamp, addDoc, setDoc, updateDoc, deleteDoc, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
 
@@ -480,6 +521,10 @@ let activePage = "dashboard";
 let monthKey = jakartaMonthKey(new Date());
 let historyDate = jakartaDateKey(new Date());
 let chartDays = 31;
+let operationalDate = jakartaDateKey(new Date());
+let posSearchQuery = "";
+let posCurrentPage = 1;
+const posPageSize = 12;
 let cart = new Map();
 let chartInstances = [];
 let unsubscribers = [];
@@ -535,6 +580,7 @@ function friendlyError(error) {
   if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password") || code.includes("auth/user-not-found")) return "Email atau kata sandi tidak sesuai.";
   if (code.includes("auth/email-already-in-use")) return "Email tersebut sudah terdaftar.";
   if (code.includes("auth/weak-password")) return "Kata sandi terlalu lemah. Gunakan minimal 8 karakter.";
+  if (code.includes("auth/requires-recent-login")) return "Sesi perlu diverifikasi ulang. Keluar lalu login kembali, kemudian coba ganti kata sandi.";
   if (code.includes("auth/too-many-requests")) return "Terlalu banyak percobaan. Coba lagi beberapa saat.";
   if (code.includes("permission-denied")) return "Akses ditolak. Periksa role akun dan Firestore Rules.";
   if (code.includes("failed-precondition")) return error.message || "Tindakan tidak dapat diproses karena kondisi belum terpenuhi.";
@@ -582,21 +628,31 @@ async function callApi(name, payload = {}) {
     if (!displayName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Nama dan email harus diisi dengan benar.");
     if (password.length < 8) throw new Error("Kata sandi minimal 8 karakter.");
     if (!["spv", "cashier", "partner"].includes(role)) throw new Error("Role akun tidak valid.");
-    let partnerId = null;
-    let partnerName = null;
-    if (role === "partner") {
-      partnerId = String(payload.partnerId || "");
-      if (!partnerId) throw new Error("Pilih data mitra untuk akun Mitra.");
-      const partnerSnap = await getDoc(doc(db, "partners", partnerId));
-      if (!partnerSnap.exists() || partnerSnap.data().active === false) throw new Error("Data mitra tidak ditemukan atau tidak aktif.");
-      partnerName = partnerSnap.data().name;
-    }
+
+    // Akun Mitra otomatis mendapatkan record mitra dengan nama yang sama.
+    // Admin tidak perlu memilih "mitra terkait" secara manual lagi.
+    const existingPartner = role === "partner"
+      ? store.partners.find(item => String(item.name || "").trim().toLowerCase() === displayName.toLowerCase() && !item.linkedUserUid)
+      : null;
+    const partnerRef = role === "partner" ? (existingPartner ? doc(db, "partners", existingPartner.id) : doc(collection(db, "partners"))) : null;
+    const partnerId = partnerRef?.id || null;
+    const partnerName = partnerRef ? (existingPartner?.name || displayName) : null;
     const secondaryApp = initializeApp(firebaseConfig, `kalap-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
     const secondaryAuth = getAuth(secondaryApp);
     let createdUser = null;
+    let partnerCreated = false;
     try {
       const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       createdUser = credential.user;
+      if (partnerRef) {
+        if (existingPartner) {
+          await updateDoc(partnerRef, { linkedUserUid: createdUser.uid, updatedAt: serverTimestamp() });
+        } else {
+          await setDoc(partnerRef, { name: partnerName, active: true, linkedUserUid: createdUser.uid,
+            createdAt: serverTimestamp(), createdBy: actorUid });
+          partnerCreated = true;
+        }
+      }
       await setDoc(doc(db, "users", createdUser.uid), {
         uid: createdUser.uid, displayName, email, role, partnerId, partnerName,
         active: true, createdAt: serverTimestamp(), createdBy: actorUid
@@ -604,7 +660,10 @@ async function callApi(name, payload = {}) {
       return { uid: createdUser.uid, email, displayName, role, partnerName };
     } catch (error) {
       if (createdUser) {
-        try { await deleteUser(createdUser); } catch (_) { /* akun dapat dibersihkan manual dari Authentication */ }
+        try { await deleteUser(createdUser); } catch (_) { /* Jika gagal, hapus akun dari Authentication Console. */ }
+      }
+      if (partnerCreated && partnerRef) {
+        try { await deleteDoc(partnerRef); } catch (_) { /* Catatan mitra dapat dibersihkan manual. */ }
       }
       throw error;
     } finally {
@@ -808,7 +867,8 @@ async function callApi(name, payload = {}) {
         note: `Penjualan ${code}`, source: "sale", transactionId: saleRef.id,
         transactionCode: code, createdAt, createdBy: actorUid });
       return { transactionId: saleRef.id, transactionCode: code, total, paymentMethod,
-        items: prepared.map(item => ({ name: item.name, qty: item.qty, subtotal: item.subtotal })) };
+        cashierName: actorName, createdAt: new Date(),
+        items: prepared.map(item => ({ name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal })) };
     });
     return result;
   }
@@ -858,6 +918,22 @@ async function callApi(name, payload = {}) {
     if (!["income", "expense"].includes(type) || !Number.isSafeInteger(amount) || amount < 1 || !category) throw new Error("Data pemasukan/pengeluaran tidak valid.");
     const ref = await addDoc(collection(db, "cashflows"), { type, amount, category,
       note: String(payload.note || ""), source: "manual", createdAt: serverTimestamp(), createdBy: actorUid });
+    return { entryId: ref.id };
+  }
+
+  if (name === "createOperationalEntry") {
+    requireRole("superadmin", "spv");
+    const type = String(payload.type || "expense");
+    const amount = Number(payload.amount);
+    const category = String(payload.category || "").trim();
+    const note = String(payload.note || "").trim();
+    if (!["income", "expense"].includes(type) || !Number.isSafeInteger(amount) || amount < 1 || !category) {
+      throw new Error("Jenis, kategori, dan jumlah operasional harus diisi dengan benar.");
+    }
+    const ref = await addDoc(collection(db, "cashflows"), {
+      type, amount, category, note, source: "operational", createdAt: serverTimestamp(),
+      createdBy: actorUid, createdByName: actorName
+    });
     return { entryId: ref.id };
   }
 
@@ -980,6 +1056,15 @@ function updateClockLabels() {
 function startSubscriptions() {
   safeUnsubscribe(unsubscribers);
   const role = profile.role;
+  const ownProfileRef = doc(db, "users", profile.uid);
+  unsubscribers.push(onSnapshot(ownProfileRef, snap => {
+    if (!snap.exists() || snap.data().active !== true) { signOut(auth); return; }
+    const fresh = { uid: profile.uid, ...snap.data() };
+    const nameChanged = fresh.displayName !== profile.displayName;
+    profile = fresh;
+    if (nameChanged) showShell();
+    if (activePage === "profile") renderPage();
+  }, onDataError));
   const menuQuery = role === "partner"
     ? query(collection(db, "menus"), where("partnerId", "==", profile.partnerId), where("active", "==", true))
     : query(collection(db, "menus"), orderBy("name", "asc"));
@@ -1056,11 +1141,14 @@ function subscribeMonthData(key) {
     store.movements = snap.docs.map(item => ({ id: item.id, ...item.data() }));
     renderPage();
   }, onDataError));
-  if (profile.role === "superadmin") {
-    const cashQuery = query(collection(db, "cashflows"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), orderBy("createdAt", "desc"), limit(1500));
+  if (["superadmin", "spv"].includes(profile.role)) {
+    const cashConstraints = [where("createdAt", ">=", startTs), where("createdAt", "<", endTs)];
+    if (profile.role === "spv") cashConstraints.push(where("source", "==", "operational"));
+    cashConstraints.push(orderBy("createdAt", "desc"), limit(1500));
+    const cashQuery = query(collection(db, "cashflows"), ...cashConstraints);
     monthUnsubscribers.push(onSnapshot(cashQuery, snap => {
       store.cashflows = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-      renderPage();
+      renderIfPage("dashboard", "finance", "operational");
     }, onDataError));
   }
 }
@@ -1076,15 +1164,18 @@ function navItems() {
   switch (profile.role) {
     case "superadmin": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests },
-      { section: "MANAJEMEN" }, { id: "partners", label: "Mitra", icon: ICONS.partners }, { id: "accounts", label: "Akun pengguna", icon: ICONS.accounts }, { id: "finance", label: "Keuangan", icon: ICONS.finance }
+      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "operational", label: "Operasional harian", icon: "◉" }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests },
+      { section: "MANAJEMEN" }, { id: "partners", label: "Mitra", icon: ICONS.partners }, { id: "accounts", label: "Akun pengguna", icon: ICONS.accounts }, { id: "finance", label: "Keuangan", icon: ICONS.finance },
+      { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     case "spv": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard SPV", icon: ICONS.dashboard },
-      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests }
+      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "operational", label: "Operasional harian", icon: "◉" }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests },
+      { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     case "cashier": return [
-      { section: "KASIR" }, { id: "pos", label: "Transaksi baru", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }
+      { section: "KASIR" }, { id: "pos", label: "Transaksi baru", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions },
+      { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     default: return [
       { section: "PORTAL MITRA" }, { id: "partnerHome", label: "Dashboard mitra", icon: ICONS.partnerHome }, { id: "partnerMenu", label: "Menu saya", icon: ICONS.partnerMenu }, { id: "partnerSales", label: "Penjualan saya", icon: ICONS.partnerSales }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests }
@@ -1101,7 +1192,7 @@ function renderPage() {
   renderNav();
   const titles = {
     dashboard: profile.role === "spv" ? "Dashboard SPV" : "Dashboard",
-    pos: "Kasir / POS", transactions: profile.role === "superadmin" ? "Riwayat & stok harian" : "Riwayat transaksi",
+    pos: "Kasir / POS", operational: "Operasional harian", profile: "Profil saya", transactions: profile.role === "superadmin" ? "Riwayat & stok harian" : "Riwayat transaksi",
     stock: profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", partners: "Manajemen mitra", accounts: "Akun pengguna",
     finance: "Keuangan", requests: "Permintaan stok", reviews: "Persetujuan produk", labels: "Cetak label", partnerHome: "Dashboard mitra", partnerMenu: "Menu saya", partnerSales: "Penjualan saya"
   };
@@ -1111,6 +1202,8 @@ function renderPage() {
   switch (activePage) {
     case "dashboard": page.innerHTML = profile.role === "spv" ? renderSpvDashboard() : renderSuperadminDashboard(); break;
     case "pos": page.innerHTML = renderPosPage(); break;
+    case "operational": page.innerHTML = ["superadmin", "spv"].includes(profile.role) ? renderOperationalPage() : `<div class="panel">Akses tidak diizinkan.</div>`; break;
+    case "profile": page.innerHTML = profile.role !== "partner" ? renderProfilePage() : `<div class="panel">Halaman tidak tersedia.</div>`; break;
     case "transactions": page.innerHTML = ["superadmin", "spv"].includes(profile.role) ? renderHistoryPage() : renderCashierHistoryPage(); break;
     case "stock": page.innerHTML = renderStockPage(); break;
     case "partners": page.innerHTML = renderPartnersPage(); break;
@@ -1128,6 +1221,8 @@ function renderPage() {
   if (activePage === "dashboard") profile.role === "spv" ? mountSpvChart() : mountSuperadminCharts();
 }
 function showPage(page) {
+  if (page === "operational" && !["superadmin", "spv"].includes(profile?.role)) return toast("Operasional hanya dapat diakses Superadmin dan SPV.", "error");
+  if (page === "profile" && profile?.role === "partner") return toast("Pengaturan profil tidak tersedia untuk akun Mitra.", "error");
   activePage = page;
   $("#sidebar").classList.remove("open");
   if (["spv", "cashier", "partner"].includes(profile?.role) && ["dashboard", "pos", "partnerHome"].includes(page)) {
@@ -1290,15 +1385,65 @@ function renderCashierHistoryPage() {
 
 function renderPosPage() {
   const availableMenus = store.menus.filter(menu => menu.active !== false);
-  const categories = [...new Set(availableMenus.map(menu => menu.category || "Lainnya"))];
   const cartItems = [...cart.values()];
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
-  return `${pageHeading("Kasir / POS", "Pilih menu, atur jumlah, lalu selesaikan pembayaran.", `<span class="status success">● Sistem siap</span>`)}
+  const staffCanOperate = ["superadmin", "spv"].includes(profile.role);
+  return `${pageHeading("Kasir / POS", "Cari nama menu atau scan barcode, lalu masukkan ke keranjang.", `${staffCanOperate ? `<button class="btn btn-light" data-nav="operational">Operasional hari ini ↗</button>` : ""}<span class="status success">● Sistem siap</span>`)}
     <div class="pos-layout"><section class="panel">${panelHeader("Daftar menu", `${integer(availableMenus.length)} menu aktif`, `<span class="muted" style="font-size:10px">Klik menu untuk menambahkan</span>`)}
-      ${availableMenus.length ? `<div class="menu-grid">${availableMenus.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>${escapeHtml(menu.category || "Menu")}</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">Belum ada menu aktif.<br>Hubungi superadmin untuk menambahkan menu.</div>`}
-    </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><label class="field-label" for="payment-method">Metode pembayaran</label><select id="payment-method"><option value="cash">Tunai</option><option value="qris">QRIS</option><option value="transfer">Transfer</option></select><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Selesaikan transaksi <span>→</span></button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
+      <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan barcode..." autocomplete="off" aria-label="Cari atau scan menu"><button type="button" class="btn btn-light" id="clear-pos-search">Bersihkan</button></div>
+      <p class="pos-search-hint">Scanner barcode akan mengetikkan kode ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
+      <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
+    </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Lanjut pilih pembayaran <span>→</span></button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
     <section class="panel" style="margin-top:15px">${panelHeader("Transaksi terbaru", "Aktivitas penjualan pada bulan yang dipilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(store.transactions.slice(0, 5), true)}</section>`;
 }
+
+function filteredPosMenus() {
+  const queryText = posSearchQuery.trim().toLowerCase();
+  return store.menus.filter(menu => menu.active !== false).filter(menu => !queryText ||
+    [menu.name, menu.category, menu.partnerName, menuBarcode(menu)].some(value => String(value || "").toLowerCase().includes(queryText)));
+}
+
+function drawPosMenuResults() {
+  const resultRoot = $("#pos-menu-results");
+  const pageRoot = $("#pos-menu-pagination");
+  if (!resultRoot || !pageRoot) return;
+  const filtered = filteredPosMenus();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / posPageSize));
+  posCurrentPage = Math.min(Math.max(1, posCurrentPage), totalPages);
+  const start = (posCurrentPage - 1) * posPageSize;
+  const current = filtered.slice(start, start + posPageSize);
+  resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>${escapeHtml(menu.category || "Menu")}</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau barcode." : "Belum ada menu aktif. Hubungi superadmin untuk menambahkan menu."}</div>`;
+  pageRoot.innerHTML = `<span class="muted">${filtered.length ? `Menampilkan ${start + 1}–${Math.min(start + posPageSize, filtered.length)} dari ${filtered.length} menu` : "0 menu ditemukan"} · Halaman ${posCurrentPage}/${totalPages}</span><div class="page-buttons"><button type="button" data-pos-page="prev" ${posCurrentPage <= 1 ? "disabled" : ""}>← Sebelumnya</button><button type="button" data-pos-page="next" ${posCurrentPage >= totalPages ? "disabled" : ""}>Berikutnya →</button></div>`;
+  $$('[data-add-menu]', resultRoot).forEach(button => button.addEventListener("click", () => addToCart(button.dataset.addMenu)));
+  pageRoot.querySelector('[data-pos-page="prev"]')?.addEventListener("click", () => { posCurrentPage -= 1; drawPosMenuResults(); });
+  pageRoot.querySelector('[data-pos-page="next"]')?.addEventListener("click", () => { posCurrentPage += 1; drawPosMenuResults(); });
+}
+
+function initPosMenuSearch() {
+  const input = $("#pos-menu-search");
+  if (!input) return;
+  input.value = posSearchQuery;
+  drawPosMenuResults();
+  input.addEventListener("input", () => { posSearchQuery = input.value; posCurrentPage = 1; drawPosMenuResults(); });
+  input.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = input.value.trim().toLowerCase();
+    if (!value) return;
+    const active = store.menus.filter(menu => menu.active !== false);
+    const exact = active.find(menu => menuBarcode(menu).toLowerCase() === value || String(menu.barcode || "").toLowerCase() === value);
+    const matches = exact ? [exact] : filteredPosMenus();
+    if (matches.length === 1) {
+      posSearchQuery = "";
+      addToCart(matches[0].id, true);
+    } else if (matches.length > 1) {
+      toast("Ditemukan beberapa menu. Pilih menu yang sesuai dari daftar.");
+      drawPosMenuResults();
+    } else toast("Barcode atau nama menu tidak ditemukan.", "error");
+  });
+  $("#clear-pos-search")?.addEventListener("click", () => { posSearchQuery = ""; posCurrentPage = 1; input.value = ""; drawPosMenuResults(); input.focus(); });
+}
+
 function reconcileCart() {
   for (const [id, row] of cart.entries()) {
     const menu = store.menus.find(item => item.id === id);
@@ -1338,12 +1483,48 @@ function renderPartnersPage() {
 }
 
 function renderAccountsPage() {
-  const partnerOptions = store.partners.filter(partner => partner.active !== false).map(partner => `<option value="${partner.id}">${escapeHtml(partner.name)}</option>`).join("");
-  return `${pageHeading("Akun pengguna", "Superadmin menentukan role dan identitas setiap akun.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
-    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh superadmin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Bagikan kata sandi awal secara pribadi. Pengguna dapat diarahkan untuk menggantinya setelah login.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div class="form-field" id="partner-user-field" style="display:none"><label>Mitra terkait</label><select name="partnerId"><option value="">Pilih mitra</option>${partnerOptions}</select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
-    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Superadmin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, stok, POS, riwayat</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Tidak ada tombol pendaftaran publik. Pembuatan akun menggunakan sesi superadmin. Jangan aktifkan pendaftaran publik.</div></div></section></div>
-    <section class="panel">${panelHeader("Akun terdaftar", "Akun yang memiliki akses ke sistem")}<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Mitra</th><th>Status</th></tr></thead><tbody>${store.users.map(user => `<tr><td><strong>${escapeHtml(user.displayName || user.name || "—")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td><span class="status neutral">${ROLE_LABELS[user.role] || escapeHtml(user.role)}</span></td><td>${escapeHtml(store.partners.find(partner => partner.id === user.partnerId)?.name || "—")}</td><td><span class="status ${user.active === false ? "inactive" : "success"}">${user.active === false ? "Nonaktif" : "Aktif"}</span></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada akun lain.</td></tr>`}</tbody></table></div></section>`;
+  const lastChanged = user => user.passwordChangedAt
+    ? `${formatDate(user.passwordChangedAt)} · ${formatTime(user.passwordChangedAt)}<div class="account-log-time">Diubah oleh ${escapeHtml(user.passwordChangedByName || user.displayName || "Pengguna")}</div>`
+    : "Belum ada catatan";
+  const rows = store.users.map(user => `<tr>
+    <td><strong>${escapeHtml(user.displayName || user.name || "—")}</strong><div class="account-log-time">${escapeHtml(user.email || "")}</div></td>
+    <td><span class="status neutral">${ROLE_LABELS[user.role] || escapeHtml(user.role)}</span></td>
+    <td><span class="account-log-time">${lastChanged(user)}</span></td>
+    <td><span class="status ${user.active === false ? "inactive" : "success"}">${user.active === false ? "Nonaktif" : "Aktif"}</span></td>
+    <td><div class="account-actions"><button class="action-link" data-edit-user-name="${user.id}" ${user.role === "superadmin" ? "disabled" : ""}>Edit nama</button>
+      ${["spv", "cashier"].includes(user.role) ? `<button class="action-link" data-reset-user="${user.id}">Kirim reset sandi</button>` : ""}
+      ${user.role !== "superadmin" ? `<button class="action-link danger" data-toggle-user="${user.id}" data-next-active="${user.active === false ? "true" : "false"}">${user.active === false ? "Aktifkan" : "Nonaktifkan"}</button><button class="action-link danger" data-delete-user="${user.id}">Hapus akun</button>` : `<span class="muted">Akun utama</span>`}</div></td>
+  </tr>`).join("");
+  return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
+    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Superadmin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Kata sandi awal dibagikan secara pribadi kepada pemilik akun.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
+    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Superadmin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, operasional, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
+    <section class="panel">${panelHeader("Akun terdaftar", "Perubahan nama dan status tersinkron realtime")}<div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">Belum ada akun lain.</td></tr>`}</tbody></table></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Firebase tidak menyediakan password asli untuk dibaca admin. Gunakan tombol kirim reset sandi atau minta staf mengganti sandi melalui Profil Saya. Perubahan melalui Profil Saya akan mencatat nama dan waktunya secara realtime. “Hapus akun” menghapus profil akses dari KALAP, tetapi identitas login di Firebase Authentication tetap tersimpan.</div></section>`;
 }
+
+function renderProfilePage() {
+  const name = profile.displayName || profile.name || currentUser.email || "";
+  return `${pageHeading("Profil saya", "Ubah nama tampilan atau kata sandi login untuk akun ini.")}
+    <div class="content-grid"><section class="panel">${panelHeader("Informasi akun", "Email login tidak dapat diubah dari halaman ini.")}
+      <form id="profile-form"><div class="form-field"><label>Nama tampilan</label><input name="displayName" required maxlength="80" value="${escapeHtml(name)}"></div><div class="form-field"><label>Email login</label><input value="${escapeHtml(currentUser.email || profile.email || "")}" disabled></div><div class="form-field"><label>Kata sandi saat ini</label><input name="currentPassword" type="password" autocomplete="current-password" placeholder="Wajib diisi jika mengganti kata sandi"></div><div class="form-field"><label>Kata sandi baru</label><input name="newPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Kosongkan jika hanya mengganti nama"></div><div class="form-field"><label>Ulangi kata sandi baru</label><input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Ulangi kata sandi baru"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan perubahan</button></div></form>
+    </section><section class="panel">${panelHeader("Keamanan akun", "Informasi perubahan kredensial")}
+      <div class="summary-list"><div class="summary-row"><span>Email login</span><strong>${escapeHtml(currentUser.email || "—")}</strong></div><div class="summary-row"><span>Role</span><strong>${ROLE_LABELS[profile.role]}</strong></div><div class="summary-row"><span>Perubahan sandi terakhir</span><strong>${profile.passwordChangedAt ? `${formatDate(profile.passwordChangedAt)} ${formatTime(profile.passwordChangedAt)}` : "Belum tercatat"}</strong></div></div>
+      <div class="profile-security-note" style="margin-top:14px">Password tidak ditampilkan atau disimpan sebagai teks biasa. Setelah berhasil mengganti password, Superadmin dapat melihat nama akun dan waktu perubahan sandi di menu Akun Pengguna.</div>
+    </section></div>`;
+}
+
+function renderOperationalPage() {
+  const rows = store.cashflows.filter(row => row.source === "operational" && dayKeyFromTimestamp(row.createdAt) === operationalDate)
+    .sort((a,b) => (asDate(b.createdAt) || 0) - (asDate(a.createdAt) || 0));
+  const income = rows.filter(row => row.type === "income").reduce((sum,row) => sum + Number(row.amount || 0),0);
+  const expense = rows.filter(row => row.type === "expense").reduce((sum,row) => sum + Number(row.amount || 0),0);
+  return `${pageHeading("Operasional harian", "Catat pengeluaran seperti sedekah, konsumsi, transportasi, dan kebutuhan harian. Hanya Superadmin dan SPV yang dapat mengakses.", `<input type="date" id="operational-date" value="${operationalDate}" aria-label="Pilih tanggal operasional">`)}
+    <section class="stats-grid">${statCard("Pemasukan operasional", money(income), "＋", "Tanggal terpilih")}${statCard("Pengeluaran operasional", money(expense), "−", "Tanggal terpilih")}${statCard("Selisih", money(income-expense), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Jumlah catatan", integer(rows.length), "▤", "Aktivitas operasional hari ini")}</section>
+    <div class="content-grid"><section class="panel">${panelHeader("Tambah catatan operasional", "Contoh: sedekah, konsumsi karyawan, bensin, parkir, listrik")}
+      <form id="operational-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="expense">Pengeluaran</option><option value="income">Pemasukan</option></select></div><div class="form-field"><label>Kategori operasional</label><input name="category" maxlength="60" required list="operational-category-options" placeholder="Contoh: Sedekah"><datalist id="operational-category-options"><option value="Sedekah"><option value="Konsumsi"><option value="Transportasi"><option value="Parkir"><option value="Listrik"><option value="Perlengkapan"><option value="Kebersihan"><option value="Lainnya"></datalist></div><div class="form-field"><label>Jumlah (Rp)</label><input name="amount" type="number" min="1" step="1" required placeholder="Contoh: 10000"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="3" maxlength="220" placeholder="Contoh: Sedekah Jumat / beli air minum"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan operasional</button></div></form>
+    </section><section class="panel">${panelHeader("Catatan hari terpilih", formatDate(dateFromKey(operationalDate),{day:"numeric",month:"long",year:"numeric"}))}<div class="operational-note"><strong>Perhatian:</strong> Catatan operasional terpisah dari transaksi POS. Pengeluaran seperti sedekah tidak akan mengurangi stok menu dan tidak dihitung sebagai penjualan.</div><div class="summary-list" style="margin-top:13px"><div class="summary-row"><span>Total uang masuk</span><strong>${money(income)}</strong></div><div class="summary-row"><span>Total uang keluar</span><strong>${money(expense)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Selisih</span><strong>${money(income-expense)}</strong></div></div></section></div>
+    <section class="panel">${panelHeader("Riwayat operasional", `${integer(rows.length)} catatan pada ${formatDate(dateFromKey(operationalDate))}`, `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Dicatat oleh</th><th>Jumlah</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${formatTime(row.createdAt)}</td><td><span class="status ${row.type==="income"?"success":"inactive"}">${row.type==="income"?"Pemasukan":"Pengeluaran"}</span></td><td><strong>${escapeHtml(row.category||"—")}</strong></td><td>${escapeHtml(row.note||"—")}</td><td>${escapeHtml(row.createdByName||"—")}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("")||`<tr><td colspan="6" class="table-empty">Belum ada catatan operasional pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
+}
+
 function renderFinancePage() {
   const totalIn = store.cashflows.filter(row => row.type === "income").reduce((s,row)=>s+Number(row.amount||0),0);
   const totalOut = store.cashflows.filter(row => row.type === "expense").reduce((s,row)=>s+Number(row.amount||0),0);
@@ -1436,11 +1617,15 @@ function attachPageEvents() {
     if (newMonth !== monthKey) subscribeMonthData(newMonth);
     else renderPage();
   });
-  $("#new-user-role")?.addEventListener("change", event => {
-    const field = $("#partner-user-field");
-    if (field) field.style.display = event.target.value === "partner" ? "block" : "none";
-  });
   $("#create-user-form")?.addEventListener("submit", createUserSubmit);
+  $("#profile-form")?.addEventListener("submit", saveOwnProfileSubmit);
+  $("#operational-form")?.addEventListener("submit", operationalSubmit);
+  $("#operational-date")?.addEventListener("change", event => {
+    if (!event.target.value) return;
+    operationalDate = event.target.value;
+    const newMonth = operationalDate.slice(0,7);
+    if (newMonth !== monthKey) subscribeMonthData(newMonth); else renderPage();
+  });
   $("#create-partner-form")?.addEventListener("submit", createPartnerSubmit);
   $("#create-menu-form")?.addEventListener("submit", createMenuSubmit);
   $("#receive-stock-form")?.addEventListener("submit", receiveStockSubmit);
@@ -1449,9 +1634,9 @@ function attachPageEvents() {
   $("#partner-product-form")?.addEventListener("submit", partnerProductSubmit);
   $("#menu-search")?.addEventListener("input", filterMenuRows);
   $("#menu-status-filter")?.addEventListener("change", filterMenuRows);
-  $("#checkout-btn")?.addEventListener("click", checkout);
+  $("#checkout-btn")?.addEventListener("click", openPaymentModal);
+  $("#pos-menu-search") && initPosMenuSearch();
   $("#clear-cart-btn")?.addEventListener("click", () => { cart.clear(); renderPage(); });
-  $$('[data-add-menu]').forEach(button => button.addEventListener("click", () => addToCart(button.dataset.addMenu)));
   $$('[data-cart-inc]').forEach(button => button.addEventListener("click", () => changeCart(button.dataset.cartInc, 1)));
   $$('[data-cart-dec]').forEach(button => button.addEventListener("click", () => changeCart(button.dataset.cartDec, -1)));
   $$('[data-open-modal]').forEach(button => button.addEventListener("click", () => openManagementModal(button.dataset.openModal)));
@@ -1462,16 +1647,20 @@ function attachPageEvents() {
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
+  $$('[data-edit-user-name]').forEach(button => button.addEventListener("click", () => editManagedUserName(button.dataset.editUserName)));
+  $$('[data-toggle-user]').forEach(button => button.addEventListener("click", () => toggleManagedUser(button.dataset.toggleUser, button.dataset.nextActive === "true", button)));
+  $$('[data-reset-user]').forEach(button => button.addEventListener("click", () => sendManagedUserPasswordReset(button.dataset.resetUser, button)));
   $$('[data-nav]').forEach(button => button.addEventListener("click", () => showPage(button.dataset.nav)));
 }
 
-function addToCart(menuId) {
+function addToCart(menuId, focusSearch = false) {
   const menu = store.menus.find(item => item.id === menuId);
   if (!menu || Number(menu.stock || 0) < 1) return toast("Stok menu habis.", "error");
   const current = cart.get(menuId);
   if (current && current.qty >= Number(menu.stock)) return toast("Jumlah melebihi stok yang tersedia.", "error");
   cart.set(menuId, { menuId, name: menu.name, price: Number(menu.price), qty: (current?.qty || 0) + 1 });
   renderPage();
+  if (focusSearch) { const input = $("#pos-menu-search"); input?.focus(); input?.select(); }
 }
 function changeCart(menuId, delta) {
   const row = cart.get(menuId);
@@ -1483,25 +1672,60 @@ function changeCart(menuId, delta) {
   else row.qty = next;
   renderPage();
 }
-async function checkout() {
+
+function openPaymentModal() {
   if (busy || !cart.size) return;
-  const button = $("#checkout-btn");
-  busy = true; setBusy(button, true);
+  const cartItems=[...cart.values()];
+  const total=cartItems.reduce((sum,row)=>sum+row.price*row.qty,0);
+  const root=$("#modal-root");
+  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total yang harus dibayar: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">💵</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">▦</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">🏦</span><span>Transfer</span></button></div><div class="helper-text">Setelah metode dipilih dan transaksi tersimpan, resi akan langsung tampil di layar.</div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
+  root.querySelectorAll("[data-pay-method]").forEach(button=>button.addEventListener("click",()=>checkout(button.dataset.payMethod,button)));
+  root.querySelectorAll("[data-payment-cancel], [data-payment-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-payment-cancel]"))root.innerHTML="";}));
+}
+
+async function checkout(paymentMethod) {
+  if (busy || !cart.size) return;
+  if (!['cash','qris','transfer'].includes(paymentMethod)) return toast("Metode pembayaran tidak valid.","error");
+  const root=$("#modal-root");
+  const choice=root.querySelector(`[data-pay-method="${paymentMethod}"]`);
+  busy = true;
+  if(choice) setBusy(choice,true,"Menyimpan...");
   try {
-    const paymentMethod = $("#payment-method")?.value || "cash";
     const payload = { items: [...cart.values()].map(row => ({ menuId: row.menuId, qty: row.qty })), paymentMethod };
     const result = await callApi("createSale", payload);
     cart.clear();
-    toast("Transaksi berhasil disimpan.", "success");
+    posSearchQuery="";posCurrentPage=1;
     renderPage();
     showReceipt(result);
-  } catch (error) { toast(friendlyError(error), "error"); }
-  finally { busy = false; }
+  } catch (error) {
+    root.innerHTML="";
+    toast(friendlyError(error), "error");
+  } finally { busy = false; }
 }
+
 function showReceipt(result) {
   const modal = $("#modal-root");
-  modal.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h2>Transaksi berhasil</h2><p>${escapeHtml(result.transactionCode || "")}</p></div><button class="modal-close" data-close-modal>×</button></div><div class="receipt-box"><h3>KALAP.</h3>${(result.items||[]).map(item=>`<div class="receipt-line"><span>${escapeHtml(item.name)} × ${integer(item.qty)}</span><strong>${money(item.subtotal)}</strong></div>`).join("")}<div class="receipt-line receipt-total"><span>Total</span><strong>${money(result.total)}</strong></div><div class="receipt-line"><span>Metode pembayaran</span><strong>${escapeHtml((result.paymentMethod||"").toUpperCase())}</strong></div></div><div class="form-actions"><button class="btn btn-primary" data-close-modal>Selesai</button></div></section></div>`;
-  modal.querySelectorAll("[data-close-modal]").forEach(item=>item.addEventListener("click", event=>{ if(event.target===item || item.tagName==="BUTTON") modal.innerHTML=""; }));
+  const createdAt=result.createdAt||new Date();
+  const totalQty=(result.items||[]).reduce((sum,item)=>sum+Number(item.qty||0),0);
+  modal.innerHTML = `<div class="modal-backdrop receipt-stage"><div class="receipt-view" role="dialog" aria-modal="true" aria-label="Resi transaksi">
+    <div class="receipt-paper"><div class="receipt-brand">KALAP.</div><div class="receipt-subtitle">BUKTI PEMBELIAN</div><div class="receipt-dash"></div>
+      <div class="receipt-meta"><span>No. Transaksi</span><strong>${escapeHtml(result.transactionCode||"—")}</strong></div>
+      <div class="receipt-meta"><span>Tanggal</span><span>${formatDate(createdAt,{day:"2-digit",month:"short",year:"numeric"})}</span></div>
+      <div class="receipt-meta"><span>Waktu</span><span>${formatTime(createdAt)} WIB</span></div>
+      <div class="receipt-meta"><span>Kasir</span><span>${escapeHtml(result.cashierName||profile.displayName||"KALAP")}</span></div>
+      <div class="receipt-dash"></div>
+      ${(result.items||[]).map(item=>`<div class="receipt-item"><div><strong>${escapeHtml(item.name)}</strong><small>${integer(item.qty)} x ${money(item.price)}</small></div><strong>${money(item.subtotal)}</strong></div>`).join("")}
+      <div class="receipt-dash"></div>
+      <div class="receipt-meta"><span>Total item</span><strong>${integer(totalQty)}</strong></div>
+      <div class="receipt-grand-total"><span>TOTAL</span><strong>${money(result.total)}</strong></div>
+      <div class="receipt-dash"></div>
+      <div class="receipt-meta"><span>Metode pembayaran</span><strong>${({cash:"TUNAI",qris:"QRIS",transfer:"TRANSFER"})[result.paymentMethod]||escapeHtml(result.paymentMethod||"—")}</strong></div>
+      <div class="receipt-dash"></div><div class="receipt-thanks">TERIMA KASIH<br><small>Selamat menikmati pesanan Anda.</small></div>
+    </div>
+    <button type="button" class="btn btn-primary btn-wide" id="receipt-back">← Kembali ke POS</button>
+    <div class="helper-text" style="color:#fff;text-align:center">Resi ini hanya ditampilkan di layar agar pelanggan dapat melihat atau memotretnya.</div>
+  </div></div>`;
+  modal.querySelector("#receipt-back").addEventListener("click",()=>{modal.innerHTML="";showPage("pos");});
 }
 
 function showTransactionDetail(transactionId) {
@@ -1518,11 +1742,52 @@ function openManagementModal(type) {
     root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah mitra</h2><p>Data mitra cukup menggunakan nama.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-partner-form"><div class="form-field"><label>Nama mitra / usaha</label><input name="name" required maxlength="80" placeholder="Nama pemilik atau usaha"></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan mitra</button></div></form></section></div>`;
     root.querySelector("#create-partner-form").addEventListener("submit", createPartnerSubmit);
   } else if (type === "menu") {
-    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Input produk manual</h2><p>SPV dapat memasukkan produk yang belum diajukan mitra.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-menu-form"><div class="form-field"><label>Nama menu / produk</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam"></div><div class="form-field"><label>Mitra pemilik</label><select name="partnerId" required><option value="">Pilih mitra</option>${store.partners.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}</select></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="40" placeholder="Makanan / Minuman"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div><div class="form-field"><label>Jumlah stok awal</label><input name="initialStock" type="number" min="0" step="1" value="0" required></div><div class="helper-text">Produk yang dibuat akan langsung muncul di dashboard mitra terkait. Barcode otomatis dibuat dan dapat dicetak dari menu Cetak Label.</div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan produk</button></div></form></section></div>`;
-    root.querySelector("#create-menu-form").addEventListener("submit", createMenuSubmit);
+    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Input produk manual</h2><p>Cari atau scan barcode terlebih dahulu untuk menghindari menu ganda. Menu yang sudah ada bisa langsung ditambah stoknya.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-menu-form"><div class="form-field"><label>Cari nama menu / scan barcode</label><input id="manual-menu-lookup" type="search" autocomplete="off" placeholder="Ketik nama atau scan barcode lalu Enter"></div><div id="manual-menu-lookup-results" class="manual-lookup-results"></div><div id="manual-existing-banner" class="manual-existing-banner"></div><input type="hidden" name="existingMenuId" value=""><div class="form-field"><label>Nama menu / produk baru</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam"></div><div class="form-field"><label>Mitra pemilik</label><select name="partnerId" required><option value="">Pilih mitra</option>${store.partners.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}</select></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="40" placeholder="Makanan / Minuman"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div><div class="form-field"><label>Jumlah stok awal / tambahan</label><input name="initialStock" type="number" min="0" step="1" value="0" required></div><div class="helper-text">Pilih menu yang ditemukan untuk menambah stok pada produk yang sama. Jika tidak memilih hasil, formulir akan membuat menu baru.</div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan produk</button></div></form></section></div>`;
+    const form = root.querySelector("#create-menu-form");
+    form.addEventListener("submit", createMenuSubmit);
+    const lookup = root.querySelector("#manual-menu-lookup");
+    const results = root.querySelector("#manual-menu-lookup-results");
+    const drawMatches = () => {
+      const q = lookup.value.trim().toLowerCase();
+      const matches = q ? store.menus.filter(menu => [menu.name, menuBarcode(menu), menu.barcode, menu.partnerName].some(value => String(value||"").toLowerCase().includes(q))).slice(0,6) : [];
+      results.innerHTML = matches.map(menu=>`<button type="button" data-manual-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><br><small>${escapeHtml(menuBarcode(menu))} · ${escapeHtml(menu.partnerName||"—")} · stok ${integer(menu.stock)}</small></button>`).join("") || (q ? `<div class="helper-text">Tidak ditemukan. Kamu bisa melanjutkan sebagai produk baru.</div>` : "");
+      results.querySelectorAll("[data-manual-select]").forEach(button=>button.addEventListener("click",()=>selectManualExistingMenu(button.dataset.manualSelect,form,lookup,results)));
+    };
+    lookup.addEventListener("input",drawMatches);
+    lookup.addEventListener("keydown",event=>{
+      if(event.key!=="Enter") return; event.preventDefault();
+      const q=lookup.value.trim().toLowerCase();
+      const exact=store.menus.find(menu=>menuBarcode(menu).toLowerCase()===q||String(menu.barcode||"").toLowerCase()===q);
+      const matches=exact?[exact]:store.menus.filter(menu=>[menu.name,menuBarcode(menu),menu.barcode].some(value=>String(value||"").toLowerCase().includes(q)));
+      if(matches.length===1) selectManualExistingMenu(matches[0].id,form,lookup,results);
+      else if(matches.length>1) drawMatches();
+      else toast("Menu belum ditemukan. Isi formulir sebagai produk baru.");
+    });
   }
   root.querySelectorAll("[data-modal-close], [data-modal-backdrop]").forEach(item=>item.addEventListener("click", event=>{ if(event.target===item || item.matches("[data-modal-close]")) root.innerHTML=""; }));
 }
+function selectManualExistingMenu(menuId, form, lookup, results) {
+  const menu = store.menus.find(item => item.id === menuId);
+  if (!menu) return;
+  form.querySelector('[name="existingMenuId"]').value = menu.id;
+  form.querySelector('[name="name"]').value = menu.name;
+  form.querySelector('[name="partnerId"]').value = menu.partnerId || "";
+  form.querySelector('[name="category"]').value = menu.category || "";
+  form.querySelector('[name="price"]').value = Number(menu.price || 0);
+  for (const field of ["name", "partnerId", "category", "price"]) form.querySelector(`[name="${field}"]`).disabled = true;
+  const banner = form.querySelector("#manual-existing-banner");
+  banner.textContent = `Menu terpilih: ${menu.name} · ${menuBarcode(menu)} · stok sekarang ${integer(menu.stock)}. Jumlah yang dimasukkan akan ditambahkan ke stok menu ini.`;
+  banner.classList.add("show");
+  lookup.value = menu.name;
+  results.innerHTML = `<button type="button" id="manual-clear-selected">Hapus pilihan menu ini / buat menu baru</button>`;
+  results.querySelector("#manual-clear-selected").addEventListener("click",()=>{
+    form.querySelector('[name="existingMenuId"]').value="";
+    for (const field of ["name", "partnerId", "category", "price"]) { const el=form.querySelector(`[name="${field}"]`); el.disabled=false; el.value=""; }
+    form.querySelector('[name="initialStock"]').value="0";
+    banner.classList.remove("show"); banner.textContent=""; lookup.value=""; results.innerHTML=""; lookup.focus();
+  });
+}
+
 function editMenu(menuId) {
   const menu = store.menus.find(item=>item.id===menuId);
   if (!menu) return;
@@ -1542,17 +1807,141 @@ async function createPartnerSubmit(event) {
   catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 }
 async function createMenuSubmit(event) {
-  event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); setBusy(button,true);
-  try { const data=Object.fromEntries(new FormData(form)); const result=await callApi("createMenu", {...data,price:Number(data.price),initialStock:Number(data.initialStock||0)}); $("#modal-root").innerHTML=""; toast(`Produk ditambahkan. Barcode ${result.barcode} berhasil dibuat.`,"success"); if(activePage!=="stock") showPage("stock"); }
-  catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
+  event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); const data=Object.fromEntries(new FormData(form)); setBusy(button,true);
+  try {
+    if (data.existingMenuId) {
+      const qty=Number(data.initialStock||0);
+      if(!Number.isInteger(qty)||qty<1) throw new Error("Jumlah stok tambahan harus lebih dari 0.");
+      const result=await callApi("receiveStock",{menuId:data.existingMenuId,qty,note:"Penambahan stok manual SPV melalui pencarian / scanner barcode"});
+      $("#modal-root").innerHTML="";toast(`Stok ${result.menuName} berhasil ditambah ${integer(qty)} unit.`,"success");
+    } else {
+      const result=await callApi("createMenu", {...data,price:Number(data.price),initialStock:Number(data.initialStock||0)});
+      $("#modal-root").innerHTML="";toast(`Produk ditambahkan. Barcode ${result.barcode} berhasil dibuat.`,"success");
+    }
+    if(activePage!=="stock") showPage("stock"); else renderPage();
+  } catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 }
 async function createUserSubmit(event) {
   event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); const data=Object.fromEntries(new FormData(form));
-  if(data.role==="partner"&&!data.partnerId) return toast("Pilih mitra untuk akun dengan role Mitra.","error");
   setBusy(button,true);
-  try { await callApi("createManagedUser", data); form.reset(); $("#partner-user-field").style.display="none"; toast("Akun berhasil dibuat. Sampaikan email dan kata sandi awal kepada pengguna.","success"); }
+  try { await callApi("createManagedUser", data); form.reset(); toast(data.role==="partner"?"Akun Mitra dibuat dan data mitra otomatis terhubung.":"Akun berhasil dibuat. Sampaikan email dan kata sandi awal secara pribadi.","success"); }
   catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 }
+async function operationalSubmit(event) {
+  event.preventDefault();
+  if (! ["superadmin", "spv"].includes(profile?.role)) return toast("Akses operasional ditolak.", "error");
+  if (operationalDate !== jakartaDateKey(new Date())) return toast("Catatan baru hanya bisa dicatat untuk hari ini. Pilih tanggal hari ini untuk menambahkan operasional.", "error");
+  const form=event.currentTarget; const button=form.querySelector('[type="submit"]'); const data=Object.fromEntries(new FormData(form));
+  setBusy(button,true,"Menyimpan...");
+  try { await callApi("createOperationalEntry",{...data,amount:Number(data.amount)}); form.reset(); toast("Catatan operasional tersimpan dan diperbarui realtime.","success"); }
+  catch(error){toast(friendlyError(error),"error");}
+  finally{setBusy(button,false);}
+}
+
+async function saveOwnProfileSubmit(event) {
+  event.preventDefault();
+  if (!profile || profile.role === "partner") return;
+  const form=event.currentTarget; const button=form.querySelector('[type="submit"]'); const data=Object.fromEntries(new FormData(form));
+  const displayName=String(data.displayName||"").trim();
+  const currentPassword=String(data.currentPassword||"");
+  const newPassword=String(data.newPassword||"");
+  const confirmPassword=String(data.confirmPassword||"");
+  if(!displayName) return toast("Nama tampilan wajib diisi.","error");
+  if(newPassword && newPassword.length<8) return toast("Kata sandi baru minimal 8 karakter.","error");
+  if(newPassword && newPassword!==confirmPassword) return toast("Ulangi kata sandi baru belum cocok.","error");
+  if(newPassword && !currentPassword) return toast("Masukkan kata sandi saat ini untuk verifikasi.","error");
+  setBusy(button,true,"Menyimpan...");
+  try {
+    if(newPassword){
+      const credential=EmailAuthProvider.credential(currentUser.email,currentPassword);
+      await reauthenticateWithCredential(currentUser,credential);
+      await updatePassword(currentUser,newPassword);
+    }
+    await updateDoc(doc(db,"users",profile.uid),{
+      displayName,
+      updatedAt:serverTimestamp(),
+      ...(newPassword?{passwordChangedAt:serverTimestamp(),passwordChangedByName:displayName}: {})
+    });
+    await updateProfile(currentUser,{displayName});
+    profile={...profile,displayName,...(newPassword?{passwordChangedAt:new Date(),passwordChangedByName:displayName}:{})};
+    showShell();
+    toast(newPassword?"Nama dan kata sandi berhasil diperbarui.":"Nama berhasil diperbarui.","success");
+    renderPage();
+  } catch(error){toast(friendlyError(error),"error");}
+  finally{setBusy(button,false);}
+}
+
+function editManagedUserName(userId) {
+  requireRole("superadmin");
+  const user=store.users.find(item=>item.id===userId);
+  if(!user||user.role==="superadmin") return;
+  const root=$("#modal-root");
+  root.innerHTML=`<div class="modal-backdrop" data-account-edit-backdrop><section class="modal"><div class="modal-head"><div><h2>Edit nama akun</h2><p>${escapeHtml(user.email||"")}</p></div><button class="modal-close" data-account-edit-close>×</button></div><form id="edit-managed-user-form"><div class="form-field"><label>Nama baru</label><input name="displayName" maxlength="80" required value="${escapeHtml(user.displayName||"")}"></div><div class="form-actions"><button type="button" class="btn btn-light" data-account-edit-close>Batal</button><button type="submit" class="btn btn-primary">Simpan nama</button></div></form></section></div>`;
+  root.querySelector("#edit-managed-user-form").addEventListener("submit",async event=>{
+    event.preventDefault();const form=event.currentTarget;const button=form.querySelector('[type="submit"]');const name=String(new FormData(form).get("displayName")||"").trim();if(!name)return;
+    setBusy(button,true);
+    try{
+      await updateDoc(doc(db,"users",userId),{displayName:name,updatedAt:serverTimestamp(),updatedBy:profile.uid});
+      if(user.role==="partner"&&user.partnerId) await updateDoc(doc(db,"partners",user.partnerId),{name,updatedAt:serverTimestamp()});
+      root.innerHTML="";toast("Nama akun berhasil diperbarui.","success");
+    }catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
+  });
+  root.querySelectorAll("[data-account-edit-close],[data-account-edit-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-account-edit-close]"))root.innerHTML="";}));
+}
+
+async function toggleManagedUser(userId,nextActive,button) {
+  requireRole("superadmin");
+  const user=store.users.find(item=>item.id===userId);
+  if(!user||user.role==="superadmin") return;
+  const message=nextActive?`Aktifkan kembali akun ${user.displayName||user.email}?`:`Nonaktifkan akses ${user.displayName||user.email} dari KALAP?`;
+  if(!confirm(message)) return;
+  setBusy(button,true,"Memproses...");
+  try{await updateDoc(doc(db,"users",userId),{active:Boolean(nextActive),updatedAt:serverTimestamp(),updatedBy:profile.uid});toast(nextActive?"Akun diaktifkan kembali.":"Akses akun dinonaktifkan.","success");}
+  catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
+}
+
+
+async function deleteManagedUser(userId,button) {
+  requireRole("superadmin");
+  const user=store.users.find(item=>item.id===userId);
+  if(!user || user.role==="superadmin" || user.uid===profile.uid) return;
+  const warning = user.role === "partner"
+    ? `Hapus profil akun Mitra ${user.displayName||user.email} dari KALAP? Data mitra dan riwayat produknya tetap disimpan, tetapi akun tersebut tidak dapat login ke KALAP lagi.`
+    : `Hapus profil akun ${user.displayName||user.email} dari KALAP? Akun tersebut tidak dapat login ke KALAP lagi.`;
+  if(!confirm(warning + "\n\nCatatan: identitas login di Firebase Authentication tetap ada dan tidak dihapus permanen karena aplikasi ini tidak memakai backend Admin SDK.")) return;
+  setBusy(button,true,"Menghapus...");
+  try {
+    const userRef=doc(db,"users",userId);
+    await runTransaction(db,async tx=>{
+      const userSnap=await tx.get(userRef);
+      if(!userSnap.exists()) throw new Error("Profil akun sudah tidak ditemukan.");
+      const userData=userSnap.data();
+      if(userData.role==="superadmin" || userData.uid===profile.uid) throw new Error("Akun Superadmin utama tidak dapat dihapus.");
+      let partnerRef=null,partnerSnap=null;
+      if(userData.role==="partner" && userData.partnerId){
+        partnerRef=doc(db,"partners",userData.partnerId);
+        partnerSnap=await tx.get(partnerRef);
+      }
+      if(partnerRef && partnerSnap?.exists() && partnerSnap.data().linkedUserUid===userId){
+        tx.update(partnerRef,{linkedUserUid:null,updatedAt:serverTimestamp()});
+      }
+      tx.delete(userRef);
+    });
+    toast("Profil akun dihapus dari KALAP. Identitas Firebase Authentication tetap tersimpan.","success");
+  } catch(error){toast(friendlyError(error),"error");}
+  finally{setBusy(button,false);}
+}
+
+async function sendManagedUserPasswordReset(userId,button) {
+  requireRole("superadmin");
+  const user=store.users.find(item=>item.id===userId);
+  if(!user||!["spv","cashier"].includes(user.role)) return;
+  if(!confirm(`Kirim tautan reset kata sandi ke ${user.email}?`)) return;
+  setBusy(button,true,"Mengirim...");
+  try{await sendPasswordResetEmail(auth,user.email);toast(`Tautan reset kata sandi dikirim ke ${user.email}.`,"success");}
+  catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
+}
+
 async function partnerProductSubmit(event) {
   event.preventDefault(); const form=event.currentTarget; const button=form.querySelector('button[type="submit"]');
   const data=Object.fromEntries(new FormData(form)); setBusy(button,true,"Mengirim...");
