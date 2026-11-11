@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171a18">
+  <meta name="theme-color" content="#421e27">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
   <title>KALAP — Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -276,8 +276,94 @@ td strong { color: #333d35; font-size: 10px; }
   .login-card h2 { font-size: 27px; }
 }
 
+
+/* KALAP v1.1 — warm red + pastel operational palette */
+:root {
+  --ink:#38272a; --muted:#927f80; --paper:#fff8f7; --panel:#fffefe; --line:#f0dddd;
+  --dark:#421e27; --dark-2:#592a35; --accent:#e45b63; --accent-deep:#b83e4d;
+  --red:#d94d59; --green:#3d8b70; --amber:#bd873c;
+  --shadow:0 12px 34px rgba(110,42,53,.065);
+}
+body { background:linear-gradient(135deg,#fff8f6 0%,#fff5f2 48%,#fffaf4 100%); }
+.brand-mark { color:#fff; background:linear-gradient(145deg,#eb7377,#c94455); box-shadow:0 5px 13px rgba(210,72,87,.2); }
+.brand-dot { color:#f28a86; }
+.login-brand-panel,.sidebar { background:radial-gradient(circle at 85% 12%,rgba(232,112,117,.24),transparent 29%),linear-gradient(155deg,#4a202b,#351820 75%); }
+.login-brand-panel::before,.login-brand-panel::after { border-color:rgba(255,187,178,.17); }
+.login-brand-copy h1 em { color:#ffaaa1; }
+.login-brand-footer .live-dot,.live-dot { background:#83c6a4; box-shadow:0 0 0 4px rgba(131,198,164,.13); }
+.btn-primary { color:#fff; background:linear-gradient(135deg,#e96b70,#cd4858); box-shadow:0 5px 12px rgba(209,72,88,.13); }
+.btn-primary:hover { background:linear-gradient(135deg,#f17c7e,#d85160); }
+.nav-link.active { color:#ffb4ad; background:rgba(236,111,119,.15); }
+.nav-link:hover { background:rgba(255,255,255,.075); }
+input:focus,select:focus,textarea:focus { border-color:#e88c8c; box-shadow:0 0 0 3px rgba(232,126,132,.15); }
+.range-control input { accent-color:#d95360; }
+.stat-card { border-color:#f1dede; }
+.stats-grid .stat-card:nth-child(4n+1) { background:linear-gradient(145deg,#fff0ef,#fffafa); }
+.stats-grid .stat-card:nth-child(4n+2) { background:linear-gradient(145deg,#fff4df,#fffdf8); }
+.stats-grid .stat-card:nth-child(4n+3) { background:linear-gradient(145deg,#eaf7ef,#fbfffc); }
+.stats-grid .stat-card:nth-child(4n+4) { background:linear-gradient(145deg,#f2edff,#fffaff); }
+.stats-grid .stat-card:nth-child(4n+1) .stat-icon { background:#ffdedd;color:#bb5360; }
+.stats-grid .stat-card:nth-child(4n+2) .stat-icon { background:#ffeac4;color:#a9762c; }
+.stats-grid .stat-card:nth-child(4n+3) .stat-icon { background:#d7f0e1;color:#398365; }
+.stats-grid .stat-card:nth-child(4n+4) .stat-icon { background:#e6dcff;color:#8062bb; }
+.panel { border-color:#f0dfde; background:linear-gradient(150deg,#fff 0%,#fffdfc 100%); }
+.content-grid .panel:nth-child(odd) { background:linear-gradient(145deg,#fff7f5,#fffefe 70%); }
+.content-grid .panel:nth-child(even) { background:linear-gradient(145deg,#fffaf0,#fffefe 70%); }
+.menu-tile { background:linear-gradient(145deg,#fff2f1,#fffdfc); border-color:#f1d9d8; }
+.menu-tile:nth-child(4n+2) { background:linear-gradient(145deg,#fff5e4,#fffdf9); }
+.menu-tile:nth-child(4n+3) { background:linear-gradient(145deg,#edf8f0,#fffdfd); }
+.menu-tile:nth-child(4n+4) { background:linear-gradient(145deg,#f3efff,#fffdfd); }
+.menu-tile h3 { color:#4a3034; }
+.menu-tile .price,.panel-action,.action-link { color:#c84a58; }
+.status.success { color:#34795d; background:#e8f6ee; }
+.status.pending { color:#976729; background:#fff1d9; }
+.status.inactive { color:#a14c56; background:#ffeded; }
+.status.neutral { color:#765b72; background:#f4edf5; }
+.info-banner { background:#fff0ec; color:#8e4c4d; }
+.info-banner strong { color:#77383f; }
+.connection-pill { background:#edf8f1;border-color:#d9ecdf;color:#4d8167; }
+.avatar { background:#ffe0dc;color:#a64251; }
+.table-toolbar input,.table-toolbar select { background:#fffafa; }
+th { background:#fff5f4;color:#987c80; }
+td { border-top-color:#f5e8e6; }
+.icon-btn:hover { background:#fff1ef; }
+.sidebar-help { background:rgba(255,255,255,.055); }
+.page-heading .eyebrow { color:#bd7c80; }
+/* Product workflow and realtime indicator */
+.product-form-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end; }
+.product-form-grid .form-field { min-width:0; }
+.product-card-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px; }
+.product-card { border:1px solid #f0dedd;border-radius:13px;padding:14px;background:linear-gradient(145deg,#fff1ef,#fffdfc); }
+.product-card:nth-child(3n+2) { background:linear-gradient(145deg,#fff4df,#fffdf9); }
+.product-card:nth-child(3n+3) { background:linear-gradient(145deg,#eff8f1,#fffdfd); }
+.product-card h3 { margin:0 0 7px;font:800 13px 'Plus Jakarta Sans';color:#4a3034; }
+.product-card .product-meta { color:#917d7e;font-size:10px;line-height:1.7; }
+.product-card .product-quantity { font:800 23px 'Plus Jakarta Sans';color:#c84a58;margin:10px 0 3px; }
+.live-pulse { display:inline-block;width:7px;height:7px;background:#38a879;border-radius:50%;box-shadow:0 0 0 4px rgba(56,168,121,.12);margin-right:6px; }
+.label-preview { width:40mm;height:30mm;border:1px dashed #e4b9b8;border-radius:5px;background:white;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:1.5mm 2mm;overflow:hidden;color:#111; }
+.label-preview-name { width:100%;font:700 8pt Arial,sans-serif;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.label-preview svg { width:35mm;height:15mm;display:block; }
+.label-preview-price { font:700 9pt Arial,sans-serif;line-height:1; }
+#label-print-root { display:none; }
+@media (max-width:760px) {
+  .product-form-grid { grid-template-columns:1fr; }
+  .product-card-grid { grid-template-columns:1fr; }
+}
+@media print {
+  @page { size:40mm 30mm; margin:0; }
+  html,body { width:40mm!important;margin:0!important;padding:0!important;background:#fff!important; }
+  body.printing-labels > *:not(#label-print-root) { display:none!important; }
+  body.printing-labels #label-print-root { display:block!important;position:static!important;width:40mm!important;margin:0!important;padding:0!important; }
+  .print-label { width:40mm;height:30mm;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:1.2mm 1.5mm;page-break-after:always;break-after:page;background:#fff;color:#000;font-family:Arial,sans-serif; }
+  .print-label:last-child { page-break-after:auto;break-after:auto; }
+  .print-label-name { width:100%;height:4.2mm;line-height:4.2mm;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:8pt;font-weight:700; }
+  .print-label svg { display:block;width:36mm;height:16mm;max-width:36mm; }
+  .print-label-price { height:4mm;line-height:4mm;font-size:9pt;font-weight:700; }
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 </head>
 <body>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -321,7 +407,7 @@ td strong { color: #333d35; font-size: 10px; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi superadmin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.0</span></div>
+        <div class="sidebar-version">KALAP System <span>v1.1</span></div>
       </div>
     </aside>
 
@@ -352,7 +438,8 @@ import {
   setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, onSnapshot, query, where,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDoc, getDocFromCache, getDocFromServer, onSnapshot, query, where,
   orderBy, limit, Timestamp, addDoc, setDoc, updateDoc, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -384,7 +471,7 @@ const DATE_LONG = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", w
 const DATE_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short" });
 const TIME_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false });
 const ROLE_LABELS = { superadmin: "Superadmin", spv: "SPV", cashier: "Kasir", partner: "Mitra" };
-const ICONS = { dashboard: "◫", transactions: "↗", pos: "▣", stock: "▤", partners: "♧", accounts: "♙", finance: "◉", partnerHome: "⌂", partnerMenu: "▦", partnerSales: "◷", requests: "＋" };
+const ICONS = { dashboard: "◫", transactions: "↗", pos: "▣", stock: "▤", partners: "♧", accounts: "♙", finance: "◉", partnerHome: "⌂", partnerMenu: "▦", partnerSales: "◷", requests: "＋", reviews: "✓", labels: "▥" };
 
 let app, auth, db;
 let currentUser = null;
@@ -397,7 +484,7 @@ let cart = new Map();
 let chartInstances = [];
 let unsubscribers = [];
 let monthUnsubscribers = [];
-let store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], partnerSales: [], stockRequests: [] };
+let store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], partnerSales: [], stockRequests: [], productSubmissions: [] };
 let busy = false;
 
 function jakartaDateKey(date) {
@@ -476,6 +563,9 @@ function transactionCode() {
   const suffix = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `KLP-${date}-${suffix}`;
 }
+function menuBarcode(menu) {
+  return String(menu?.barcode || `KLP-${String(menu?.id || "MENU").replace(/[^a-z0-9]/gi, "").slice(0, 16).toUpperCase()}`);
+}
 
 // Semua operasi tulis dilakukan langsung ke Cloud Firestore.
 // Firestore Security Rules tetap menjadi pemeriksaan akses utama di server.
@@ -525,31 +615,110 @@ async function callApi(name, payload = {}) {
 
   if (name === "createPartner") {
     requireRole("superadmin");
-    const data = {
-      name: String(payload.name || "").trim(), phone: String(payload.phone || "").trim(),
-      note: String(payload.note || "").trim(), active: true,
-      createdAt: serverTimestamp(), createdBy: actorUid
-    };
+    const data = { name: String(payload.name || "").trim(), active: true,
+      createdAt: serverTimestamp(), createdBy: actorUid };
     if (!data.name) throw new Error("Nama mitra wajib diisi.");
     const ref = await addDoc(collection(db, "partners"), data);
     return { partnerId: ref.id, name: data.name };
   }
 
   if (name === "createMenu") {
-    requireRole("superadmin");
+    requireRole("superadmin", "spv");
     const partnerId = String(payload.partnerId || "");
     const partnerSnap = await getDoc(doc(db, "partners", partnerId));
     if (!partnerSnap.exists() || partnerSnap.data().active === false) throw new Error("Mitra tidak ditemukan atau tidak aktif.");
     const partner = partnerSnap.data();
-    const data = {
-      name: String(payload.name || "").trim(), partnerId, partnerName: partner.name,
-      category: String(payload.category || "Lainnya").trim() || "Lainnya",
-      price: Number(payload.price), stock: 0, active: true,
+    const nameValue = String(payload.name || "").trim();
+    const price = Number(payload.price);
+    const qty = Number(payload.initialStock || 0);
+    const category = String(payload.category || "Lainnya").trim() || "Lainnya";
+    if (!nameValue || !Number.isSafeInteger(price) || price < 1 || !Number.isInteger(qty) || qty < 0 || qty > 100000) {
+      throw new Error("Nama, harga, dan jumlah stok awal harus valid.");
+    }
+    const menuRef = doc(collection(db, "menus"));
+    const movementRef = qty > 0 ? doc(collection(db, "stockMovements")) : null;
+    const barcode = `KLP-${menuRef.id.toUpperCase()}`;
+    const createdAt = serverTimestamp();
+    await runTransaction(db, async tx => {
+      tx.set(menuRef, {
+        name: nameValue, partnerId, partnerName: partner.name, category, price,
+        stock: qty, active: true, barcode, createdAt, createdBy: actorUid,
+        updatedAt: createdAt, ...(movementRef ? { lastMovementId: movementRef.id } : {})
+      });
+      if (movementRef) tx.set(movementRef, {
+        type: "in", qty, menuId: menuRef.id, menuName: nameValue, partnerId,
+        partnerName: partner.name, stockBefore: 0, stockAfter: qty,
+        note: "Stok awal produk dicatat oleh SPV/KALAP", source: "manual_product",
+        actorUid, actorName, createdAt
+      });
+    });
+    return { menuId: menuRef.id, name: nameValue, barcode, stock: qty };
+  }
+
+  if (name === "submitPartnerProduct") {
+    requireRole("partner");
+    const nameValue = String(payload.name || "").trim();
+    const price = Number(payload.price);
+    const qtyRequested = Number(payload.qtyRequested);
+    const category = String(payload.category || "Lainnya").trim() || "Lainnya";
+    if (!profile.partnerId || !nameValue || !Number.isSafeInteger(price) || price < 1 || !Number.isInteger(qtyRequested) || qtyRequested < 1 || qtyRequested > 100000) {
+      throw new Error("Nama produk, harga, dan jumlah pengajuan harus valid.");
+    }
+    const ref = await addDoc(collection(db, "productSubmissions"), {
+      partnerId: profile.partnerId, partnerName: profile.partnerName || "Mitra",
+      name: nameValue, category, price, qtyRequested, status: "pending",
       createdAt: serverTimestamp(), createdBy: actorUid, updatedAt: serverTimestamp()
-    };
-    if (!data.name || !Number.isSafeInteger(data.price) || data.price < 1) throw new Error("Nama menu dan harga yang valid wajib diisi.");
-    const ref = await addDoc(collection(db, "menus"), data);
-    return { menuId: ref.id, name: data.name };
+    });
+    return { submissionId: ref.id };
+  }
+
+  if (name === "reviewPartnerProduct") {
+    requireRole("superadmin", "spv");
+    const submissionId = String(payload.submissionId || "");
+    const decision = String(payload.decision || "");
+    const approvedQty = Number(payload.approvedQty);
+    const approvedName = String(payload.approvedName || "").trim();
+    const approvedPrice = Number(payload.approvedPrice);
+    if (!submissionId || !["approved", "rejected"].includes(decision)) throw new Error("Keputusan persetujuan tidak valid.");
+    if (decision === "approved" && (!approvedName || !Number.isSafeInteger(approvedPrice) || approvedPrice < 1 || !Number.isInteger(approvedQty) || approvedQty < 1 || approvedQty > 100000)) throw new Error("Nama, harga, dan jumlah yang disetujui harus valid.");
+    const submissionRef = doc(db, "productSubmissions", submissionId);
+    const menuRef = decision === "approved" ? doc(collection(db, "menus")) : null;
+    const movementRef = decision === "approved" ? doc(collection(db, "stockMovements")) : null;
+    const createdAt = serverTimestamp();
+    await runTransaction(db, async tx => {
+      const submissionSnap = await tx.get(submissionRef);
+      if (!submissionSnap.exists()) throw new Error("Pengajuan produk tidak ditemukan.");
+      const submission = submissionSnap.data();
+      if (submission.status !== "pending") throw new Error("Pengajuan ini sudah diproses sebelumnya.");
+      if (decision === "rejected") {
+        tx.update(submissionRef, { status: "rejected", reviewedBy: actorUid,
+          reviewedByName: actorName, reviewedAt: createdAt, updatedAt: createdAt,
+          reviewNote: String(payload.reviewNote || "") });
+        return;
+      }
+      const barcode = `KLP-${menuRef.id.toUpperCase()}`;
+      tx.set(menuRef, {
+        name: approvedName, partnerId: submission.partnerId, partnerName: submission.partnerName,
+        category: submission.category || "Lainnya", price: approvedPrice,
+        stock: approvedQty, active: true, barcode, createdAt, createdBy: actorUid,
+        updatedAt: createdAt, lastMovementId: movementRef.id, sourceSubmissionId: submissionRef.id
+      });
+      tx.set(movementRef, {
+        type: "in", qty: approvedQty, menuId: menuRef.id, menuName: approvedName,
+        partnerId: submission.partnerId, partnerName: submission.partnerName,
+        stockBefore: 0, stockAfter: approvedQty,
+        note: `Produk mitra disetujui; jumlah disahkan ${approvedQty}`,
+        source: "partner_submission", requestId: submissionRef.id,
+        actorUid, actorName, createdAt
+      });
+      tx.update(submissionRef, {
+        status: "approved", qtyApproved: approvedQty, approvedName, approvedPrice, menuId: menuRef.id,
+        barcode, reviewedBy: actorUid, reviewedByName: actorName,
+        reviewedAt: createdAt, updatedAt: createdAt,
+        reviewNote: String(payload.reviewNote || "")
+      });
+    });
+    return { submissionId, decision, menuId: menuRef?.id || null };
   }
 
   if (name === "updateMenu") {
@@ -712,7 +881,7 @@ async function callApi(name, payload = {}) {
 }
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
 function resetStore() {
-  store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], partnerSales: [], stockRequests: [] };
+  store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], partnerSales: [], stockRequests: [], productSubmissions: [] };
 }
 
 function startApp() {
@@ -723,8 +892,29 @@ function startApp() {
   }
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch (cacheError) {
+    console.warn("Persistent Firestore cache unavailable; using default cache.", cacheError);
+    db = getFirestore(app);
+  }
   setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+  const applyProfile = userData => {
+    if (!userData.active) throw new Error("Akun ini dinonaktifkan. Hubungi superadmin.");
+    if (!ROLE_LABELS[userData.role]) throw new Error("Role akun tidak dikenali. Hubungi superadmin.");
+    profile = { uid: currentUser.uid, ...userData };
+    monthKey = jakartaMonthKey(new Date());
+    historyDate = jakartaDateKey(new Date());
+    chartDays = 31;
+    activePage = userData.role === "cashier" ? "pos" : userData.role === "partner" ? "partnerHome" : "dashboard";
+    showShell();
+    startSubscriptions();
+    renderPage();
+  };
+
   onAuthStateChanged(auth, async user => {
     if (!user) {
       currentUser = null;
@@ -738,20 +928,29 @@ function startApp() {
     }
     currentUser = user;
     resetStore();
+    const profileRef = doc(db, "users", user.uid);
     try {
-      const snap = await getDoc(doc(db, "users", user.uid));
+      // Try the local cache first: repeat logins can open the workspace immediately.
+      let cached = null;
+      try { cached = await getDocFromCache(profileRef); } catch (_) { /* first visit: no cached profile */ }
+      if (cached?.exists()) {
+        applyProfile(cached.data());
+        // Verify role/status against the server in the background.
+        getDocFromServer(profileRef).then(serverSnap => {
+          if (!serverSnap.exists() || serverSnap.data().active !== true || !ROLE_LABELS[serverSnap.data().role]) {
+            signOut(auth);
+            return;
+          }
+          const fresh = serverSnap.data();
+          const roleChanged = profile?.role !== fresh.role || profile?.partnerId !== fresh.partnerId || profile?.active !== fresh.active;
+          profile = { uid: user.uid, ...fresh };
+          if (roleChanged) { startSubscriptions(); renderPage(); }
+        }).catch(error => console.warn("Profile background verification failed:", error));
+        return;
+      }
+      const snap = await getDoc(profileRef);
       if (!snap.exists()) throw new Error("Profil akun belum dibuat oleh superadmin.");
-      const data = snap.data();
-      if (!data.active) throw new Error("Akun ini dinonaktifkan. Hubungi superadmin.");
-      if (!ROLE_LABELS[data.role]) throw new Error("Role akun tidak dikenali. Hubungi superadmin.");
-      profile = { uid: user.uid, ...data };
-      monthKey = jakartaMonthKey(new Date());
-      historyDate = jakartaDateKey(new Date());
-      chartDays = 31;
-      activePage = data.role === "cashier" ? "pos" : data.role === "partner" ? "partnerHome" : "dashboard";
-      showShell();
-      startSubscriptions();
-      renderPage();
+      applyProfile(snap.data());
     } catch (error) {
       toast(friendlyError(error), "error");
       await signOut(auth);
@@ -790,14 +989,27 @@ function startSubscriptions() {
     if (activePage === "dashboard" || activePage === "pos" || activePage === "stock" || activePage === "partnerMenu" || activePage === "partnerHome") renderPage();
   }, onDataError));
 
-  if (role === "superadmin") {
+  if (["superadmin", "spv"].includes(role)) {
     unsubscribers.push(onSnapshot(query(collection(db, "partners"), orderBy("name", "asc")), snap => {
       store.partners = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-      renderIfPage("partners", "accounts", "stock");
+      renderIfPage("partners", "accounts", "stock", "reviews");
     }, onDataError));
+    unsubscribers.push(onSnapshot(query(collection(db, "productSubmissions"), orderBy("createdAt", "desc"), limit(200)), snap => {
+      store.productSubmissions = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      renderIfPage("reviews", "dashboard");
+    }, onDataError));
+  }
+  if (role === "superadmin") {
     unsubscribers.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc")), snap => {
       store.users = snap.docs.map(item => ({ id: item.id, ...item.data() }));
       renderIfPage("accounts");
+    }, onDataError));
+  }
+  if (role === "partner") {
+    const submissionQuery = query(collection(db, "productSubmissions"), where("partnerId", "==", profile.partnerId), orderBy("createdAt", "desc"), limit(100));
+    unsubscribers.push(onSnapshot(submissionQuery, snap => {
+      store.productSubmissions = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      renderIfPage("partnerHome", "partnerMenu");
     }, onDataError));
   }
   if (role === "superadmin" || role === "spv") {
@@ -864,12 +1076,12 @@ function navItems() {
   switch (profile.role) {
     case "superadmin": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests },
+      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests },
       { section: "MANAJEMEN" }, { id: "partners", label: "Mitra", icon: ICONS.partners }, { id: "accounts", label: "Akun pengguna", icon: ICONS.accounts }, { id: "finance", label: "Keuangan", icon: ICONS.finance }
     ];
     case "spv": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard SPV", icon: ICONS.dashboard },
-      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests }
+      { section: "OPERASIONAL" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "reviews", label: "Persetujuan produk", icon: ICONS.reviews }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Permintaan stok", icon: ICONS.requests }
     ];
     case "cashier": return [
       { section: "KASIR" }, { id: "pos", label: "Transaksi baru", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }
@@ -891,7 +1103,7 @@ function renderPage() {
     dashboard: profile.role === "spv" ? "Dashboard SPV" : "Dashboard",
     pos: "Kasir / POS", transactions: profile.role === "superadmin" ? "Riwayat & stok harian" : "Riwayat transaksi",
     stock: profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", partners: "Manajemen mitra", accounts: "Akun pengguna",
-    finance: "Keuangan", requests: "Permintaan stok", partnerHome: "Dashboard mitra", partnerMenu: "Menu saya", partnerSales: "Penjualan saya"
+    finance: "Keuangan", requests: "Permintaan stok", reviews: "Persetujuan produk", labels: "Cetak label", partnerHome: "Dashboard mitra", partnerMenu: "Menu saya", partnerSales: "Penjualan saya"
   };
   $("#breadcrumb-current").textContent = titles[activePage] || "Dashboard";
   destroyCharts();
@@ -905,6 +1117,8 @@ function renderPage() {
     case "accounts": page.innerHTML = renderAccountsPage(); break;
     case "finance": page.innerHTML = renderFinancePage(); break;
     case "requests": page.innerHTML = renderRequestsPage(); break;
+    case "reviews": page.innerHTML = renderProductReviewsPage(); break;
+    case "labels": page.innerHTML = renderLabelsPage(); break;
     case "partnerHome": page.innerHTML = renderPartnerHome(); break;
     case "partnerMenu": page.innerHTML = renderPartnerMenu(); break;
     case "partnerSales": page.innerHTML = renderPartnerSales(); break;
@@ -1001,10 +1215,10 @@ function mountSuperadminCharts() {
   const commonOptions = {
     responsive: true, maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#202821", padding: 11, titleFont: { family: "DM Sans", size: 10 }, bodyFont: { family: "DM Sans", size: 10 }, callbacks: { title: items => fullLabels[items[0]?.dataIndex] || "" } } },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#512530", padding: 11, titleFont: { family: "DM Sans", size: 10 }, bodyFont: { family: "DM Sans", size: 10 }, callbacks: { title: items => fullLabels[items[0]?.dataIndex] || "" } } },
     scales: { x: { grid: { display: false }, ticks: { color: "#9ba69c", font: { size: 9 } } }, y: { beginAtZero: true, grid: { color: "#f0f2ee" }, ticks: { color: "#a2aba3", font: { size: 9 }, callback: value => value >= 1000000 ? `${(value / 1000000).toFixed(1)}jt` : value >= 1000 ? `${Math.round(value / 1000)}rb` : value } } }
   };
-  const salesChart = new Chart(salesCanvas, { type: "line", data: { labels, datasets: [{ label: "Penjualan", data: keys.map(key => txMap.get(key) || 0), borderColor: "#91b94a", backgroundColor: "rgba(199,236,105,.19)", fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: "#91b94a" }] }, options: commonOptions });
+  const salesChart = new Chart(salesCanvas, { type: "line", data: { labels, datasets: [{ label: "Penjualan", data: keys.map(key => txMap.get(key) || 0), borderColor: "#d95a65", backgroundColor: "rgba(225,92,102,.16)", fill: true, tension: .35, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: "#d95a65" }] }, options: commonOptions });
   chartInstances.push(salesChart);
   if (cashCanvas) {
     const cashChart = new Chart(cashCanvas, { type: "bar", data: { labels, datasets: [
@@ -1025,9 +1239,9 @@ function mountSpvChart() {
     hourly[hour] += Number(tx.total || 0);
   }
   const labels = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
-  chartInstances.push(new Chart(canvas, { type: "line", data: { labels, datasets: [{ data: hourly, borderColor: "#91b94a", backgroundColor: "rgba(199,236,105,.18)", fill: true, tension: .35, borderWidth: 2, pointRadius: 2, pointHoverRadius: 5 }] }, options: {
+  chartInstances.push(new Chart(canvas, { type: "line", data: { labels, datasets: [{ data: hourly, borderColor: "#d95a65", backgroundColor: "rgba(225,92,102,.14)", fill: true, tension: .35, borderWidth: 2, pointRadius: 2, pointHoverRadius: 5 }] }, options: {
     responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#202821", callbacks: { label: item => money(item.raw) } } },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#512530", callbacks: { label: item => money(item.raw) } } },
     scales: { x: { grid: { display: false }, ticks: { color: "#9ba69c", font: { size: 8 }, maxTicksLimit: 8 } }, y: { beginAtZero: true, grid: { color: "#f0f2ee" }, ticks: { color: "#a2aba3", font: { size: 9 }, callback: value => value >= 1000 ? `${Math.round(value / 1000)}rb` : value } } }
   } }));
 }
@@ -1095,18 +1309,34 @@ function reconcileCart() {
 }
 
 function renderStockPage() {
-  const activeMenus = store.menus.filter(menu => menu.active !== false);
-  const options = store.partners.map(partner => `<option value="${partner.id}">${escapeHtml(partner.name)}</option>`).join("");
-  return `${pageHeading(profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", "Lihat stok aktual, catat barang masuk, dan kelola katalog menu.", profile.role === "superadmin" ? `<button class="btn btn-primary" data-open-modal="menu">＋ Tambah menu</button>` : "")}
-    ${profile.role === "superadmin" ? `<div class="content-grid equal"><section class="panel">${panelHeader("Catat stok masuk", "Tambahkan jumlah stok yang baru diterima dari mitra")}<form id="receive-stock-form"><div class="form-field"><label>Menu</label><select name="menuId" required><option value="">Pilih menu</option>${store.menus.map(menu => `<option value="${menu.id}">${escapeHtml(menu.name)} · stok ${integer(menu.stock)}</option>`).join("")}</select></div><div class="form-field"><label>Jumlah masuk</label><input type="number" name="qty" min="1" step="1" placeholder="Contoh: 20" required></div><div class="form-field"><label>Catatan (opsional)</label><input name="note" maxlength="160" placeholder="Contoh: pengiriman pagi"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan stok masuk</button></div></form></section><section class="panel">${panelHeader("Tambah mitra baru", "Mitra harus terdaftar sebelum menu dibuat")}<p class="muted" style="font-size:11px;line-height:1.7">Tambahkan data mitra terlebih dahulu melalui halaman Manajemen Mitra. Setelah mitra dibuat, menu dapat dikaitkan ke mitra tersebut dan akun portalnya bisa dibuat melalui Akun Pengguna.</p><button class="btn btn-light" data-nav="partners">Buka manajemen mitra →</button></section></div>` : `<section class="panel" style="margin-bottom:15px">${panelHeader("Catat stok masuk", "SPV dapat menerima barang dan memperbarui stok aktual")}<form id="receive-stock-form" class="inline-form"><div class="form-field"><label>Menu</label><select name="menuId" required><option value="">Pilih menu</option>${store.menus.map(menu => `<option value="${menu.id}">${escapeHtml(menu.name)}</option>`).join("")}</select></div><div class="form-field"><label>Jumlah masuk</label><input name="qty" type="number" min="1" step="1" required placeholder="Jumlah"></div><div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Opsional"></div><button class="btn btn-primary" type="submit">Simpan stok</button></form></section>`}
-    <section class="panel">${panelHeader("Stok menu", `${integer(activeMenus.length)} menu aktif`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Mitra</th><th>Kategori</th><th>Harga jual</th><th>Stok tersedia</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${activeMenus.length ? activeMenus.map(menu => `<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${escapeHtml(menu.category || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock) > 0 ? "success" : "inactive"}">${Number(menu.stock) > 0 ? "Tersedia" : "Habis"}</span></td>${profile.role === "superadmin" ? `<td><button class="action-link" data-edit-menu="${menu.id}">Edit</button></td>` : ""}</tr>`).join("") : `<tr><td colspan="7" class="table-empty">Belum ada menu.</td></tr>`}</tbody></table></div></section>`;
+  const allMenus = store.menus.slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+  const activeMenus = allMenus.filter(menu => menu.active !== false);
+  const isStaff = ["superadmin", "spv"].includes(profile.role);
+  return `${pageHeading(profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", "Katalog lengkap produk KALAP, stok tersedia, dan pemasukan barang.", isStaff ? `<button class="btn btn-primary" data-open-modal="menu">＋ Input produk / menu</button>` : "")}
+    <section class="stats-grid">
+      ${statCard("Total seluruh menu", integer(allMenus.length), "▤", "Termasuk menu nonaktif")}
+      ${statCard("Menu aktif", integer(activeMenus.length), "✓", "Tampil pada POS")}
+      ${statCard("Total stok tersedia", integer(activeMenus.reduce((s,m)=>s+Number(m.stock||0),0)), "▣", "Akumulasi stok aktif")}
+      ${statCard("Produk menunggu", integer(store.productSubmissions.filter(x=>x.status==="pending").length), "◷", "Menunggu pemeriksaan SPV")}
+    </section>
+    <section class="panel" style="margin-bottom:15px">
+      ${panelHeader("Catat stok masuk", "Catatan stok akan langsung memperbarui dashboard kasir dan mitra.")}
+      <form id="receive-stock-form" class="product-form-grid"><div class="form-field"><label>Menu</label><select name="menuId" required><option value="">Pilih menu</option>${allMenus.filter(m=>m.active!==false).map(menu=>`<option value="${menu.id}">${escapeHtml(menu.name)} · stok ${integer(menu.stock)}</option>`).join("")}</select></div><div class="form-field"><label>Jumlah masuk</label><input type="number" name="qty" min="1" step="1" placeholder="Jumlah unit" required></div><div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Contoh: kiriman pagi"></div><div class="form-actions" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Simpan stok masuk</button></div></form>
+    </section>
+    <section class="panel">
+      ${panelHeader("Semua menu KALAP", `${integer(allMenus.length)} produk tercatat`, `<button class="btn btn-light" data-export-menus>Ekspor daftar CSV</button>`)}
+      <div class="table-toolbar"><input id="menu-search" type="search" placeholder="Cari nama menu atau mitra..."><select id="menu-status-filter"><option value="all">Semua status</option><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></div>
+      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Kategori</th><th>Harga jual</th><th>Stok</th><th>Barcode</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${allMenus.length ? allMenus.map(menu=>`<tr data-menu-row data-search="${escapeHtml(`${menu.name||""} ${menu.partnerName||""}`.toLowerCase())}" data-active="${menu.active!==false?"active":"inactive"}"><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName||"—")}</td><td>${escapeHtml(menu.category||"—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td><span class="status ${menu.active!==false?"success":"inactive"}">${menu.active!==false?"Aktif":"Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><button class="action-link" data-edit-menu="${menu.id}">Edit</button></td>` : ""}</tr>`).join("") : `<tr><td colspan="8" class="table-empty">Belum ada menu. Produk yang disetujui SPV akan muncul di sini.</td></tr>`}</tbody></table></div>
+      <div class="helper-text">Produk yang diajukan mitra baru menjadi menu aktif setelah disetujui. Produk yang diinput SPV akan langsung masuk ke katalog dan dashboard mitra terkait.</div>
+    </section>`;
 }
 
 function renderPartnersPage() {
-  return `${pageHeading("Manajemen mitra", "Kelola daftar mitra pemasok produk KALAP.", `<button class="btn btn-primary" data-open-modal="partner">＋ Tambah mitra</button>`)}
-    <div class="info-banner"><span>ⓘ</span><div><strong>Alur akun mitra</strong><br>Daftarkan mitra di sini, tambahkan menu miliknya, lalu buat akun role Mitra pada halaman Akun Pengguna dengan memilih mitra yang sesuai.</div></div>
-    <section class="panel">${panelHeader("Daftar mitra", `${integer(store.partners.length)} mitra terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama mitra</th><th>Kontak</th><th>Jumlah menu</th><th>Status</th><th>Bergabung</th></tr></thead><tbody>${store.partners.length ? store.partners.map(partner => `<tr><td><strong>${escapeHtml(partner.name)}</strong></td><td>${escapeHtml(partner.phone || "—")}</td><td>${integer(store.menus.filter(menu => menu.partnerId === partner.id).length)} menu</td><td><span class="status ${partner.active === false ? "inactive" : "success"}">${partner.active === false ? "Nonaktif" : "Aktif"}</span></td><td>${formatDate(partner.createdAt)}</td></tr>`).join("") : `<tr><td colspan="5" class="table-empty">Belum ada mitra. Tambahkan mitra pertama untuk mulai mengelola katalog.</td></tr>`}</tbody></table></div></section>`;
+  return `${pageHeading("Manajemen mitra", "Daftarkan mitra cukup dengan nama. Produk dan harga diajukan melalui portal mitra.", `<button class="btn btn-primary" data-open-modal="partner">＋ Tambah mitra</button>`)}
+    <div class="info-banner"><span>ⓘ</span><div><strong>Data mitra dibuat sederhana</strong><br>Data utama mitra hanya nama. Nomor HP dan catatan kontak tidak diperlukan. Hubungkan akun Mitra pada halaman Akun Pengguna.</div></div>
+    <section class="panel">${panelHeader("Daftar mitra", `${integer(store.partners.length)} mitra terdaftar`)}<div class="product-card-grid">${store.partners.length ? store.partners.map((partner,i)=>`<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="product-quantity">${integer(store.menus.filter(menu=>menu.partnerId===partner.id).reduce((s,m)=>s+Number(m.stock||0),0))}</div><div class="product-meta">Total stok produk · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div></article>`).join("") : `<div class="table-empty">Belum ada mitra. Tambahkan mitra pertama untuk mulai mengelola katalog.</div>`}</div></section>`;
 }
+
 function renderAccountsPage() {
   const partnerOptions = store.partners.filter(partner => partner.active !== false).map(partner => `<option value="${partner.id}">${escapeHtml(partner.name)}</option>`).join("");
   return `${pageHeading("Akun pengguna", "Superadmin menentukan role dan identitas setiap akun.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
@@ -1132,14 +1362,50 @@ function renderRequestsPage() {
 }
 function renderPartnerHome() {
   const sales = store.partnerSales;
+  const submissions = store.productSubmissions;
   const totalSales = sumBy(sales, "total");
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
-  const pending = store.stockRequests.filter(row => row.status === "pending").length;
+  const pending = submissions.filter(row=>row.status==="pending").length;
+  const approved = submissions.filter(row=>row.status==="approved").length;
   const stock = store.menus.reduce((sum,menu)=>sum+Number(menu.stock||0),0);
-  return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau performa produk dan persediaan milik mitra Anda.", `<span class="status success">Portal mitra</span>`)}
-    <section class="stats-grid">${statCard("Penjualan bulan ini", money(totalSales), "↗", `${integer(sales.length)} transaksi tercatat`)}${statCard("Produk terjual", integer(sold), "▣", "Total unit produk Anda")}${statCard("Stok tersedia", integer(stock), "▤", "Akumulasi stok menu Anda")}${statCard("Permintaan menunggu", integer(pending), "＋", "Menunggu diproses tim KALAP")}</section>
-    <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "Ringkasan produk yang dititipkan di KALAP", `<button class="panel-action" data-nav="partnerMenu">Lihat menu →</button>`)}<div class="summary-list">${store.menus.slice(0,5).map(menu=>`<div class="summary-row"><span>${escapeHtml(menu.name)}</span><strong>${integer(menu.stock)} stok</strong></div>`).join("") || `<div class="muted">Belum ada menu yang terdaftar.</div>`}</div></article><article class="panel">${panelHeader("Penjualan terbaru", "Transaksi atas produk Anda", `<button class="panel-action" data-nav="partnerSales">Lihat penjualan →</button>`)}<div class="summary-list">${sales.slice(0,5).map(row=>`<div class="summary-row"><span>${formatDate(row.createdAt)} · ${escapeHtml(row.transactionCode || "")}</span><strong>${money(row.total)}</strong></div>`).join("") || `<div class="muted">Belum ada penjualan.</div>`}</div></article></section>`;
+  const liveSales = sales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
+  return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Ajukan produk, pantau stok, dan lihat produk yang baru saja terjual.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
+    <section class="stats-grid">${statCard("Penjualan bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan penjualan`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif saat ini")}${statCard("Pengajuan menunggu", integer(pending), "◷", `${integer(approved)} produk telah disetujui`)}</section>
+    <section class="panel" style="margin-bottom:15px"><div class="panel-header"><div><h3 class="panel-title">Ajukan produk baru</h3><div class="panel-subtitle">Isi nama menu, harga jual, dan jumlah produk yang dikirim. SPV akan memeriksa sebelum produk aktif.</div></div><span class="status pending">Persetujuan SPV</span></div>
+      <form id="partner-product-form" class="product-form-grid"><div class="form-field"><label>Nama menu / produk</label><input name="name" maxlength="80" required placeholder="Contoh: Nasi ayam sambal"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div><div class="form-field"><label>Jumlah produk diajukan</label><input name="qtyRequested" type="number" min="1" max="100000" step="1" required placeholder="20"></div><div class="form-field"><label>Kategori (opsional)</label><input name="category" maxlength="40" placeholder="Makanan / Minuman"></div><div class="form-actions" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Kirim pengajuan produk</button></div></form>
+    </section>
+    <section class="content-grid equal"><article class="panel">${panelHeader("Status produk Anda", "Jumlah produk yang diajukan ke KALAP")}
+      <div class="product-card-grid">${submissions.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,6).map(row=>{const liveMenu=row.menuId?store.menus.find(menu=>menu.id===row.menuId):null;return `<div class="product-card"><h3>${escapeHtml(row.approvedName||row.name)}</h3><div class="product-meta">Harga jual ${money(row.approvedPrice||row.price)} · Diajukan ${integer(row.qtyRequested)} unit${row.status==="approved"?` · Disetujui ${integer(row.qtyApproved)} unit`:""}</div><div class="product-quantity">${row.status==="approved"?`${integer(liveMenu?.stock??row.qtyApproved)} sisa`:row.status==="rejected"?"Ditolak":"Menunggu"}</div><div class="product-meta"><span class="status ${row.status==="approved"?"success":row.status==="rejected"?"inactive":"pending"}">${row.status==="approved"?"Disetujui":row.status==="rejected"?"Ditolak":"Menunggu SPV"}</span>${row.menuId?` · ${escapeHtml(row.barcode||"")}`:""}</div></div>`;}).join("") || `<div class="muted">Belum ada pengajuan produk.</div>`}</div>
+    </article><article class="panel">${panelHeader("Produk yang sedang dijual", "Stok berubah otomatis setiap kasir menyelesaikan transaksi", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
+      <div class="summary-list">${store.menus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Produk yang disetujui akan muncul di sini.</div>`}</div>
+    </article></section>
+    <section class="panel">${panelHeader("Aktivitas penjualan terbaru", "Saat produk dibeli kasir, catatan ini diperbarui secara realtime.", `<span class="status success"><span class="live-pulse"></span> LIVE</span>`)}
+      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Kode transaksi</th><th>Produk terjual</th><th>Jumlah unit</th><th>Total produk</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada produk terjual pada periode ini.</td></tr>`}</tbody></table></div>
+    </section>`;
 }
+
+function renderProductReviewsPage() {
+  const pending = store.productSubmissions.filter(row=>row.status==="pending");
+  const history = store.productSubmissions.filter(row=>row.status!=="pending");
+  return `${pageHeading("Persetujuan produk", "Periksa pengajuan mitra. SPV dapat mengoreksi nama, harga, dan jumlah sebelum menyetujui atau menolak produk.", `<span class="status pending">${integer(pending.length)} menunggu</span>`)}
+    <section class="stats-grid">${statCard("Pengajuan menunggu", integer(pending.length), "◷", "Perlu diperiksa")}${statCard("Disetujui", integer(history.filter(x=>x.status==="approved").length), "✓", "Produk masuk katalog")}${statCard("Ditolak", integer(history.filter(x=>x.status==="rejected").length), "×", "Pengajuan tidak diteruskan")}${statCard("Total pengajuan", integer(store.productSubmissions.length), "▤", "Semua mitra")}</section>
+    <section class="panel" style="margin-bottom:15px">${panelHeader("Pengajuan baru", "Periksa nama produk, harga, mitra, dan jumlah yang diajukan.")}
+      <div class="table-wrap"><table><thead><tr><th>Mitra</th><th>Nama produk</th><th>Harga jual</th><th>Jumlah diajukan</th><th>Tanggal</th><th>Aksi</th></tr></thead><tbody>${pending.map(row=>`<tr><td><strong>${escapeHtml(row.partnerName||"Mitra")}</strong></td><td>${escapeHtml(row.name)}</td><td>${money(row.price)}</td><td>${integer(row.qtyRequested)} unit</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><button class="action-link" data-review-product="${row.id}">Periksa / koreksi</button><button class="action-link danger" data-reject-product="${row.id}">Tolak</button></td></tr>`).join("")||`<tr><td colspan="6" class="table-empty">Tidak ada pengajuan yang menunggu persetujuan.</td></tr>`}</tbody></table></div>
+    </section>
+    <section class="panel">${panelHeader("Riwayat keputusan", "Produk yang pernah disetujui atau ditolak")}
+      <div class="table-wrap"><table><thead><tr><th>Mitra</th><th>Produk</th><th>Harga</th><th>Jumlah diajukan</th><th>Jumlah disetujui</th><th>Status</th><th>Keputusan oleh</th></tr></thead><tbody>${history.map(row=>`<tr><td>${escapeHtml(row.partnerName||"Mitra")}</td><td><strong>${escapeHtml(row.approvedName||row.name)}</strong>${row.approvedName&&row.approvedName!==row.name?`<div class="muted">Awalnya: ${escapeHtml(row.name)}</div>`:""}</td><td>${money(row.approvedPrice||row.price)}</td><td>${integer(row.qtyRequested)}</td><td>${row.status==="approved"?integer(row.qtyApproved):"—"}</td><td><span class="status ${row.status==="approved"?"success":"inactive"}">${row.status==="approved"?"Disetujui":"Ditolak"}</span></td><td>${escapeHtml(row.reviewedByName||"—")}</td></tr>`).join("")||`<tr><td colspan="7" class="table-empty">Belum ada keputusan.</td></tr>`}</tbody></table></div>
+    </section>`;
+}
+
+function renderLabelsPage() {
+  const menus = store.menus.filter(menu=>menu.active!==false).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return `${pageHeading("Cetak label", "Label thermal 4 × 3 cm: nama menu di atas, barcode di tengah, dan harga di bawah.", `<span class="status neutral">40 × 30 mm</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>Barcode dibuat otomatis</strong><br>Setiap menu baru memiliki barcode unik. Label dapat dicetak ulang kapan saja, termasuk untuk menu yang sudah lama dibuat.</div></div>
+    <section class="panel">${panelHeader("Pilih menu untuk dicetak", `${integer(menus.length)} menu aktif`) }
+      <div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Mitra</th><th>Barcode</th><th>Harga</th><th>Label</th></tr></thead><tbody>${menus.map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName||"—")}</td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td>${money(menu.price)}</td><td><button class="btn btn-primary" data-print-label="${menu.id}">Cetak label</button></td></tr>`).join("")||`<tr><td colspan="5" class="table-empty">Belum ada menu aktif.</td></tr>`}</tbody></table></div>
+    </section>`;
+}
+
 function renderPartnerMenu() {
   return `${pageHeading("Menu saya", "Daftar produk milik Anda yang dijual melalui KALAP.")}
     <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Kategori</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.category||"—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock)>0?"success":"inactive"}">${Number(menu.stock)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama, kategori, atau harga.</div></section>`;
@@ -1180,6 +1446,9 @@ function attachPageEvents() {
   $("#receive-stock-form")?.addEventListener("submit", receiveStockSubmit);
   $("#finance-form")?.addEventListener("submit", financeSubmit);
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
+  $("#partner-product-form")?.addEventListener("submit", partnerProductSubmit);
+  $("#menu-search")?.addEventListener("input", filterMenuRows);
+  $("#menu-status-filter")?.addEventListener("change", filterMenuRows);
   $("#checkout-btn")?.addEventListener("click", checkout);
   $("#clear-cart-btn")?.addEventListener("click", () => { cart.clear(); renderPage(); });
   $$('[data-add-menu]').forEach(button => button.addEventListener("click", () => addToCart(button.dataset.addMenu)));
@@ -1188,6 +1457,10 @@ function attachPageEvents() {
   $$('[data-open-modal]').forEach(button => button.addEventListener("click", () => openManagementModal(button.dataset.openModal)));
   $$('[data-edit-menu]').forEach(button => button.addEventListener("click", () => editMenu(button.dataset.editMenu)));
   $$('[data-accept-request]').forEach(button => button.addEventListener("click", () => acceptStockRequest(button.dataset.acceptRequest, button)));
+  $$('[data-review-product]').forEach(button => button.addEventListener("click", () => openReviewProductModal(button.dataset.reviewProduct)));
+  $$('[data-reject-product]').forEach(button => button.addEventListener("click", () => rejectProductSubmission(button.dataset.rejectProduct, button)));
+  $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
+  $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
   $$('[data-nav]').forEach(button => button.addEventListener("click", () => showPage(button.dataset.nav)));
 }
@@ -1242,10 +1515,10 @@ function showTransactionDetail(transactionId) {
 function openManagementModal(type) {
   const root = $("#modal-root");
   if (type === "partner") {
-    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah mitra</h2><p>Masukkan identitas mitra pemasok KALAP.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-partner-form"><div class="form-field"><label>Nama mitra / usaha</label><input name="name" required maxlength="80" placeholder="Nama pemilik atau usaha"></div><div class="form-field"><label>Nomor WhatsApp</label><input name="phone" maxlength="30" placeholder="08xxxxxxxxxx"></div><div class="form-field"><label>Catatan</label><textarea name="note" maxlength="180" rows="2" placeholder="Catatan opsional"></textarea></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan mitra</button></div></form></section></div>`;
+    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah mitra</h2><p>Data mitra cukup menggunakan nama.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-partner-form"><div class="form-field"><label>Nama mitra / usaha</label><input name="name" required maxlength="80" placeholder="Nama pemilik atau usaha"></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan mitra</button></div></form></section></div>`;
     root.querySelector("#create-partner-form").addEventListener("submit", createPartnerSubmit);
   } else if (type === "menu") {
-    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah menu</h2><p>Menu dikaitkan dengan satu mitra pemasok.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-menu-form"><div class="form-field"><label>Nama menu</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam"></div><div class="form-field"><label>Mitra pemasok</label><select name="partnerId" required><option value="">Pilih mitra</option>${store.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}</select></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="40" placeholder="Makanan / Minuman"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="Contoh: 15000"></div><div class="helper-text">Stok awal dimulai dari 0. Catat jumlah barang yang diterima melalui menu Persediaan.</div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan menu</button></div></form></section></div>`;
+    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Input produk manual</h2><p>SPV dapat memasukkan produk yang belum diajukan mitra.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-menu-form"><div class="form-field"><label>Nama menu / produk</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam"></div><div class="form-field"><label>Mitra pemilik</label><select name="partnerId" required><option value="">Pilih mitra</option>${store.partners.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}</select></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="40" placeholder="Makanan / Minuman"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div><div class="form-field"><label>Jumlah stok awal</label><input name="initialStock" type="number" min="0" step="1" value="0" required></div><div class="helper-text">Produk yang dibuat akan langsung muncul di dashboard mitra terkait. Barcode otomatis dibuat dan dapat dicetak dari menu Cetak Label.</div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan produk</button></div></form></section></div>`;
     root.querySelector("#create-menu-form").addEventListener("submit", createMenuSubmit);
   }
   root.querySelectorAll("[data-modal-close], [data-modal-backdrop]").forEach(item=>item.addEventListener("click", event=>{ if(event.target===item || item.matches("[data-modal-close]")) root.innerHTML=""; }));
@@ -1270,7 +1543,7 @@ async function createPartnerSubmit(event) {
 }
 async function createMenuSubmit(event) {
   event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); setBusy(button,true);
-  try { const data=Object.fromEntries(new FormData(form)); await callApi("createMenu", {...data,price:Number(data.price)}); $("#modal-root").innerHTML=""; toast("Menu berhasil ditambahkan.","success"); if(activePage!=="stock") showPage("stock"); }
+  try { const data=Object.fromEntries(new FormData(form)); const result=await callApi("createMenu", {...data,price:Number(data.price),initialStock:Number(data.initialStock||0)}); $("#modal-root").innerHTML=""; toast(`Produk ditambahkan. Barcode ${result.barcode} berhasil dibuat.`,"success"); if(activePage!=="stock") showPage("stock"); }
   catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 }
 async function createUserSubmit(event) {
@@ -1280,6 +1553,80 @@ async function createUserSubmit(event) {
   try { await callApi("createManagedUser", data); form.reset(); $("#partner-user-field").style.display="none"; toast("Akun berhasil dibuat. Sampaikan email dan kata sandi awal kepada pengguna.","success"); }
   catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 }
+async function partnerProductSubmit(event) {
+  event.preventDefault(); const form=event.currentTarget; const button=form.querySelector('button[type="submit"]');
+  const data=Object.fromEntries(new FormData(form)); setBusy(button,true,"Mengirim...");
+  try { await callApi("submitPartnerProduct", {...data,price:Number(data.price),qtyRequested:Number(data.qtyRequested)}); form.reset(); toast("Produk berhasil diajukan. Tunggu pemeriksaan SPV.","success"); }
+  catch(error) { toast(friendlyError(error),"error"); }
+  finally { setBusy(button,false); }
+}
+
+function openReviewProductModal(submissionId) {
+  const row=store.productSubmissions.find(item=>item.id===submissionId);
+  if(!row||row.status!=="pending") return toast("Pengajuan ini sudah diproses.","error");
+  const root=$("#modal-root");
+  root.innerHTML=`<div class="modal-backdrop" data-review-backdrop><section class="modal"><div class="modal-head"><div><h2>Periksa pengajuan produk</h2><p>${escapeHtml(row.partnerName||"Mitra")} · koreksi data sebelum disetujui.</p></div><button class="modal-close" data-review-close>×</button></div><form id="review-product-form"><div class="form-field"><label>Nama menu yang disetujui</label><input name="approvedName" maxlength="80" value="${escapeHtml(row.name)}" required></div><div class="form-field"><label>Harga jual yang disetujui (Rp)</label><input name="approvedPrice" type="number" min="1" step="1" value="${Number(row.price)}" required></div><div class="form-field"><label>Jumlah yang disetujui SPV</label><input name="approvedQty" type="number" min="1" max="100000" step="1" value="${Number(row.qtyRequested)}" required><div class="helper-text">Nama, harga, dan jumlah dapat dikoreksi sebelum produk masuk katalog.</div></div><div class="form-field"><label>Catatan koreksi (opsional)</label><textarea name="reviewNote" rows="2" maxlength="180" placeholder="Catatan untuk mitra"></textarea></div><div class="form-actions"><button type="button" class="btn btn-light" data-review-close>Batal</button><button type="submit" class="btn btn-primary">Setujui & masukkan menu</button></div></form></section></div>`;
+  root.querySelector('#review-product-form').addEventListener('submit',async e=>{
+    e.preventDefault();const form=e.currentTarget;const button=form.querySelector('[type="submit"]');const data=Object.fromEntries(new FormData(form));setBusy(button,true,"Menyimpan...");
+    try { await callApi("reviewPartnerProduct",{submissionId,decision:"approved",approvedName:data.approvedName,approvedPrice:Number(data.approvedPrice),approvedQty:Number(data.approvedQty),reviewNote:data.reviewNote});root.innerHTML="";toast("Produk disetujui, data dikoreksi, stok ditambahkan, dan barcode dibuat.","success"); }
+    catch(error){toast(friendlyError(error),"error");}
+    finally{setBusy(button,false);}
+  });
+  root.querySelectorAll('[data-review-close],[data-review-backdrop]').forEach(item=>item.addEventListener('click',e=>{if(e.target===item||item.matches('[data-review-close]'))root.innerHTML='';}));
+}
+
+async function rejectProductSubmission(submissionId, button) {
+  const row=store.productSubmissions.find(item=>item.id===submissionId);
+  if(!row||row.status!=="pending") return;
+  const note=prompt(`Alasan penolakan produk "${row.name}" (opsional):`,"");
+  if(note===null) return;
+  setBusy(button,true,"Memproses...");
+  try { await callApi("reviewPartnerProduct",{submissionId,decision:"rejected",reviewNote:note});toast("Pengajuan produk ditolak.","success"); }
+  catch(error){toast(friendlyError(error),"error");}
+  finally{setBusy(button,false);}
+}
+
+function filterMenuRows() {
+  const search=(document.querySelector('#menu-search')?.value||'').trim().toLowerCase();
+  const status=document.querySelector('#menu-status-filter')?.value||'all';
+  document.querySelectorAll('[data-menu-row]').forEach(row=>{
+    const matchesText=(row.dataset.search||'').includes(search);
+    const matchesStatus=status==='all'||row.dataset.active===status;
+    row.style.display=matchesText&&matchesStatus?'':'none';
+  });
+}
+
+function exportMenusCsv() {
+  if(!["superadmin","spv"].includes(profile?.role)) return;
+  const rows=[["Nama menu","Mitra","Kategori","Harga jual","Stok","Barcode","Status"],...store.menus.map(menu=>[menu.name,menu.partnerName||"",menu.category||"",menu.price,menu.stock,menuBarcode(menu),menu.active===false?"Nonaktif":"Aktif"])];
+  const csv=rows.map(row=>row.map(value=>`"${String(value??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
+}
+
+function openLabelModal(menuId) {
+  const menu=store.menus.find(item=>item.id===menuId);if(!menu)return;
+  const root=$("#modal-root");
+  root.innerHTML=`<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label 4 × 3 cm</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><svg id="label-preview-barcode"></svg><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Barcode: ${escapeHtml(menuBarcode(menu))}</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  const svg=root.querySelector('#label-preview-barcode');
+  if(window.JsBarcode) JsBarcode(svg,menuBarcode(menu),{format:'CODE128',displayValue:false,margin:0,width:1.35,height:38,lineColor:'#111'});
+  else svg.outerHTML='<div class="muted">Pustaka barcode belum termuat. Periksa koneksi internet.</div>';
+  root.querySelector('#label-print-form').addEventListener('submit',e=>{e.preventDefault();const copies=Math.min(300,Math.max(1,Number(new FormData(e.currentTarget).get('copies'))||1));root.innerHTML='';printMenuLabels(menu,copies);});
+  root.querySelectorAll('[data-label-close],[data-label-backdrop]').forEach(item=>item.addEventListener('click',e=>{if(e.target===item||item.matches('[data-label-close]'))root.innerHTML='';}));
+}
+
+function printMenuLabels(menu,copies=1) {
+  if(!window.JsBarcode) return toast('Barcode belum dapat dibuat. Periksa koneksi internet dan muat ulang halaman.','error');
+  let root=document.getElementById('label-print-root');if(!root){root=document.createElement('div');root.id='label-print-root';document.body.appendChild(root);}
+  const value=menuBarcode(menu);
+  root.innerHTML=Array.from({length:copies},()=>`<div class="print-label"><div class="print-label-name">${escapeHtml(menu.name)}</div><svg class="print-label-code"></svg><div class="print-label-price">${money(menu.price)}</div></div>`).join('');
+  root.querySelectorAll('.print-label-code').forEach(svg=>JsBarcode(svg,value,{format:'CODE128',displayValue:false,margin:0,width:1.25,height:42,lineColor:'#000'}));
+  document.body.classList.add('printing-labels');
+  const cleanup=()=>{document.body.classList.remove('printing-labels');root.innerHTML='';window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup,{once:true});
+  setTimeout(()=>window.print(),100);
+  setTimeout(cleanup,60000);
+}
+
 async function receiveStockSubmit(event) {
   event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); const data=Object.fromEntries(new FormData(form));
   if(!Number.isInteger(Number(data.qty))||Number(data.qty)<1) return toast("Jumlah stok harus bilangan bulat lebih dari 0.","error");
@@ -1330,7 +1677,7 @@ renderPage = function() {
 $("#login-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!isFirebaseConfigured) return;
-  const button=$("#login-submit"); setBusy(button,true,"Memeriksa...");
+  const button=$("#login-submit"); setBusy(button,true,"Menghubungkan...");
   try { await signInWithEmailAndPassword(auth, $("#login-email").value.trim(), $("#login-password").value); $("#login-password").value=""; }
   catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
 });
