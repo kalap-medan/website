@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171a18">
+  <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
+  <title>KALAP — Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+  <main id="login-screen" class="login-screen">
+    <section class="login-brand-panel">
+      <div class="brand-lockup"><span class="brand-mark">K.</span><span>KALAP<span class="brand-dot">.</span></span></div>
+      <div class="login-brand-copy">
+        <span class="eyebrow">OPERASIONAL TERPADU</span>
+        <h1>Semua urusan<br><em>jadi lebih tertata.</em></h1>
+        <p>Satu sistem untuk penjualan, stok, mitra, dan keuangan KALAP.</p>
+      </div>
+      <div class="login-brand-footer"><span class="live-dot"></span> Workspace KALAP</div>
+    </section>
+    <section class="login-form-panel">
+      <form id="login-form" class="login-card">
+        <div class="mobile-brand"><span class="brand-mark">K.</span><strong>KALAP.</strong></div>
+        <span class="eyebrow">SELAMAT DATANG KEMBALI</span>
+        <h2>Masuk ke akun</h2>
+        <p class="muted">Gunakan email dan kata sandi yang diberikan superadmin.</p>
+        <label class="field-label" for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" placeholder="nama@email.com" required>
+        <label class="field-label" for="login-password">Kata sandi</label>
+        <div class="password-wrap">
+          <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan kata sandi" required>
+          <button type="button" class="password-toggle" id="toggle-password" aria-label="Tampilkan kata sandi">Lihat</button>
+        </div>
+        <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk <span>→</span></button>
+        <div id="firebase-setup-note" class="setup-note hidden">
+          Firebase belum dikonfigurasi. Isi <code>firebase-config.js</code> dengan konfigurasi Web App, lalu muat ulang halaman.
+        </div>
+        <div class="login-footnote">Akses akun dikelola oleh superadmin.</div>
+      </form>
+    </section>
+  </main>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand"><span class="brand-mark">K.</span><span>KALAP<span class="brand-dot">.</span><small>MANAGEMENT SYSTEM</small></span></div>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi superadmin</small></div></div>
+        <div class="sidebar-version">KALAP System <span>v1.0</span></div>
+      </div>
+    </aside>
+
+    <section class="main-column">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn mobile-menu-btn" id="mobile-menu-btn" aria-label="Buka menu">☰</button>
+          <div><div class="breadcrumb">KALAP <span>/</span> <strong id="breadcrumb-current">Dashboard</strong></div><div class="topbar-date" id="topbar-date">Memuat tanggal...</div></div>
+        </div>
+        <div class="topbar-right">
+          <div class="connection-pill"><span class="live-dot"></span><span>Realtime</span></div>
+          <div class="user-chip"><div class="avatar" id="user-avatar">K</div><div class="user-chip-copy"><strong id="user-name">Pengguna</strong><small id="user-role">Role</small></div></div>
+          <button class="icon-btn logout-btn" id="logout-btn" title="Keluar" aria-label="Keluar">↗</button>
+        </div>
+      </header>
+
+      <main id="page-content" class="page-content"></main>
+      <footer class="app-footer"><span>© <span id="footer-year"></span> KALAP.</span><span>Built for better daily operations.</span></footer>
+    </section>
+  </div>
+
+  <div id="modal-root"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
