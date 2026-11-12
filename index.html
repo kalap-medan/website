@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="./manifest.webmanifest?v=1.6.3">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v1.6.2</title>
+  <title>KALAP Management System v1.6.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -734,7 +734,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 
 /* ============================================================
-   KALAP v1.6.2 — Login, remember-me & orientation update
+   KALAP v1.6.3 — PWA orientation refresh
    ============================================================ */
 @media (max-width:760px) {
   .sidebar { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.55) rgba(255,255,255,.10); }
@@ -838,7 +838,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
   
 
-/* KALAP v1.6.2 — login refinements, session choice, and responsive orientation */
+/* KALAP v1.6.3 — PWA orientation refresh */
 .remember-row {
   display: flex; align-items: center; gap: 10px; margin: 17px 2px 0;
   color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; user-select: none;
@@ -2981,13 +2981,20 @@ function toggleSidebarDrawer(){
   const opening=!sidebar.classList.contains("open");sidebar.classList.toggle("open",opening);backdrop?.classList.toggle("open",opening);toggle?.setAttribute("aria-expanded",String(opening));
 }
 
-// Keep orientation state in sync with the actual viewport. The manifest allows both orientations.
+// Keep orientation state in sync with the actual viewport. The PWA manifest allows every orientation.
 function updateKalapOrientation() {
   document.documentElement.dataset.orientation = window.innerWidth > window.innerHeight ? "landscape" : "portrait";
+}
+function releaseKalapRuntimeOrientationLock() {
+  // Clear any runtime lock left by a previous in-app view. The installed PWA's
+  // default orientation is configured as "any" in manifest.webmanifest.
+  try { screen.orientation?.unlock?.(); } catch (error) { /* Browser may not expose the API. */ }
 }
 window.addEventListener("resize", updateKalapOrientation, { passive: true });
 window.addEventListener("orientationchange", updateKalapOrientation, { passive: true });
 if (screen.orientation?.addEventListener) screen.orientation.addEventListener("change", updateKalapOrientation);
+window.addEventListener("pageshow", releaseKalapRuntimeOrientationLock, { passive: true });
+releaseKalapRuntimeOrientationLock();
 updateKalapOrientation();
 
 let deferredInstallPrompt=null;
@@ -2995,7 +3002,16 @@ window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();def
 $("#install-app-btn")?.addEventListener("click",async()=>{if(!deferredInstallPrompt)return;deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;$("#install-app-btn")?.classList.add("hidden");});
 window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add("hidden");toast("KALAP berhasil dipasang di perangkat.","success");});
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
-  window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(error=>console.warn("PWA service worker tidak terdaftar:",error)));
+  window.addEventListener("load", async ()=>{
+    try {
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.6.3", { updateViaCache: "none" });
+      // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
+      // is refreshed separately by Chrome's Android WebAPK updater.
+      await registration.update().catch(()=>{});
+    } catch(error) {
+      console.warn("PWA service worker tidak terdaftar:", error);
+    }
+  });
 }
 
 // Global interactions
