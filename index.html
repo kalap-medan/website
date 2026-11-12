@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.6.3">
+  <link rel="manifest" href="./manifest.webmanifest?v=1.6.4">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v1.6.3</title>
+  <title>KALAP Management System v1.6.4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -669,6 +669,21 @@ tbody tr:hover { background: color-mix(in srgb, var(--kalap-cream) 28%, #FFFFFF)
 .modal-head h2 { color: var(--ink); font-size: 19px; }
 .modal-head p { color: var(--muted); font-size: 11px; }
 .modal-close { background: var(--kalap-cream); color: var(--kalap-red); border-radius: 10px; width: 34px; height: 34px; }
+
+.kalap-confirm-backdrop { z-index: 150; background: rgba(30,22,18,.48); backdrop-filter: blur(5px); }
+.kalap-confirm-modal { width: min(100%, 440px); padding: 22px; border-radius: 22px; border: 1px solid rgba(224,0,0,.10); }
+.kalap-dialog-brand { display:flex; align-items:center; gap:10px; margin-bottom:17px; }
+.kalap-dialog-mark { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; background:#E00000; color:#fff; font:800 20px 'Plus Jakarta Sans',sans-serif; letter-spacing:-.07em; }
+.kalap-dialog-brand-copy { display:flex; flex-direction:column; gap:2px; }
+.kalap-dialog-brand-copy strong { color:#E00000; font:800 12px 'Plus Jakarta Sans',sans-serif; letter-spacing:.08em; }
+.kalap-dialog-brand-copy small { color:#8b8279; font-size:9px; letter-spacing:.12em; font-weight:800; }
+.kalap-confirm-title { margin:0 0 8px; color:#25211e; font:800 20px 'Plus Jakarta Sans',sans-serif; letter-spacing:-.035em; }
+.kalap-confirm-message { margin:0; color:#625b54; font-size:13px; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere; }
+.kalap-confirm-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:22px; }
+.kalap-confirm-actions .btn { min-width:104px; }
+.kalap-confirm-actions .btn-danger { background:#E00000; color:#fff; }
+@media(max-width:480px){ .kalap-confirm-backdrop{padding:14px}.kalap-confirm-modal{padding:18px;border-radius:18px}.kalap-confirm-actions{display:grid;grid-template-columns:1fr 1fr}.kalap-confirm-actions .btn{width:100%;min-width:0} }
+
 .payment-choice-grid { gap: 13px; }
 .payment-choice {
   border-radius: 16px;
@@ -949,7 +964,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.6</span></div>
+        <div class="sidebar-version">KALAP System <span>v1.6.4</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1110,6 +1125,61 @@ function toast(message, type = "") {
   item.textContent = message;
   region.append(item);
   setTimeout(() => item.remove(), 4200);
+}
+
+
+// Dialog konfirmasi bermerek KALAP, menggantikan dialog konfirmasi bawaan browser.
+function kalapConfirm(message, options = {}) {
+  const {
+    title = "Konfirmasi tindakan",
+    confirmText = "Lanjutkan",
+    cancelText = "Batal",
+    danger = false
+  } = options;
+  const root = $("#modal-root");
+  if (!root) return Promise.resolve(false);
+  return new Promise(resolve => {
+    const previousFocus = document.activeElement;
+    root.innerHTML = `<div class="modal-backdrop kalap-confirm-backdrop" data-kalap-confirm-backdrop>
+      <section class="modal kalap-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="kalap-confirm-title" aria-describedby="kalap-confirm-message">
+        <div class="kalap-dialog-brand"><span class="kalap-dialog-mark">K.</span><span class="kalap-dialog-brand-copy"><strong>KALAP</strong><small>MANAGEMENT SYSTEM</small></span></div>
+        <h2 class="kalap-confirm-title" id="kalap-confirm-title"></h2>
+        <p class="kalap-confirm-message" id="kalap-confirm-message"></p>
+        <div class="kalap-confirm-actions">
+          <button type="button" class="btn btn-light" data-kalap-confirm-cancel></button>
+          <button type="button" class="btn ${danger ? "btn-danger" : "btn-primary"}" data-kalap-confirm-ok></button>
+        </div>
+      </section>
+    </div>`;
+    const titleNode = $("#kalap-confirm-title", root);
+    const messageNode = $("#kalap-confirm-message", root);
+    const cancelButton = $("[data-kalap-confirm-cancel]", root);
+    const okButton = $("[data-kalap-confirm-ok]", root);
+    titleNode.textContent = title;
+    messageNode.textContent = String(message ?? "");
+    cancelButton.textContent = cancelText;
+    okButton.textContent = confirmText;
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeyDown);
+      root.innerHTML = "";
+      if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
+      resolve(value);
+    };
+    const onKeyDown = event => {
+      if (event.key === "Escape") { event.preventDefault(); finish(false); }
+      if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); finish(true); }
+    };
+    cancelButton.addEventListener("click", () => finish(false));
+    okButton.addEventListener("click", () => finish(true));
+    root.querySelector("[data-kalap-confirm-backdrop]").addEventListener("click", event => {
+      if (event.target === event.currentTarget) finish(false);
+    });
+    document.addEventListener("keydown", onKeyDown);
+    okButton.focus();
+  });
 }
 function friendlyError(error) {
   const code = error?.code || "";
@@ -1985,7 +2055,7 @@ function renderPosPage() {
       <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan barcode..." autocomplete="off" aria-label="Cari atau scan menu"><button type="button" class="icon-clear-btn" id="clear-pos-search" aria-label="Bersihkan pencarian" title="Bersihkan pencarian">×</button></div>
       <p class="pos-search-hint">Scanner barcode akan mengetikkan kode ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
       <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
-    </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Bayar <span>→</span></button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
+    </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Bayar</button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
     <section class="panel" style="margin-top:15px">${panelHeader("Transaksi terbaru", "Aktivitas penjualan pada bulan yang dipilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(store.transactions.slice(0, 5), true)}</section>`;
 }
 
@@ -2129,9 +2199,9 @@ function renderAccountsPage() {
       ${user.role !== "superadmin" ? `<button type="button" class="action-link danger" data-toggle-user="${user.id}" data-next-active="${user.active === false ? "true" : "false"}">${user.active === false ? "Aktifkan" : "Nonaktifkan"}</button><button type="button" class="action-link danger" data-delete-user="${user.id}">Hapus akun</button>` : `<span class="muted">Akun utama</span>`}</div></td>
   </tr>`).join("");
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
-    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Kata sandi awal dibagikan secara pribadi kepada pemilik akun.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
+    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
     <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
-    <section class="panel">${panelHeader("Akun terdaftar", "Perubahan nama dan status tersinkron realtime")}<div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">Belum ada akun lain.</td></tr>`}</tbody></table></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Firebase tidak menyediakan password asli untuk dibaca admin. Gunakan tombol kirim reset sandi atau minta staf mengganti sandi melalui Profil Saya. Perubahan melalui Profil Saya akan mencatat nama dan waktunya secara realtime. “Hapus akun” menghapus profil akses dari KALAP, tetapi identitas login di Firebase Authentication tetap tersimpan.</div></section>`;
+    <section class="panel">${panelHeader("Akun terdaftar", "Perubahan nama dan status tersinkron realtime")}<div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">Belum ada akun lain.</td></tr>`}</tbody></table></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Password asli tidak dapat dibaca Admin. Gunakan reset sandi atau minta staf mengganti sandi melalui Profil Saya. Penghapusan akun menghapus profil akses dan identitas login Firebase melalui backend; riwayat transaksi tetap dipertahankan sebagai arsip keuangan.</div></section>`;
 }
 
 function renderProfilePage() {
@@ -2234,7 +2304,7 @@ async function markPartnerPayoutPaid(partnerId,button) {
   const partner=store.partners.find(row=>row.id===partnerId);if(!partner)return toast("Data mitra tidak ditemukan.","error");
   const commission=Math.round(gross*.20),transfer=gross-commission;
   if(!partner.bankName||!partner.accountNumber||!partner.accountHolder)return toast("Lengkapi nama bank, nomor rekening, dan pemilik rekening pada menu Mitra terlebih dahulu.","error");
-  if(!confirm(`Tandai transfer untuk ${partner.name}?\nPenjualan: ${money(gross)}\nBagian KALAP 20%: ${money(commission)}\nTransfer bersih: ${money(transfer)}\n\nPastikan transfer bank benar-benar sudah dilakukan.`))return;
+  if(!await kalapConfirm(`Tandai transfer untuk ${partner.name}?\nPenjualan: ${money(gross)}\nBagian KALAP 20%: ${money(commission)}\nTransfer bersih: ${money(transfer)}\n\nPastikan transfer bank benar-benar sudah dilakukan.`, {title:"Konfirmasi transfer mitra", confirmText:"Ya, tandai lunas", danger:false}))return;
   setBusy(button,true,"Menyimpan...");
   try{const payoutId=`${partnerTransferDate}_${partnerId}`;await setDoc(doc(db,"partnerPayouts",payoutId),{dateKey:partnerTransferDate,partnerId,partnerName:partner.name,grossSales:gross,kalapShare:commission,transferAmount:transfer,bankName:partner.bankName,accountNumber:partner.accountNumber,accountHolder:partner.accountHolder,status:"paid",markedPaidAt:serverTimestamp(),markedPaidBy:profile.uid,markedPaidByName:profile.displayName||profile.email||"Admin",updatedAt:serverTimestamp()},{merge:true});toast(`Status transfer ${partner.name} berhasil ditandai.`,"success");}
   catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
@@ -2594,7 +2664,7 @@ async function choosePartnerDisposition(disposition, button) {
   const summary = store.partnerDailySummary;
   if (!summary || summary.status !== "closed") return toast("Ringkasan closing hari ini belum tersedia.", "error");
   const label = disposition === "share" ? "Bagikan sisa produk" : "Jemput sisa produk";
-  if (!confirm(`Konfirmasi pilihan: ${label}? Pilihan ini akan langsung terlihat oleh SPV.`)) return;
+  if (!await kalapConfirm(`Konfirmasi pilihan: ${label}? Pilihan ini akan langsung terlihat oleh SPV.`, {title:"Konfirmasi sisa produk", confirmText:"Kirim pilihan"})) return;
   setBusy(button, true, "Menyimpan...");
   try {
     await updateDoc(doc(db, "dailyClosings", summary.dateKey, "partnerSummaries", profile.partnerId), {
@@ -2615,7 +2685,7 @@ async function closeBusinessDay(button) {
   const existingDay = store.dailyClosings.find(row => row.id === dateKey);
   if (existingDay?.status === "closed") return toast("Closing hari ini sudah selesai.", "error");
   if (existingDay?.status === "closing") return toast("Closing sedang diproses. Tunggu sampai proses selesai.", "error");
-  const ok = confirm(`Tutup penjualan KALAP untuk ${formatDate(dateFromKey(dateKey),{day:"numeric",month:"long",year:"numeric"})}?\n\nSetelah ditutup, kasir tidak dapat membuat transaksi baru untuk tanggal ini. Stok sisa tetap dibawa sebagai stok awal besok, bukan dihapus.`);
+  const ok = await kalapConfirm(`Tutup penjualan KALAP untuk ${formatDate(dateFromKey(dateKey),{day:"numeric",month:"long",year:"numeric"})}?\n\nSetelah ditutup, kasir tidak dapat membuat transaksi baru untuk tanggal ini. Stok sisa tetap dibawa sebagai stok awal besok, bukan dihapus.`, {title:"Closing harian", confirmText:"Tutup hari ini", danger:true});
   if (!ok) return;
   setBusy(button, true, "Menutup hari...");
   const headerRef = doc(db, "dailyClosings", dateKey);
@@ -2776,7 +2846,7 @@ async function toggleManagedUser(userId,nextActive,button) {
   const user=store.users.find(item=>item.id===userId);
   if(!user||user.role==="superadmin") return;
   const message=nextActive?`Aktifkan kembali akun ${user.displayName||user.email}?`:`Nonaktifkan akses ${user.displayName||user.email} dari KALAP?`;
-  if(!confirm(message)) return;
+  if(!await kalapConfirm(message, {title:"Konfirmasi status akun", confirmText:nextActive?"Aktifkan akun":"Nonaktifkan akun", danger:!nextActive})) return;
   setBusy(button,true,"Memproses...");
   try{await updateDoc(doc(db,"users",userId),{active:Boolean(nextActive),updatedAt:serverTimestamp(),updatedBy:profile.uid});toast(nextActive?"Akun diaktifkan kembali.":"Akses akun dinonaktifkan.","success");}
   catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
@@ -2788,9 +2858,9 @@ async function deleteManagedUser(userId,button) {
   const user=store.users.find(item=>item.id===userId);
   if(!user || user.role==="superadmin" || user.uid===profile.uid) return;
   const warning = user.role === "partner"
-    ? `Hapus profil akun Mitra ${user.displayName||user.email} dari KALAP? Data mitra dan riwayat produknya tetap disimpan, tetapi akun tersebut tidak dapat login ke KALAP lagi.`
-    : `Hapus profil akun ${user.displayName||user.email} dari KALAP? Akun tersebut tidak dapat login ke KALAP lagi.`;
-  if(!confirm(warning + "\n\nCatatan: identitas login di Firebase Authentication tetap ada dan tidak dihapus permanen karena aplikasi ini tidak memakai backend Admin SDK.")) return;
+    ? `Hapus akun Mitra ${user.displayName||user.email} beserta akses loginnya dari KALAP? Produk mitra akan dinonaktifkan dan pengajuan stok yang belum selesai dibatalkan.`
+    : `Hapus akun ${user.displayName||user.email} beserta akses loginnya dari KALAP?`;
+  if(!await kalapConfirm(warning + "\n\nAkun login Firebase akan dihapus otomatis oleh backend. Untuk Mitra, profil mitra dan menu akan dinonaktifkan agar tidak menerima transaksi baru. Riwayat transaksi dan penjualan lama tetap disimpan sebagai arsip keuangan KALAP.", {title:"Hapus akun secara permanen", confirmText:"Hapus akun", danger:true})) return;
   setBusy(button,true,"Menghapus...");
   try {
     const userRef=doc(db,"users",userId);
@@ -2809,7 +2879,7 @@ async function deleteManagedUser(userId,button) {
       }
       tx.delete(userRef);
     });
-    toast("Profil akun dihapus dari KALAP. Identitas Firebase Authentication tetap tersimpan.","success");
+    toast("Profil KALAP dihapus. Backend sedang menghapus identitas login Firebase secara otomatis.","success");
   } catch(error){toast(friendlyError(error),"error");}
   finally{setBusy(button,false);}
 }
@@ -2818,7 +2888,7 @@ async function sendManagedUserPasswordReset(userId,button) {
   requireRole("superadmin");
   const user=store.users.find(item=>item.id===userId);
   if(!user||!["spv","cashier"].includes(user.role)) return;
-  if(!confirm(`Kirim tautan reset kata sandi ke ${user.email}?`)) return;
+  if(!await kalapConfirm(`Kirim tautan reset kata sandi ke ${user.email}?`, {title:"Kirim reset kata sandi", confirmText:"Kirim tautan"})) return;
   setBusy(button,true,"Mengirim...");
   try{await sendPasswordResetEmail(auth,user.email);toast(`Tautan reset kata sandi dikirim ke ${user.email}.`,"success");}
   catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
@@ -3004,7 +3074,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.6.3", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.6.4", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
