@@ -1,88 +1,39 @@
-# KALAP Management System v1.1 — GitHub Pages + Firebase
+# KALAP Management System v1.4
 
-Versi ini tetap memakai **satu file website `index.html`** (HTML, CSS, JavaScript, dan Firebase Web Config menjadi satu). GitHub Pages menjadi hosting; Firebase hanya untuk Authentication dan Cloud Firestore.
+Website satu file (`index.html`, HTML + CSS + JavaScript + Firebase Web SDK) untuk GitHub Pages dengan Firebase Authentication dan Cloud Firestore. Palet brand tetap: `#E00000`, `#FFA97B`, `#FFECCB`, `#9FED72`.
 
-## File
+## Pembaruan v1.4
+- POS menyediakan pembayaran Tunai, QRIS, Transfer, dan **Beban operasional KALAP**.
+- Semua transaksi POS, termasuk transaksi yang ditanggung KALAP, tetap disimpan pada `transactions`, mengurangi stok, masuk total omzet penjualan/grafik penjualan, riwayat transaksi, serta penjualan mitra.
+- Pembedanya hanya pencatatan arus kas: pembayaran pelanggan menjadi `income` (`source: sale`), sedangkan transaksi yang ditanggung KALAP menjadi `expense` (`source: operational_sale`, kategori `Beban operasional - penjualan`). Dengan demikian omzet penjualan bruto tetap utuh, sementara nilai yang dibayar KALAP dibukukan sebagai beban.
+- Halaman Operasional harian menampilkan catatan operasional biasa dan transaksi POS yang ditanggung KALAP. Kartu ringkasan memisahkan omzet penjualan yang dibayar KALAP dari pengeluaran operasional lain. Akses halaman ini hanya untuk Superadmin dan SPV.
+- Sidebar mobile dibuat sebagai area gulir vertikal dengan tinggi viewport yang dibatasi, termasuk dukungan safe-area perangkat.
+- Tombol **Hapus akun** pada Akun Pengguna terhubung ke fungsi penghapusan profil Firestore. Klik menampilkan konfirmasi, status proses, dan toast hasil/error. Penghapusan ini menghapus profil akses KALAP, bukan identitas Firebase Authentication secara permanen karena aplikasi tidak memakai backend Admin SDK.
+- Cetak label menggunakan satu form: pilih **Nama menu**, **Mitra**, dan **Jumlah**, kemudian klik **Cetak**. Menu otomatis disaring mengikuti mitra. Sistem menyiapkan barcode Code 128 sebanyak jumlah yang diminta.
+- Ukuran cetak dideklarasikan sebagai 40 × 30 mm (4 × 3 cm).
 
-- `index.html` — seluruh website KALAP dalam satu file.
-- `firestore.rules` — aturan keamanan Firestore terbaru. WAJIB dipublikasikan setelah mengganti versi lama.
-- `firestore.indexes.json` — referensi indeks komposit Firestore.
-- `.nojekyll` — dukungan GitHub Pages.
-- `.gitignore` — menghindari unggahan file lokal/rahasia.
+## Cara update
+1. Ganti `index.html` pada root repository GitHub Pages dengan `index.html` dari paket ini.
+2. Buka Firebase Console → Firestore Database → Rules.
+3. Salin seluruh isi `firestore.rules` dari paket ini, lalu klik **Publish**. Ini wajib agar transaksi POS yang ditanggung KALAP dapat mencatat transaksi dan beban secara atomik, serta supaya aturan hapus profil akun sesuai dengan versi ini.
+4. `firestore.indexes.json` disertakan sebagai referensi indeks. Query cashflows SPV memakai `source in [operational, operational_sale]` dan indeks gabungan `source` ASC + `createdAt` DESC. Jika Firestore menampilkan error indeks, ikuti tautan yang disediakan.
+5. Commit perubahan dan muat ulang website dengan Ctrl + Shift + R.
 
-Konfigurasi Firebase di dalam `index.html` sudah diarahkan ke project `kalap-63628`. Jangan memasukkan password pengguna, service-account JSON, ataupun private key ke GitHub.
+## Cara transaksi yang ditanggung KALAP
+1. Tambahkan menu ke keranjang POS seperti biasa.
+2. Klik lanjut pembayaran.
+3. Pilih **Beban operasional KALAP**.
+4. Transaksi tetap masuk omzet penjualan, grafik, riwayat transaksi, stok berkurang, dan penjualan mitra tercatat. Nilai yang sama dibukukan sebagai beban/pengeluaran KALAP, bukan pemasukan dari pelanggan.
 
-## Fitur baru v1.1
+## Cara mencetak label thermal 4 × 3 cm
+1. Buka Operasional → Cetak label.
+2. Pilih nama menu, mitra, dan jumlah label.
+3. Klik **Cetak**.
+4. Pada dialog print, pilih printer thermal dan ukuran media **40 × 30 mm**, margin None/0, scale 100% atau Actual size, serta nonaktifkan header/footer browser.
 
-1. Tema merah marun/coral dengan aksen pastel (blush, peach, mint, dan lavender).
-2. Superadmin dan SPV dapat melihat semua menu, stok, status, barcode, mencari menu, dan mengekspor daftar menu ke CSV.
-3. Data mitra hanya meminta nama. Nomor telepon dan catatan kontak tidak lagi diminta atau ditampilkan.
-4. Mitra mengajukan produk dengan nama menu, harga jual, kategori opsional, dan jumlah unit yang diajukan.
-5. Superadmin/SPV melihat pengajuan secara realtime, menyetujui, menolak, atau mengoreksi nama produk, harga, dan jumlah sebelum persetujuan.
-6. Saat disetujui, sistem membuat menu, barcode Code 128, dan pergerakan stok awal dalam satu transaksi Firestore.
-7. SPV dapat memasukkan produk secara manual dengan memilih mitra, nama menu, harga, dan stok awal. Produk langsung terlihat di dashboard mitra yang terkait.
-8. Dashboard mitra memantau status pengajuan, stok berjalan, jumlah terjual, dan catatan penjualan terbaru melalui `onSnapshot` Firestore.
-9. Menu **Cetak label** menghasilkan label thermal ukuran 40 × 30 mm: nama menu di atas, barcode di tengah, harga di bawah.
-10. Firestore menggunakan persistent browser cache bila browser mendukungnya untuk mempercepat pembukaan ulang. Listener onSnapshot mengalirkan perubahan menu, stok, pengajuan, dan penjualan secara realtime. Data tetap bergantung pada koneksi internet dan sinkronisasi server.
+> Catatan: halaman meminta ukuran `@page size: 40mm 30mm`; driver printer thermal/browser tetap harus disetel ke media 40 × 30 mm agar hasil fisik tepat. CSS tidak dapat mengganti pengaturan media di driver printer.
 
-## PENTING: perbarui Firestore Rules
-
-Karena versi ini menambah koleksi `productSubmissions` serta mengizinkan SPV membuat produk, aturan Firestore lama harus diganti. Tanpa langkah ini, pengajuan/approval produk akan mendapat `permission-denied`.
-
-1. Buka Firebase Console project `kalap-63628`.
-2. Masuk ke **Firestore Database → Rules**.
-3. Buka file `firestore.rules` dari paket ini.
-4. Salin seluruh isinya dan ganti seluruh isi Rules lama.
-5. Klik **Publish**.
-
-Jangan memakai aturan uji coba `allow read, write: if true`.
-
-## Deploy website ke GitHub Pages
-
-1. Ekstrak paket ZIP.
-2. Di repository GitHub, ganti `index.html` lama dengan `index.html` dari paket ini.
-3. Ganti juga `firestore.rules` dan `firestore.indexes.json` pada repository (file Rules tetap dipasang melalui Firebase Console, bukan dijalankan oleh GitHub Pages).
-4. Commit perubahan ke branch `main`.
-5. Tunggu GitHub Pages selesai menerbitkan perubahan, lalu buka website dan tekan `Ctrl + Shift + R`.
-
-## Alur produk dan stok
-
-- **Mitra:** mengajukan nama produk, harga, kategori (opsional), dan jumlah yang akan diserahkan.
-- **SPV/Superadmin:** memeriksa pengajuan. Nama, harga jual, dan jumlah dapat dikoreksi sebelum disetujui; pengajuan juga dapat ditolak.
-- **Setujui:** produk dibuat di `menus`, stok awal masuk, `stockMovements` mencatat stok masuk, dan barcode otomatis dibuat.
-- **Input manual SPV:** menghasilkan data menu dan stok awal yang sama, tetapi tanpa pengajuan mitra.
-- **Kasir/SPV:** transaksi mengurangi stok melalui Firestore transaction. Data `partnerSales` ditulis dalam transaksi yang sama.
-- **Mitra:** listener realtime pada menu dan penjualan memperlihatkan stok saat ini dan produk yang baru terjual.
-
-Koleksi `productSubmissions` akan dibuat otomatis Firestore saat pengajuan produk pertama dikirim. Tidak perlu membuat collection tersebut secara manual.
-
-## Cetak label thermal 4 × 3 cm
-
-1. Buka website KALAP sebagai Superadmin atau SPV.
-2. Buka **Operasional → Cetak label**.
-3. Pilih menu dan jumlah label.
-4. Pada dialog cetak browser, pilih printer thermal dan ukuran kertas/stiker **40 × 30 mm**.
-5. Atur margin **None/Tanpa margin**, scale **100%**, dan matikan header/footer browser.
-
-Barcode Code 128 dibuat memakai JsBarcode dari CDN jsDelivr. Koneksi internet dibutuhkan ketika library barcode belum tersimpan di cache browser.
-
-## Catatan data yang sudah ada
-
-- Menu lama yang belum memiliki field `barcode` tetap bisa dicetak; website membuat kode deterministik dari ID dokumen menu.
-- Dokumen mitra lama yang masih menyimpan field `phone` tidak perlu dihapus. Versi website ini tidak lagi meminta atau menampilkannya.
-- Pengajuan produk lama yang belum pernah ada tidak otomatis dibuat; mitra mengirim pengajuan baru dari dashboard.
-- Pastikan akun Mitra di `users/{uid}` memiliki `partnerId` sesuai ID dokumen pada collection `partners`.
-
-## Batasan hosting/database
-
-- Tidak menggunakan Firebase Hosting, Cloud Functions, Node.js, Firebase CLI, ataupun paket Blaze.
-- Authentication memakai Email/Password.
-- Superadmin tetap membuat akun pengguna dari dashboard menggunakan sesi Authentication sekunder.
-- Firestore Rules menjadi kontrol keamanan utama di server. Jangan hanya mengandalkan menu yang disembunyikan pada browser.
-
-## Pembaruan keamanan dan performa
-
-- Setelah memperbarui paket, **wajib ganti isi Firestore Rules** dengan file `firestore.rules` dari paket ini, lalu klik Publish.
-- Browser cache menggunakan IndexedDB bila didukung; login pertama atau perangkat/browser baru tetap perlu mengambil profil dari server. Cache mengurangi waktu tunggu berikutnya, tetapi tidak dapat menghilangkan latensi jaringan.
-- Produk yang diajukan mitra dan belum disetujui tidak masuk katalog kasir dan tidak menambah stok.
-- Setelah penjualan tersimpan, stok menu dan catatan `partnerSales` diperbarui dalam transaksi Firestore yang sama, kemudian dipancarkan ke dashboard mitra melalui snapshot listener.
+## Catatan keamanan
+- Password tidak pernah disimpan sebagai teks biasa.
+- Penghapusan akun dari menu Superadmin menghapus dokumen profil `users/{uid}` di Firestore. Untuk menghapus identitas permanen dari Firebase Authentication diperlukan backend tepercaya/Admin SDK; fitur ini tidak dijalankan dari browser.
+- Firestore Rules adalah kontrol keamanan server dan harus dipublikasikan pada project Firebase yang sama dengan konfigurasi di `index.html`.

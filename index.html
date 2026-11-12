@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#E00000">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP — Management System v1.3</title>
+  <title>KALAP — Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -235,8 +235,10 @@ td strong { color: #333d35; font-size: 10px; }
   .login-form-panel { min-height: 100vh; padding: 26px 22px; align-items: center; }
   .mobile-brand { display: flex; }
   .app-shell { display: block; }
-  .sidebar { position: fixed; z-index: 50; top: 0; bottom: 0; left: 0; width: min(285px,85vw); min-height: 100dvh; transform: translateX(-105%); transition: transform .22s ease; box-shadow: 18px 0 45px rgba(0,0,0,.2); }
+  .sidebar { position: fixed; z-index: 50; top: 0; bottom: 0; left: 0; width: min(285px,85vw); height: 100vh; height: 100svh; height: 100dvh; max-height: 100dvh; min-height: 0; display:flex; flex-direction:column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; scrollbar-gutter: stable; transform: translateX(-105%); transition: transform .22s ease; box-shadow: 18px 0 45px rgba(0,0,0,.2); padding-bottom: max(18px, env(safe-area-inset-bottom)); }
   .sidebar.open { transform: translateX(0); }
+  .side-nav { flex: 0 0 auto; min-height: max-content; overflow: visible; }
+  .sidebar-bottom { flex: 0 0 auto; margin-top: 20px; }
   .main-column { min-height: 100vh; }
   .topbar { min-height: 66px; padding: 0 15px; }
   .mobile-menu-btn { display: inline-block; }
@@ -712,6 +714,46 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
+
+/* ============================================================
+   KALAP v1.4 — POS operational payer, mobile drawer & bulk labels
+   ============================================================ */
+@media (max-width:760px) {
+  .sidebar { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.55) rgba(255,255,255,.10); }
+  .sidebar::-webkit-scrollbar { width:6px; }
+  .sidebar::-webkit-scrollbar-thumb { background:rgba(255,255,255,.42); border-radius:20px; }
+  .sidebar::-webkit-scrollbar-track { background:rgba(255,255,255,.08); }
+}
+.payment-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.payment-choice { min-height:94px; }
+.payment-choice.operational-choice { background:linear-gradient(145deg,#FFECCB,#fff9ec); border-color:#f4d8a8; color:#8c4a16; }
+.payment-choice.operational-choice .payment-symbol { color:#E00000; }
+.label-selector-grid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(115px,.65fr); gap:13px; align-items:end; }
+.label-selector-grid .form-field { min-width:0; }
+.label-print-actions { grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; gap:12px; padding-top:8px; border-top:1px solid #f4e7dc; }
+.label-print-actions .btn { min-width:125px; }
+.label-help { border-radius:12px; padding:13px 15px; background:#FFF4E9; color:#71523d; font-size:11px; line-height:1.65; }
+.label-selection-summary { margin-top:13px; padding:12px 14px; border:1px dashed #e7c9b6; border-radius:11px; background:#fffaf4; color:#725542; font-size:11px; }
+.label-selection-summary strong { color:#302923; }
+.operational-sale-note { background:#FFF0E8; border:1px solid #FFD0B9; color:#85452f; border-radius:11px; padding:12px 14px; font-size:11px; line-height:1.6; margin:12px 0 0; }
+@media (max-width:640px) {
+  .payment-choice-grid { grid-template-columns:1fr; }
+  .label-selector-grid { grid-template-columns:1fr; }
+  .label-print-actions { flex-direction:column; align-items:stretch; }
+  .label-print-actions .btn { width:100%; }
+}
+@media print {
+  @page { size:40mm 30mm; margin:0; }
+  html, body { width:40mm!important; min-width:40mm!important; margin:0!important; padding:0!important; background:#fff!important; }
+  body.printing-labels { width:40mm!important; }
+  body.printing-labels #label-print-root { width:40mm!important; max-width:40mm!important; margin:0!important; padding:0!important; }
+  body.printing-labels .print-label { width:40mm!important; min-width:40mm!important; max-width:40mm!important; height:30mm!important; min-height:30mm!important; max-height:30mm!important; margin:0!important; padding:1mm 1.3mm!important; box-sizing:border-box!important; break-after:page!important; page-break-after:always!important; overflow:hidden!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body.printing-labels .print-label:last-child { break-after:auto!important; page-break-after:auto!important; }
+  body.printing-labels .print-label-name { height:4.5mm!important; line-height:4.5mm!important; font-size:7.5pt!important; }
+  body.printing-labels .print-label svg { width:35mm!important; height:15mm!important; max-width:35mm!important; }
+  body.printing-labels .print-label-price { height:4.5mm!important; line-height:4.5mm!important; font-size:8.5pt!important; }
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
@@ -758,7 +800,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi superadmin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.3</span></div>
+        <div class="sidebar-version">KALAP System <span>v1.4</span></div>
       </div>
     </aside>
 
@@ -869,6 +911,9 @@ function asDate(value) {
 function dayKeyFromTimestamp(value) { const date = asDate(value); return date ? jakartaDateKey(date) : ""; }
 function money(value) { return IDR.format(Number(value || 0)); }
 function integer(value) { return new Intl.NumberFormat("id-ID").format(Number(value || 0)); }
+function paymentMethodLabel(value) {
+  return ({ cash: "TUNAI", qris: "QRIS", transfer: "TRANSFER", kalap_operational: "DITANGGUNG KALAP · BEBAN OPERASIONAL" })[String(value || "").toLowerCase()] || String(value || "—").toUpperCase();
+}
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
@@ -1106,7 +1151,7 @@ async function callApi(name, payload = {}) {
   if (name === "createSale") {
     requireRole("superadmin", "spv", "cashier");
     const paymentMethod = String(payload.paymentMethod || "cash").toLowerCase();
-    if (!["cash", "qris", "transfer"].includes(paymentMethod)) throw new Error("Metode pembayaran tidak valid.");
+    if (!["cash", "qris", "transfer", "kalap_operational"].includes(paymentMethod)) throw new Error("Metode pembayaran tidak valid.");
     if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 50) throw new Error("Keranjang transaksi tidak valid.");
     const quantities = new Map();
     for (const item of payload.items) {
@@ -1150,8 +1195,11 @@ async function callApi(name, payload = {}) {
         price: item.price, qty: item.qty, subtotal: item.subtotal,
         stockBefore: item.stockBefore, stockAfter: item.stockAfter, movementId: item.movementRef.id
       }));
+      const isKalapOperational = paymentMethod === "kalap_operational";
       tx.set(saleRef, { transactionCode: code, items: storedItems,
         movementIds: movementRefs.map(ref => ref.id), total, paymentMethod,
+        payerType: isKalapOperational ? "kalap" : "customer",
+        isOperationalSale: isKalapOperational,
         cashierUid: actorUid, cashierName: actorName, createdAt, status: "completed" });
       for (const item of prepared) {
         tx.update(item.ref, { stock: item.stockAfter, updatedAt: createdAt, lastMovementId: item.movementRef.id });
@@ -1174,10 +1222,17 @@ async function callApi(name, payload = {}) {
           transactionCode: code, total: group.total, qty: group.qty, items: group.items,
           paymentMethod, createdAt, status: "recorded" });
       }
-      tx.set(cashflowRef, { type: "income", amount: total, category: "Penjualan",
-        note: `Penjualan ${code}`, source: "sale", transactionId: saleRef.id,
-        transactionCode: code, createdAt, createdBy: actorUid });
+      tx.set(cashflowRef, {
+        type: isKalapOperational ? "expense" : "income",
+        amount: total,
+        category: isKalapOperational ? "Beban operasional - penjualan" : "Penjualan",
+        note: isKalapOperational ? `Penjualan ${code} ditanggung KALAP` : `Penjualan ${code}`,
+        source: isKalapOperational ? "operational_sale" : "sale",
+        transactionId: saleRef.id, transactionCode: code,
+        createdAt, createdBy: actorUid, createdByName: actorName
+      });
       return { transactionId: saleRef.id, transactionCode: code, total, paymentMethod,
+        payerType: isKalapOperational ? "kalap" : "customer",
         cashierName: actorName, createdAt: new Date(),
         items: prepared.map(item => ({ name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal })) };
     });
@@ -1454,7 +1509,7 @@ function subscribeMonthData(key) {
   }, onDataError));
   if (["superadmin", "spv"].includes(profile.role)) {
     const cashConstraints = [where("createdAt", ">=", startTs), where("createdAt", "<", endTs)];
-    if (profile.role === "spv") cashConstraints.push(where("source", "==", "operational"));
+    if (profile.role === "spv") cashConstraints.push(where("source", "in", ["operational", "operational_sale"]));
     cashConstraints.push(orderBy("createdAt", "desc"), limit(1500));
     const cashQuery = query(collection(db, "cashflows"), ...cashConstraints);
     monthUnsubscribers.push(onSnapshot(cashQuery, snap => {
@@ -1564,8 +1619,8 @@ function renderSuperadminDashboard() {
   const historySales = txs.slice(0, 5);
   return `${pageHeading("Dashboard", "Ringkasan bisnis KALAP dan aktivitas operasional.", `${selectedMonthControl()}<div class="range-control"><span>Rentang grafik</span><input id="chart-days" type="range" min="1" max="31" value="${chartDays}"><strong id="chart-days-label">${chartDays} hari</strong></div>`)}
     <section class="stats-grid">
-      ${statCard("Total pendapatan bulan ini", money(revenue), "↗", `${integer(txs.length)} transaksi tercatat`)}
-      ${statCard("Total penjualan", integer(txs.length), "▣", "Jumlah transaksi bulan terpilih")}
+      ${statCard("Total omzet penjualan bulan ini", money(revenue), "↗", `${integer(txs.length)} transaksi · termasuk yang ditanggung KALAP`)}
+      ${statCard("Jumlah transaksi", integer(txs.length), "▣", "Jumlah transaksi bulan terpilih")}
       ${statCard("Total mitra", integer(store.partners.length), "♧", "Mitra terdaftar")}
       ${statCard("Total menu", integer(store.menus.length), "▤", "Menu terdaftar di sistem")}
     </section>
@@ -1804,7 +1859,7 @@ function renderAccountsPage() {
     <td><span class="status ${user.active === false ? "inactive" : "success"}">${user.active === false ? "Nonaktif" : "Aktif"}</span></td>
     <td><div class="account-actions"><button class="action-link" data-edit-user-name="${user.id}" ${user.role === "superadmin" ? "disabled" : ""}>Edit nama</button>
       ${["spv", "cashier"].includes(user.role) ? `<button class="action-link" data-reset-user="${user.id}">Kirim reset sandi</button>` : ""}
-      ${user.role !== "superadmin" ? `<button class="action-link danger" data-toggle-user="${user.id}" data-next-active="${user.active === false ? "true" : "false"}">${user.active === false ? "Aktifkan" : "Nonaktifkan"}</button><button class="action-link danger" data-delete-user="${user.id}">Hapus akun</button>` : `<span class="muted">Akun utama</span>`}</div></td>
+      ${user.role !== "superadmin" ? `<button type="button" class="action-link danger" data-toggle-user="${user.id}" data-next-active="${user.active === false ? "true" : "false"}">${user.active === false ? "Aktifkan" : "Nonaktifkan"}</button><button type="button" class="action-link danger" data-delete-user="${user.id}">Hapus akun</button>` : `<span class="muted">Akun utama</span>`}</div></td>
   </tr>`).join("");
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
     <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Superadmin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Kata sandi awal dibagikan secara pribadi kepada pemilik akun.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
@@ -1824,25 +1879,27 @@ function renderProfilePage() {
 }
 
 function renderOperationalPage() {
-  const rows = store.cashflows.filter(row => row.source === "operational" && dayKeyFromTimestamp(row.createdAt) === operationalDate)
+  const rows = store.cashflows.filter(row => ["operational", "operational_sale"].includes(row.source) && dayKeyFromTimestamp(row.createdAt) === operationalDate)
     .sort((a,b) => (asDate(b.createdAt) || 0) - (asDate(a.createdAt) || 0));
   const income = rows.filter(row => row.type === "income").reduce((sum,row) => sum + Number(row.amount || 0),0);
-  const expense = rows.filter(row => row.type === "expense").reduce((sum,row) => sum + Number(row.amount || 0),0);
-  return `${pageHeading("Operasional harian", "Catat pengeluaran seperti sedekah, konsumsi, transportasi, dan kebutuhan harian. Hanya Superadmin dan SPV yang dapat mengakses.", `<input type="date" id="operational-date" value="${operationalDate}" aria-label="Pilih tanggal operasional">`)}
-    <section class="stats-grid">${statCard("Pemasukan operasional", money(income), "＋", "Tanggal terpilih")}${statCard("Pengeluaran operasional", money(expense), "−", "Tanggal terpilih")}${statCard("Selisih", money(income-expense), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Jumlah catatan", integer(rows.length), "▤", "Aktivitas operasional hari ini")}</section>
+  const kalapPaidSales = rows.filter(row => row.source === "operational_sale").reduce((sum,row) => sum + Number(row.amount || 0),0);
+  const otherExpense = rows.filter(row => row.source === "operational" && row.type === "expense").reduce((sum,row) => sum + Number(row.amount || 0),0);
+  const expense = kalapPaidSales + otherExpense;
+  return `${pageHeading("Operasional harian", "Catat pengeluaran seperti sedekah, konsumsi, transportasi, dan kebutuhan harian. Penjualan yang dibayar KALAP tetap dihitung sebagai omzet. Hanya Superadmin dan SPV yang dapat mengakses.", `<input type="date" id="operational-date" value="${operationalDate}" aria-label="Pilih tanggal operasional">`)}
+    <section class="stats-grid">${statCard("Pemasukan operasional", money(income), "＋", "Uang masuk pada tanggal terpilih")}${statCard("Penjualan ditanggung KALAP", money(kalapPaidSales), "▣", "Tetap masuk total omzet penjualan")}${statCard("Pengeluaran operasional lain", money(otherExpense), "−", "Sedekah, konsumsi, dan lainnya")}${statCard("Jumlah catatan", integer(rows.length), "▤", "Aktivitas operasional hari ini")}</section>
     <div class="content-grid"><section class="panel">${panelHeader("Tambah catatan operasional", "Contoh: sedekah, konsumsi karyawan, bensin, parkir, listrik")}
       <form id="operational-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="expense">Pengeluaran</option><option value="income">Pemasukan</option></select></div><div class="form-field"><label>Kategori operasional</label><input name="category" maxlength="60" required list="operational-category-options" placeholder="Contoh: Sedekah"><datalist id="operational-category-options"><option value="Sedekah"><option value="Konsumsi"><option value="Transportasi"><option value="Parkir"><option value="Listrik"><option value="Perlengkapan"><option value="Kebersihan"><option value="Lainnya"></datalist></div><div class="form-field"><label>Jumlah (Rp)</label><input name="amount" type="number" min="1" step="1" required placeholder="Contoh: 10000"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="3" maxlength="220" placeholder="Contoh: Sedekah Jumat / beli air minum"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan operasional</button></div></form>
-    </section><section class="panel">${panelHeader("Catatan hari terpilih", formatDate(dateFromKey(operationalDate),{day:"numeric",month:"long",year:"numeric"}))}<div class="operational-note"><strong>Perhatian:</strong> Catatan operasional terpisah dari transaksi POS. Pengeluaran seperti sedekah tidak akan mengurangi stok menu dan tidak dihitung sebagai penjualan.</div><div class="summary-list" style="margin-top:13px"><div class="summary-row"><span>Total uang masuk</span><strong>${money(income)}</strong></div><div class="summary-row"><span>Total uang keluar</span><strong>${money(expense)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Selisih</span><strong>${money(income-expense)}</strong></div></div></section></div>
-    <section class="panel">${panelHeader("Riwayat operasional", `${integer(rows.length)} catatan pada ${formatDate(dateFromKey(operationalDate))}`, `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Dicatat oleh</th><th>Jumlah</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${formatTime(row.createdAt)}</td><td><span class="status ${row.type==="income"?"success":"inactive"}">${row.type==="income"?"Pemasukan":"Pengeluaran"}</span></td><td><strong>${escapeHtml(row.category||"—")}</strong></td><td>${escapeHtml(row.note||"—")}</td><td>${escapeHtml(row.createdByName||"—")}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("")||`<tr><td colspan="6" class="table-empty">Belum ada catatan operasional pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
+    </section><section class="panel">${panelHeader("Catatan hari terpilih", formatDate(dateFromKey(operationalDate),{day:"numeric",month:"long",year:"numeric"}))}<div class="operational-note"><strong>Penjualan ditanggung KALAP:</strong> Transaksikan produk seperti biasa dari POS, lalu pilih metode <b>Beban operasional KALAP</b>. Nilai transaksi tetap masuk total penjualan dan laporan penjualan mitra; stok tetap berkurang. Karena dibayar oleh KALAP, nilainya dicatat sebagai beban/pengeluaran, bukan uang masuk dari pelanggan.</div><div class="summary-list" style="margin-top:13px"><div class="summary-row"><span>Total uang masuk</span><strong>${money(income)}</strong></div><div class="summary-row"><span>Total beban KALAP (termasuk penjualan ditanggung)</span><strong>${money(expense)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Selisih</span><strong>${money(income-expense)}</strong></div></div></section></div>
+    <section class="panel">${panelHeader("Riwayat operasional", `${integer(rows.length)} catatan pada ${formatDate(dateFromKey(operationalDate))}`, `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Dicatat oleh</th><th>Jumlah</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${formatTime(row.createdAt)}</td><td><span class="status ${row.type==="income"?"success":"inactive"}">${row.source==="operational_sale"?"Penjualan · Beban KALAP":row.type==="income"?"Pemasukan":"Pengeluaran"}</span></td><td><strong>${escapeHtml(row.category||"—")}</strong></td><td>${escapeHtml(row.note||"—")}</td><td>${escapeHtml(row.createdByName||"—")}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("")||`<tr><td colspan="6" class="table-empty">Belum ada catatan operasional pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
 }
 
 function renderFinancePage() {
   const totalIn = store.cashflows.filter(row => row.type === "income").reduce((s,row)=>s+Number(row.amount||0),0);
   const totalOut = store.cashflows.filter(row => row.type === "expense").reduce((s,row)=>s+Number(row.amount||0),0);
   return `${pageHeading("Keuangan", "Catat pemasukan dan pengeluaran di luar transaksi penjualan.", selectedMonthControl())}
-    <section class="stats-grid">${statCard("Total pemasukan", money(totalIn), "＋", "Penjualan + pemasukan manual")}${statCard("Total pengeluaran", money(totalOut), "−", "Catatan pengeluaran manual")}${statCard("Saldo arus kas", money(totalIn-totalOut), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Catatan keuangan", integer(store.cashflows.length), "▤", "Termasuk pencatatan otomatis penjualan")}</section>
+    <section class="stats-grid">${statCard("Total pemasukan", money(totalIn), "＋", "Pembayaran pelanggan + pemasukan lain")}${statCard("Total pengeluaran", money(totalOut), "−", "Termasuk transaksi yang ditanggung KALAP")}${statCard("Saldo arus kas", money(totalIn-totalOut), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Catatan keuangan", integer(store.cashflows.length), "▤", "Termasuk pencatatan otomatis penjualan")}</section>
     <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="number" name="amount" min="1" step="1" required placeholder="Contoh: 150000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
-    <section class="panel">${panelHeader("Ringkasan arus kas", `Bulan ${monthKey}`)}<div class="summary-list"><div class="summary-row"><span>Penjualan otomatis</span><strong>${money(sumBy(store.transactions,"total"))}</strong></div><div class="summary-row"><span>Pemasukan lain</span><strong>${money(store.cashflows.filter(r=>r.type==="income"&&r.source!=="sale").reduce((s,r)=>s+Number(r.amount||0),0))}</strong></div><div class="summary-row"><span>Pengeluaran</span><strong>${money(totalOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo tercatat</span><strong>${money(totalIn-totalOut)}</strong></div></div><div class="helper-text">Setiap transaksi kasir otomatis dicatat sebagai pemasukan penjualan. Jangan input ulang transaksi penjualan secara manual agar tidak terhitung dua kali.</div></section></div>
+    <section class="panel">${panelHeader("Ringkasan arus kas", `Bulan ${monthKey}`)}<div class="summary-list"><div class="summary-row"><span>Penjualan otomatis</span><strong>${money(sumBy(store.transactions,"total"))}</strong></div><div class="summary-row"><span>Pemasukan lain</span><strong>${money(store.cashflows.filter(r=>r.type==="income"&&r.source!=="sale").reduce((s,r)=>s+Number(r.amount||0),0))}</strong></div><div class="summary-row"><span>Pengeluaran</span><strong>${money(totalOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo tercatat</span><strong>${money(totalIn-totalOut)}</strong></div></div><div class="helper-text">Semua transaksi POS masuk ke total penjualan. Pembayaran pelanggan masuk sebagai pemasukan, sedangkan pilihan Beban operasional KALAP masuk sebagai pengeluaran agar tidak dianggap uang yang diterima dari pelanggan.</div></section></div>
     <section class="panel">${panelHeader("Riwayat keuangan", `${integer(store.cashflows.length)} catatan bulan ini`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${store.cashflows.slice().sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt)).map(row => `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><span class="status ${row.type === "income" ? "success" : "inactive"}">${row.type === "income" ? "Pemasukan" : "Pengeluaran"}</span></td><td>${escapeHtml(row.category || (row.source === "sale" ? "Penjualan" : "—"))}</td><td>${escapeHtml(row.note || (row.source === "sale" ? `Penjualan ${row.transactionCode || ""}` : "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada catatan keuangan.</td></tr>`}</tbody></table></div></section>`;
 }
 
@@ -1890,14 +1947,21 @@ function renderProductReviewsPage() {
 }
 
 function renderLabelsPage() {
-  const menus = store.menus.filter(menu=>menu.active!==false).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  return `${pageHeading("Cetak label", "Label thermal 4 × 3 cm: nama menu di atas, barcode di tengah, dan harga di bawah.", `<span class="status neutral">40 × 30 mm</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>Barcode dibuat otomatis</strong><br>Setiap menu baru memiliki barcode unik. Label dapat dicetak ulang kapan saja, termasuk untuk menu yang sudah lama dibuat.</div></div>
-    <section class="panel">${panelHeader("Pilih menu untuk dicetak", `${integer(menus.length)} menu aktif`) }
-      <div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Mitra</th><th>Barcode</th><th>Harga</th><th>Label</th></tr></thead><tbody>${menus.map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName||"—")}</td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td>${money(menu.price)}</td><td><button class="btn btn-primary" data-print-label="${menu.id}">Cetak label</button></td></tr>`).join("")||`<tr><td colspan="5" class="table-empty">Belum ada menu aktif.</td></tr>`}</tbody></table></div>
+  const menus = store.menus.filter(menu => menu.active !== false).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+  const partners = store.partners.filter(partner => partner.active !== false).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+  const firstMenu = menus[0] || null;
+  return `${pageHeading("Cetak label", "Siapkan label barcode untuk printer thermal dengan ukuran tepat 4 × 3 cm.", `<span class="status neutral">40 × 30 mm</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>Label otomatis dari data menu</strong><br>Nama menu dicetak di atas, barcode Code 128 di tengah, dan harga jual di bawah. Jumlah label mengikuti angka yang kamu masukkan.</div></div>
+    <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
+      ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
+        <div class="form-field"><label for="label-menu-select">Nama menu</label><select id="label-menu-select" name="menuId" required><option value="">Pilih nama menu</option>${menus.map(menu=>`<option value="${menu.id}" ${menu.id===firstMenu?.id?"selected":""}>${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("")}</select></div>
+        <div class="form-field"><label for="label-partner-select">Mitra</label><select id="label-partner-select" name="partnerId"><option value="">Semua mitra</option>${partners.map(partner=>`<option value="${partner.id}" ${firstMenu?.partnerId===partner.id?"selected":""}>${escapeHtml(partner.name)}</option>`).join("")}</select></div>
+        <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
+        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${firstMenu?`<strong>${escapeHtml(firstMenu.name)}</strong> · ${escapeHtml(firstMenu.partnerName||"—")} · ${money(firstMenu.price)}<br><small>Barcode: ${escapeHtml(menuBarcode(firstMenu))}</small>`:"Pilih mitra dan menu untuk menampilkan ringkasan label."}</div>
+        <div class="label-print-actions"><span class="helper-text">Setiap label dicetak pada halaman 40 × 30 mm. Pastikan ukuran media printer thermal juga 40 × 30 mm.</span><button class="btn btn-primary" type="submit">▤&nbsp; Cetak</button></div>
+      </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak. Tambahkan atau setujui produk terlebih dahulu.</div>`}
     </section>`;
 }
-
 function renderPartnerMenu() {
   return `${pageHeading("Menu saya", "Daftar produk milik Anda yang dijual melalui KALAP.")}
     <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Kategori</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.category||"—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock)>0?"success":"inactive"}">${Number(menu.stock)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama, kategori, atau harga.</div></section>`;
@@ -1906,7 +1970,7 @@ function renderPartnerSales() {
   const total = sumBy(store.partnerSales,"total");
   return `${pageHeading("Penjualan saya", "Riwayat penjualan yang berasal dari produk milik Anda.", selectedMonthControl())}
     <section class="stats-grid">${statCard("Nilai penjualan", money(total), "↗", `Periode ${monthKey}`)}${statCard("Jumlah transaksi", integer(store.partnerSales.length), "▣", "Transaksi yang memuat produk Anda")}${statCard("Unit terjual", integer(store.partnerSales.reduce((s,r)=>s+Number(r.qty||0),0)), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
-    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(store.partnerSales.length)} catatan pada bulan ${monthKey}`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Total penjualan</th></tr></thead><tbody>${store.partnerSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml((row.paymentMethod||"—").toUpperCase())}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada penjualan untuk periode ini.</td></tr>`}</tbody></table></div></section>`;
+    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(store.partnerSales.length)} catatan pada bulan ${monthKey}`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Total penjualan</th></tr></thead><tbody>${store.partnerSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada penjualan untuk periode ini.</td></tr>`}</tbody></table></div></section>`;
 }
 
 function attachPageEvents() {
@@ -1956,10 +2020,15 @@ function attachPageEvents() {
   $$('[data-review-product]').forEach(button => button.addEventListener("click", () => openReviewProductModal(button.dataset.reviewProduct)));
   $$('[data-reject-product]').forEach(button => button.addEventListener("click", () => rejectProductSubmission(button.dataset.rejectProduct, button)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
+  $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
+  $("#label-partner-select")?.addEventListener("change", refreshLabelMenuOptions);
+  $("#label-menu-select")?.addEventListener("change", syncLabelPartnerFromMenu);
+  refreshLabelMenuOptions();
   $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
   $$('[data-edit-user-name]').forEach(button => button.addEventListener("click", () => editManagedUserName(button.dataset.editUserName)));
   $$('[data-toggle-user]').forEach(button => button.addEventListener("click", () => toggleManagedUser(button.dataset.toggleUser, button.dataset.nextActive === "true", button)));
+  $$('[data-delete-user]').forEach(button => button.addEventListener("click", () => deleteManagedUser(button.dataset.deleteUser, button)));
   $$('[data-reset-user]').forEach(button => button.addEventListener("click", () => sendManagedUserPasswordReset(button.dataset.resetUser, button)));
   $$('[data-nav]').forEach(button => button.addEventListener("click", () => showPage(button.dataset.nav)));
 }
@@ -1989,14 +2058,14 @@ function openPaymentModal() {
   const cartItems=[...cart.values()];
   const total=cartItems.reduce((sum,row)=>sum+row.price*row.qty,0);
   const root=$("#modal-root");
-  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total yang harus dibayar: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">💵</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">▦</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">🏦</span><span>Transfer</span></button></div><div class="helper-text">Setelah metode dipilih dan transaksi tersimpan, resi akan langsung tampil di layar.</div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
+  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">💵</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">▦</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">🏦</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">🏷️</span><span>Beban operasional KALAP</span><small>Penjualan tetap tercatat · biaya ditanggung KALAP</small></button></div><div class="helper-text">Semua pilihan tetap membuat transaksi dan mengurangi stok. Pilih Beban operasional KALAP bila pembelian dibayar oleh KALAP, bukan pelanggan.</div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
   root.querySelectorAll("[data-pay-method]").forEach(button=>button.addEventListener("click",()=>checkout(button.dataset.payMethod,button)));
   root.querySelectorAll("[data-payment-cancel], [data-payment-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-payment-cancel]"))root.innerHTML="";}));
 }
 
 async function checkout(paymentMethod) {
   if (busy || !cart.size) return;
-  if (!['cash','qris','transfer'].includes(paymentMethod)) return toast("Metode pembayaran tidak valid.","error");
+  if (!['cash','qris','transfer','kalap_operational'].includes(paymentMethod)) return toast("Metode pembayaran tidak valid.","error");
   const root=$("#modal-root");
   const choice=root.querySelector(`[data-pay-method="${paymentMethod}"]`);
   busy = true;
@@ -2030,7 +2099,7 @@ function showReceipt(result) {
       <div class="receipt-meta"><span>Total item</span><strong>${integer(totalQty)}</strong></div>
       <div class="receipt-grand-total"><span>TOTAL</span><strong>${money(result.total)}</strong></div>
       <div class="receipt-dash"></div>
-      <div class="receipt-meta"><span>Metode pembayaran</span><strong>${({cash:"TUNAI",qris:"QRIS",transfer:"TRANSFER"})[result.paymentMethod]||escapeHtml(result.paymentMethod||"—")}</strong></div>
+      <div class="receipt-meta"><span>${result.paymentMethod === "kalap_operational" ? "Penanggung biaya" : "Metode pembayaran"}</span><strong>${escapeHtml(paymentMethodLabel(result.paymentMethod))}</strong></div>
       <div class="receipt-dash"></div><div class="receipt-thanks">TERIMA KASIH<br><small>Selamat menikmati pesanan Anda.</small></div>
     </div>
     <button type="button" class="btn btn-primary btn-wide" id="receipt-back">← Kembali ke POS</button>
@@ -2043,7 +2112,7 @@ function showTransactionDetail(transactionId) {
   const tx = store.transactions.find(item => item.id === transactionId);
   if (!tx) return toast("Detail transaksi tidak ditemukan pada periode ini.", "error");
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-detail-backdrop><section class="modal"><div class="modal-head"><div><h2>Detail transaksi</h2><p>${escapeHtml(tx.transactionCode || tx.id)} · ${formatDate(tx.createdAt)} ${formatTime(tx.createdAt)}</p></div><button class="modal-close" data-detail-close>×</button></div><div class="receipt-box"><div class="receipt-line"><span>Kasir</span><strong>${escapeHtml(tx.cashierName || "—")}</strong></div><div class="receipt-line"><span>Pembayaran</span><strong>${escapeHtml((tx.paymentMethod || "").toUpperCase())}</strong></div>${(tx.items || []).map(item=>`<div class="receipt-line" style="align-items:flex-start"><span><strong>${escapeHtml(item.name)}</strong><br>${integer(item.qty)} × ${money(item.price)}<br><small>Stok: ${integer(item.stockBefore)} → ${integer(item.stockAfter)}</small></span><strong>${money(item.subtotal)}</strong></div>`).join("")}<div class="receipt-line receipt-total"><span>Total</span><strong>${money(tx.total)}</strong></div></div><div class="form-actions"><button class="btn btn-primary" data-detail-close>Tutup</button></div></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop" data-detail-backdrop><section class="modal"><div class="modal-head"><div><h2>Detail transaksi</h2><p>${escapeHtml(tx.transactionCode || tx.id)} · ${formatDate(tx.createdAt)} ${formatTime(tx.createdAt)}</p></div><button class="modal-close" data-detail-close>×</button></div><div class="receipt-box"><div class="receipt-line"><span>Kasir</span><strong>${escapeHtml(tx.cashierName || "—")}</strong></div><div class="receipt-line"><span>${tx.paymentMethod === "kalap_operational" ? "Penanggung biaya" : "Pembayaran"}</span><strong>${escapeHtml(paymentMethodLabel(tx.paymentMethod))}</strong></div>${(tx.items || []).map(item=>`<div class="receipt-line" style="align-items:flex-start"><span><strong>${escapeHtml(item.name)}</strong><br>${integer(item.qty)} × ${money(item.price)}<br><small>Stok: ${integer(item.stockBefore)} → ${integer(item.stockAfter)}</small></span><strong>${money(item.subtotal)}</strong></div>`).join("")}<div class="receipt-line receipt-total"><span>Total</span><strong>${money(tx.total)}</strong></div></div><div class="form-actions"><button class="btn btn-primary" data-detail-close>Tutup</button></div></section></div>`;
   root.querySelectorAll("[data-detail-close], [data-detail-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-detail-close]"))root.innerHTML="";}));
 }
 
@@ -2303,12 +2372,71 @@ function exportMenusCsv() {
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
 }
 
+
+function refreshLabelMenuOptions() {
+  const partnerSelect = $("#label-partner-select");
+  const menuSelect = $("#label-menu-select");
+  if (!partnerSelect || !menuSelect) return;
+  const partnerId = partnerSelect.value;
+  const currentId = menuSelect.value;
+  const available = store.menus.filter(menu => menu.active !== false && (!partnerId || menu.partnerId === partnerId))
+    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+  menuSelect.innerHTML = `<option value="">Pilih nama menu</option>${available.map(menu=>`<option value="${menu.id}">${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("")}`;
+  if (available.some(menu => menu.id === currentId)) menuSelect.value = currentId;
+  else if (available.length) menuSelect.value = available[0].id;
+  updateLabelSelectionSummary();
+}
+
+function syncLabelPartnerFromMenu() {
+  const menu = store.menus.find(item => item.id === $("#label-menu-select")?.value);
+  const partnerSelect = $("#label-partner-select");
+  if (menu && partnerSelect) {
+    partnerSelect.value = menu.partnerId || "";
+    // Setelah menu dipilih, sinkronkan daftar ke mitranya tanpa kehilangan menu aktif.
+    refreshLabelMenuOptions();
+  } else updateLabelSelectionSummary();
+}
+
+function updateLabelSelectionSummary() {
+  const target = $("#label-selection-summary");
+  if (!target) return;
+  const menu = store.menus.find(item => item.id === $("#label-menu-select")?.value);
+  if (!menu) {
+    target.textContent = "Belum ada menu untuk pilihan mitra ini. Pilih mitra lain atau tambahkan menu terlebih dahulu.";
+    return;
+  }
+  target.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · ${escapeHtml(menu.partnerName||"—")} · ${money(menu.price)}<br><small>Barcode: ${escapeHtml(menuBarcode(menu))}</small>`;
+}
+
+function handleBulkLabelPrint(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  const data = Object.fromEntries(new FormData(form));
+  const menu = store.menus.find(item => item.id === String(data.menuId||""));
+  const copies = Number(data.copies);
+  if (!menu || menu.active === false) return toast("Pilih menu aktif yang akan dicetak.", "error");
+  if (data.partnerId && menu.partnerId !== data.partnerId) return toast("Menu tidak sesuai dengan mitra yang dipilih. Pilih ulang menu.", "error");
+  if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah label harus antara 1 sampai 500.", "error");
+  if (!window.JsBarcode) return toast("Pustaka barcode belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
+  setBusy(button, true, "Menyiapkan label...");
+  try {
+    printMenuLabels(menu, copies);
+    toast(`${integer(copies)} label ${menu.name} disiapkan untuk cetak ukuran 4 × 3 cm.`, "success");
+  } catch (error) {
+    console.error(error);
+    toast("Label gagal disiapkan. Coba muat ulang halaman dan ulangi.", "error");
+  } finally {
+    setTimeout(() => setBusy(button, false), 350);
+  }
+}
+
 function openLabelModal(menuId) {
   const menu=store.menus.find(item=>item.id===menuId);if(!menu)return;
   const root=$("#modal-root");
   root.innerHTML=`<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label 4 × 3 cm</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><svg id="label-preview-barcode"></svg><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Barcode: ${escapeHtml(menuBarcode(menu))}</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
   const svg=root.querySelector('#label-preview-barcode');
-  if(window.JsBarcode) JsBarcode(svg,menuBarcode(menu),{format:'CODE128',displayValue:false,margin:0,width:1.35,height:38,lineColor:'#111'});
+  if(window.JsBarcode) JsBarcode(svg,menuBarcode(menu),{format:'CODE128',displayValue:false,margin:0,width:1.05,height:34,lineColor:'#111'});
   else svg.outerHTML='<div class="muted">Pustaka barcode belum termuat. Periksa koneksi internet.</div>';
   root.querySelector('#label-print-form').addEventListener('submit',e=>{e.preventDefault();const copies=Math.min(300,Math.max(1,Number(new FormData(e.currentTarget).get('copies'))||1));root.innerHTML='';printMenuLabels(menu,copies);});
   root.querySelectorAll('[data-label-close],[data-label-backdrop]').forEach(item=>item.addEventListener('click',e=>{if(e.target===item||item.matches('[data-label-close]'))root.innerHTML='';}));
@@ -2319,7 +2447,7 @@ function printMenuLabels(menu,copies=1) {
   let root=document.getElementById('label-print-root');if(!root){root=document.createElement('div');root.id='label-print-root';document.body.appendChild(root);}
   const value=menuBarcode(menu);
   root.innerHTML=Array.from({length:copies},()=>`<div class="print-label"><div class="print-label-name">${escapeHtml(menu.name)}</div><svg class="print-label-code"></svg><div class="print-label-price">${money(menu.price)}</div></div>`).join('');
-  root.querySelectorAll('.print-label-code').forEach(svg=>JsBarcode(svg,value,{format:'CODE128',displayValue:false,margin:0,width:1.25,height:42,lineColor:'#000'}));
+  root.querySelectorAll('.print-label-code').forEach(svg=>JsBarcode(svg,value,{format:'CODE128',displayValue:false,margin:0,width:1.05,height:36,lineColor:'#000'}));
   document.body.classList.add('printing-labels');
   const cleanup=()=>{document.body.classList.remove('printing-labels');root.innerHTML='';window.removeEventListener('afterprint',cleanup);};
   window.addEventListener('afterprint',cleanup,{once:true});
