@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v1.6.1</title>
+  <title>KALAP Management System v1.6.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -734,7 +734,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 
 /* ============================================================
-   KALAP v1.6.1 — Partner menu assignment, index-free queries & daily closing
+   KALAP v1.6.2 — Login, remember-me & orientation update
    ============================================================ */
 @media (max-width:760px) {
   .sidebar { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.55) rgba(255,255,255,.10); }
@@ -836,7 +836,66 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .daily-payment-card strong { font-size:15px; }
 }
 
-  </style>
+  
+
+/* KALAP v1.6.2 — login refinements, session choice, and responsive orientation */
+.remember-row {
+  display: flex; align-items: center; gap: 10px; margin: 17px 2px 0;
+  color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; user-select: none;
+}
+.remember-row input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+}
+.remember-check {
+  width: 18px; height: 18px; flex: 0 0 18px; border: 1.5px solid #d8c8bd; border-radius: 5px;
+  background: #fff; display: inline-grid; place-items: center; transition: .16s ease;
+}
+.remember-row input:checked + .remember-check { background: var(--kalap-red); border-color: var(--kalap-red); }
+.remember-row input:checked + .remember-check::after {
+  content: ''; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+.remember-row input:focus-visible + .remember-check { outline: 3px solid var(--kalap-peach); outline-offset: 2px; }
+.remember-row small { margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 500; }
+.password-wrap input { padding-right: 52px; }
+.password-toggle {
+  width: 36px; height: 36px; right: 8px; display: grid; place-items: center;
+  border-radius: 9px; color: #766b65; transition: background .15s, color .15s;
+}
+.password-toggle:hover { background: var(--kalap-cream); color: var(--kalap-red); }
+.eye-icon { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#login-submit { gap: 0; }
+#login-submit span { display: none !important; }
+
+/* A PWA must not be pinned to portrait; device/browser handles real orientation. */
+html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
+@media (orientation: landscape) and (max-height: 560px) {
+  .login-screen { min-height: 100dvh; grid-template-columns: minmax(240px,.8fr) 1.2fr; }
+  .login-brand-panel { padding: 20px clamp(18px, 3vw, 42px); }
+  .login-brand-copy h1 { font-size: clamp(28px, 4vw, 43px); margin: 8px 0; }
+  .login-brand-copy p { font-size: 12px; line-height: 1.5; }
+  .login-form-panel { padding: 14px 18px; }
+  .login-card { padding: 18px 22px; }
+  .login-card h2 { font-size: 24px; margin: 7px 0 5px; }
+  .login-card > .muted { margin-bottom: 12px; font-size: 12px; }
+  .field-label { margin: 9px 0 5px; }
+  .btn-wide { margin-top: 14px; padding: 11px; }
+  .login-footnote { margin-top: 14px; }
+}
+@media (max-width: 760px) and (orientation: landscape) {
+  .login-screen { grid-template-columns: minmax(0, .7fr) minmax(300px, 1.3fr); }
+  .login-brand-panel { display: flex; padding: 16px; }
+  .login-brand-copy h1 { font-size: clamp(24px, 4vw, 36px); }
+  .login-brand-copy p { font-size: 11px; }
+  .login-form-panel { min-height: 100dvh; padding: 12px; }
+  .login-card { padding: 16px; }
+  .mobile-brand { display: none; }
+}
+@media (max-width: 560px) and (orientation: portrait) {
+  .remember-row small { font-size: 9px; }
+}
+
+</style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 </head>
@@ -858,19 +917,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
         <div class="mobile-brand"><span class="brand-mark">K.</span><strong>KALAP.</strong></div>
         <span class="eyebrow">SELAMAT DATANG KEMBALI</span>
         <h2>Masuk ke akun</h2>
-        <p class="muted">Gunakan email dan kata sandi yang diberikan superadmin.</p>
+        <p class="muted">Gunakan email dan kata sandi akun KALAP kamu.</p>
         <label class="field-label" for="login-email">Email</label>
         <input id="login-email" type="email" autocomplete="username" placeholder="nama@email.com" required>
         <label class="field-label" for="login-password">Kata sandi</label>
         <div class="password-wrap">
           <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan kata sandi" required>
-          <button type="button" class="password-toggle" id="toggle-password" aria-label="Tampilkan kata sandi">Lihat</button>
+          <button type="button" class="password-toggle" id="toggle-password" aria-label="Tampilkan kata sandi" aria-pressed="false" title="Tampilkan kata sandi">
+            <svg class="eye-icon" id="password-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
         </div>
-        <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk <span>→</span></button>
+        <label class="remember-row" for="remember-me">
+          <input id="remember-me" type="checkbox">
+          <span class="remember-check" aria-hidden="true"></span>
+          <span>Ingat saya</span>
+          <small>Login ulang saat halaman dibuka kembali</small>
+        </label>
+        <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk</button>
         <div id="firebase-setup-note" class="setup-note hidden">
           Firebase belum dikonfigurasi. Periksa objek <code>firebaseConfig</code> di bagian awal JavaScript pada <code>index.html</code>, lalu muat ulang halaman.
         </div>
-        <div class="login-footnote">Akses akun dikelola oleh superadmin.</div>
+        <div class="login-footnote">Akses akun dikelola oleh Admin.</div>
       </form>
     </section>
   </main>
@@ -881,7 +948,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       <div class="workspace-label">WORKSPACE</div>
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
-        <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi superadmin</small></div></div>
+        <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
         <div class="sidebar-version">KALAP System <span>v1.6</span></div>
       </div>
     </aside>
@@ -913,7 +980,7 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
   createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile,
-  setPersistence, browserLocalPersistence
+  setPersistence, browserLocalPersistence, inMemoryPersistence
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -948,7 +1015,7 @@ const IDR = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR",
 const DATE_LONG = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const DATE_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short" });
 const TIME_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false });
-const ROLE_LABELS = { superadmin: "Superadmin", spv: "SPV", cashier: "Kasir", partner: "Mitra" };
+const ROLE_LABELS = { superadmin: "Admin", spv: "SPV", cashier: "Kasir", partner: "Mitra" };
 const ICONS = { dashboard: "◫", transactions: "↗", pos: "▣", stock: "▤", partners: "♧", accounts: "♙", finance: "◉", partnerHome: "⌂", partnerMenu: "▦", partnerSales: "◷", requests: "＋", labels: "▥", closing: "◷", newMenu: "＋" };
 
 let app, auth, db;
@@ -1384,11 +1451,10 @@ function startApp() {
     console.warn("Persistent Firestore cache unavailable; using default cache.", cacheError);
     db = getFirestore(app);
   }
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
 
   const applyProfile = userData => {
-    if (!userData.active) throw new Error("Akun ini dinonaktifkan. Hubungi superadmin.");
-    if (!ROLE_LABELS[userData.role]) throw new Error("Role akun tidak dikenali. Hubungi superadmin.");
+    if (!userData.active) throw new Error("Akun ini dinonaktifkan. Hubungi Admin.");
+    if (!ROLE_LABELS[userData.role]) throw new Error("Role akun tidak dikenali. Hubungi Admin.");
     profile = { uid: currentUser.uid, ...userData };
     monthKey = jakartaMonthKey(new Date());
     historyDate = jakartaDateKey(new Date());
@@ -1437,7 +1503,7 @@ function startApp() {
         return;
       }
       const snap = await getDoc(profileRef);
-      if (!snap.exists()) throw new Error("Profil akun belum dibuat oleh superadmin.");
+      if (!snap.exists()) throw new Error("Profil akun belum dibuat oleh Admin.");
       applyProfile(snap.data());
     } catch (error) {
       toast(friendlyError(error), "error");
@@ -1497,7 +1563,7 @@ function startSubscriptions() {
   const role = profile.role;
   if (role === "partner" && !profile.partnerId) {
     store.menus = []; store.stockRequests = []; store.partnerSales = [];
-    toast("Akun Mitra belum terhubung dengan data mitra. Minta Superadmin memeriksa akun ini.", "error");
+    toast("Akun Mitra belum terhubung dengan data mitra. Minta Admin memeriksa akun ini.", "error");
     return;
   }
   const ownProfileRef = doc(db, "users", profile.uid);
@@ -1549,7 +1615,7 @@ function startSubscriptions() {
   }
 
   if (role === "partner") {
-    // Tidak ada lagi query productSubmissions: produk didaftarkan oleh Superadmin/SPV.
+    // Tidak ada lagi query productSubmissions: produk didaftarkan oleh Admin/SPV.
     // Riwayat permintaan hanya difilter berdasarkan partnerId; pengurutan dilakukan lokal.
     const requestQuery = query(collection(db, "stockRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
     unsubscribers.push(onSnapshot(requestQuery, snap => {
@@ -1592,7 +1658,7 @@ function subscribeMonthData(key) {
     renderPage();
   }, onDataError));
 
-  // Riwayat pergerakan stok hanya tersedia untuk Superadmin/SPV.
+  // Riwayat pergerakan stok hanya tersedia untuk Admin/SPV.
   // Kasir tidak diberi izin membaca stockMovements, jadi jangan buat listener untuk role kasir.
   if (["superadmin", "spv"].includes(profile.role)) {
     const movementQuery = query(collection(db, "stockMovements"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), orderBy("createdAt", "desc"), limit(4000));
@@ -1739,9 +1805,9 @@ function renderPage() {
   if (activePage === "dashboard") mountDashboardCharts();
 }
 function showPage(page) {
-  if (page === "closing" && !["superadmin", "spv"].includes(profile?.role)) return toast("Halaman ini hanya dapat diakses Superadmin dan SPV.", "error");
-  if (page === "partnerTransfers" && profile?.role !== "superadmin") return toast("Transferan mitra hanya dapat diakses Superadmin.", "error");
-  if (page === "newMenu" && profile?.role !== "superadmin") return toast("Menu baru hanya dapat dikelola Superadmin.", "error");
+  if (page === "closing" && !["superadmin", "spv"].includes(profile?.role)) return toast("Halaman ini hanya dapat diakses Admin dan SPV.", "error");
+  if (page === "partnerTransfers" && profile?.role !== "superadmin") return toast("Transferan mitra hanya dapat diakses Admin.", "error");
+  if (page === "newMenu" && profile?.role !== "superadmin") return toast("Menu baru hanya dapat dikelola Admin.", "error");
   if (page === "profile" && profile?.role === "partner") return toast("Pengaturan profil tidak tersedia untuk akun Mitra.", "error");
   activePage = page;
   closeSidebarDrawer();
@@ -1907,7 +1973,7 @@ function renderHistoryPage() {
 }
 function renderCashierHistoryPage() {
   const filtered = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === historyDate);
-  return `${pageHeading("Riwayat transaksi", "Cari transaksi kasir berdasarkan tanggal.", `<input type="date" id="history-date" value="${historyDate}">`)}<section class="stats-grid">${statCard("Total transaksi", integer(filtered.length), "▣", formatDate(dateFromKey(historyDate)))}${statCard("Total penjualan", money(sumBy(filtered,"total")), "↗", "Nilai transaksi pada tanggal terpilih")}</section><section class="panel">${panelHeader("Daftar transaksi", `Transaksi tanggal ${formatDate(dateFromKey(historyDate))}`)}${renderTransactionTable(filtered, true)}<div class="helper-text">Untuk koreksi transaksi yang sudah selesai, hubungi superadmin. Riwayat transaksi tidak bisa dihapus melalui akun kasir.</div></section>`;
+  return `${pageHeading("Riwayat transaksi", "Cari transaksi kasir berdasarkan tanggal.", `<input type="date" id="history-date" value="${historyDate}">`)}<section class="stats-grid">${statCard("Total transaksi", integer(filtered.length), "▣", formatDate(dateFromKey(historyDate)))}${statCard("Total penjualan", money(sumBy(filtered,"total")), "↗", "Nilai transaksi pada tanggal terpilih")}</section><section class="panel">${panelHeader("Daftar transaksi", `Transaksi tanggal ${formatDate(dateFromKey(historyDate))}`)}${renderTransactionTable(filtered, true)}<div class="helper-text">Untuk koreksi transaksi yang sudah selesai, hubungi Admin. Riwayat transaksi tidak bisa dihapus melalui akun kasir.</div></section>`;
 }
 
 function renderPosPage() {
@@ -1938,7 +2004,7 @@ function drawPosMenuResults() {
   posCurrentPage = Math.min(Math.max(1, posCurrentPage), totalPages);
   const start = (posCurrentPage - 1) * posPageSize;
   const current = filtered.slice(start, start + posPageSize);
-  resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>Produk</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau barcode." : "Belum ada menu aktif. Hubungi superadmin untuk menambahkan menu."}</div>`;
+  resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>Produk</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau barcode." : "Belum ada menu aktif. Hubungi Admin untuk menambahkan menu."}</div>`;
   pageRoot.innerHTML = `<span class="muted">${filtered.length ? `Menampilkan ${start + 1}–${Math.min(start + posPageSize, filtered.length)} dari ${filtered.length} menu` : "0 menu ditemukan"} · Halaman ${posCurrentPage}/${totalPages}</span><div class="page-buttons"><button type="button" data-pos-page="prev" ${posCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-pos-page="next" ${posCurrentPage >= totalPages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div>`;
   $$('[data-add-menu]', resultRoot).forEach(button => button.addEventListener("click", () => addToCart(button.dataset.addMenu)));
   pageRoot.querySelector('[data-pos-page="prev"]')?.addEventListener("click", () => { posCurrentPage -= 1; drawPosMenuResults(); });
@@ -1993,7 +2059,7 @@ function renderNewMenuPage() {
     <div class="content-grid equal"><section class="panel">${panelHeader("Daftarkan menu", "Pilih mitra yang sudah dibuat melalui menu Akun pengguna.")}
       ${partners.length ? `<form id="new-menu-page-form"><div class="form-field"><label>Akun mitra / pemilik produk</label><input type="search" name="partnerNameInput" id="new-menu-partner-select" list="new-menu-partner-options" placeholder="Ketik atau pilih nama mitra" autocomplete="off" required><datalist id="new-menu-partner-options">${partners.map(partner=>`<option value="${escapeHtml(partner.name)}">${escapeHtml(partner.name)}${partner.linkedUserUid?" · akun terhubung":" · belum ada akun login"}</option>`).join("")}</datalist><div class="helper-text">${integer(linked.length)} mitra sudah terhubung dengan akun login.</div></div><div class="form-field"><label>Nama menu</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam sambal"></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div><div class="form-field"><label>Stok awal</label><input name="initialStock" type="number" min="0" max="100000" step="1" value="0" required></div><div class="form-actions"><button type="submit" class="btn btn-primary">＋ Simpan menu dan buat barcode</button></div></form>` : `<div class="table-empty">Belum ada mitra. Buat akun dengan role Mitra terlebih dahulu melalui Akun pengguna.</div>`}
     </section><section class="panel">${panelHeader("Alur pendaftaran menu", "Data menu otomatis dikaitkan dengan partnerId akun mitra.")}
-      <div class="summary-list"><div class="summary-row"><span>1. Buat akun Mitra</span><strong>Superadmin</strong></div><div class="summary-row"><span>2. Pilih nama mitra</span><strong>Di formulir ini</strong></div><div class="summary-row"><span>3. Masukkan nama menu, harga, stok</span><strong>Superadmin</strong></div><div class="summary-row"><span>4. Menu masuk dashboard Mitra</span><strong>Realtime</strong></div><div class="summary-divider"></div><div class="info-banner"><span>✓</span><div>Menu yang dibuat untuk satu mitra hanya akan terlihat pada akun mitra yang memiliki partnerId tersebut. Mitra tidak perlu mencari atau mengajukan produk sendiri.</div></div></div>
+      <div class="summary-list"><div class="summary-row"><span>1. Buat akun Mitra</span><strong>Admin</strong></div><div class="summary-row"><span>2. Pilih nama mitra</span><strong>Di formulir ini</strong></div><div class="summary-row"><span>3. Masukkan nama menu, harga, stok</span><strong>Admin</strong></div><div class="summary-row"><span>4. Menu masuk dashboard Mitra</span><strong>Realtime</strong></div><div class="summary-divider"></div><div class="info-banner"><span>✓</span><div>Menu yang dibuat untuk satu mitra hanya akan terlihat pada akun mitra yang memiliki partnerId tersebut. Mitra tidak perlu mencari atau mengajukan produk sendiri.</div></div></div>
     </section></div>
     <section class="panel">${panelHeader("Menu terakhir ditambahkan", "Menu yang baru dibuat untuk para mitra")}
       <div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>Barcode</th></tr></thead><tbody>${sortNewest(store.menus).slice(0,12).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName||"—")}</td><td>${money(menu.price)}</td><td>${integer(menu.stock)}</td><td><code>${escapeHtml(menuBarcode(menu))}</code></td></tr>`).join("")||`<tr><td colspan="5" class="table-empty">Belum ada menu.</td></tr>`}</tbody></table></div>
@@ -2028,7 +2094,7 @@ function renderStockPage() {
       <div class="table-toolbar"><input id="menu-search" type="search" value="${escapeHtml(menuListSearchQuery)}" placeholder="Cari nama menu, mitra, atau barcode..."><select id="menu-status-filter"><option value="all" ${menuStatusFilter==="all"?"selected":""}>Semua status</option><option value="active" ${menuStatusFilter==="active"?"selected":""}>Aktif</option><option value="inactive" ${menuStatusFilter==="inactive"?"selected":""}>Nonaktif</option></select></div>
       <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>Barcode</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu=>`<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName||"—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td><span class="status ${menu.active!==false?"success":"inactive"}">${menu.active!==false?"Aktif":"Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><button class="action-link" data-edit-menu="${menu.id}">Edit</button></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role==="superadmin"?7:6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
       <div class="pagination-row"><span class="helper-text">Halaman ${menuListCurrentPage} dari ${pages} · ${integer(filteredMenus.length)} menu</span><div class="page-buttons"><button type="button" data-menu-list-page="prev" ${menuListCurrentPage<=1?"disabled":""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-menu-list-page="next" ${menuListCurrentPage>=pages?"disabled":""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
-      <div class="helper-text">Menu yang dibuat Superadmin/SPV langsung terhubung dengan akun mitra yang dipilih dan otomatis tampil di dashboard mitra tersebut.</div>
+      <div class="helper-text">Menu yang dibuat Admin/SPV langsung terhubung dengan akun mitra yang dipilih dan otomatis tampil di dashboard mitra tersebut.</div>
     </section>`;
 }
 
@@ -2063,8 +2129,8 @@ function renderAccountsPage() {
       ${user.role !== "superadmin" ? `<button type="button" class="action-link danger" data-toggle-user="${user.id}" data-next-active="${user.active === false ? "true" : "false"}">${user.active === false ? "Aktifkan" : "Nonaktifkan"}</button><button type="button" class="action-link danger" data-delete-user="${user.id}">Hapus akun</button>` : `<span class="muted">Akun utama</span>`}</div></td>
   </tr>`).join("");
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
-    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Superadmin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Kata sandi awal dibagikan secara pribadi kepada pemilik akun.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
-    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Superadmin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
+    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Kata sandi awal dibagikan secara pribadi kepada pemilik akun.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
+    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
     <section class="panel">${panelHeader("Akun terdaftar", "Perubahan nama dan status tersinkron realtime")}<div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">Belum ada akun lain.</td></tr>`}</tbody></table></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Firebase tidak menyediakan password asli untuk dibaca admin. Gunakan tombol kirim reset sandi atau minta staf mengganti sandi melalui Profil Saya. Perubahan melalui Profil Saya akan mencatat nama dan waktunya secara realtime. “Hapus akun” menghapus profil akses dari KALAP, tetapi identitas login di Firebase Authentication tetap tersimpan.</div></section>`;
 }
 
@@ -2075,7 +2141,7 @@ function renderProfilePage() {
       <form id="profile-form"><div class="form-field"><label>Nama tampilan</label><input name="displayName" required maxlength="80" value="${escapeHtml(name)}"></div><div class="form-field"><label>Email login</label><input value="${escapeHtml(currentUser.email || profile.email || "")}" disabled></div><div class="form-field"><label>Kata sandi saat ini</label><input name="currentPassword" type="password" autocomplete="current-password" placeholder="Wajib diisi jika mengganti kata sandi"></div><div class="form-field"><label>Kata sandi baru</label><input name="newPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Kosongkan jika hanya mengganti nama"></div><div class="form-field"><label>Ulangi kata sandi baru</label><input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Ulangi kata sandi baru"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan perubahan</button></div></form>
     </section><section class="panel">${panelHeader("Keamanan akun", "Informasi perubahan kredensial")}
       <div class="summary-list"><div class="summary-row"><span>Email login</span><strong>${escapeHtml(currentUser.email || "—")}</strong></div><div class="summary-row"><span>Role</span><strong>${ROLE_LABELS[profile.role]}</strong></div><div class="summary-row"><span>Perubahan sandi terakhir</span><strong>${profile.passwordChangedAt ? `${formatDate(profile.passwordChangedAt)} ${formatTime(profile.passwordChangedAt)}` : "Belum tercatat"}</strong></div></div>
-      <div class="profile-security-note" style="margin-top:14px">Password tidak ditampilkan atau disimpan sebagai teks biasa. Setelah berhasil mengganti password, Superadmin dapat melihat nama akun dan waktu perubahan sandi di menu Akun Pengguna.</div>
+      <div class="profile-security-note" style="margin-top:14px">Password tidak ditampilkan atau disimpan sebagai teks biasa. Setelah berhasil mengganti password, Admin dapat melihat nama akun dan waktu perubahan sandi di menu Akun Pengguna.</div>
     </section></div>`;
 }
 
@@ -2170,7 +2236,7 @@ async function markPartnerPayoutPaid(partnerId,button) {
   if(!partner.bankName||!partner.accountNumber||!partner.accountHolder)return toast("Lengkapi nama bank, nomor rekening, dan pemilik rekening pada menu Mitra terlebih dahulu.","error");
   if(!confirm(`Tandai transfer untuk ${partner.name}?\nPenjualan: ${money(gross)}\nBagian KALAP 20%: ${money(commission)}\nTransfer bersih: ${money(transfer)}\n\nPastikan transfer bank benar-benar sudah dilakukan.`))return;
   setBusy(button,true,"Menyimpan...");
-  try{const payoutId=`${partnerTransferDate}_${partnerId}`;await setDoc(doc(db,"partnerPayouts",payoutId),{dateKey:partnerTransferDate,partnerId,partnerName:partner.name,grossSales:gross,kalapShare:commission,transferAmount:transfer,bankName:partner.bankName,accountNumber:partner.accountNumber,accountHolder:partner.accountHolder,status:"paid",markedPaidAt:serverTimestamp(),markedPaidBy:profile.uid,markedPaidByName:profile.displayName||profile.email||"Superadmin",updatedAt:serverTimestamp()},{merge:true});toast(`Status transfer ${partner.name} berhasil ditandai.`,"success");}
+  try{const payoutId=`${partnerTransferDate}_${partnerId}`;await setDoc(doc(db,"partnerPayouts",payoutId),{dateKey:partnerTransferDate,partnerId,partnerName:partner.name,grossSales:gross,kalapShare:commission,transferAmount:transfer,bankName:partner.bankName,accountNumber:partner.accountNumber,accountHolder:partner.accountHolder,status:"paid",markedPaidAt:serverTimestamp(),markedPaidBy:profile.uid,markedPaidByName:profile.displayName||profile.email||"Admin",updatedAt:serverTimestamp()},{merge:true});toast(`Status transfer ${partner.name} berhasil ditandai.`,"success");}
   catch(error){toast(friendlyError(error),"error");}finally{setBusy(button,false);}
 }
 
@@ -2194,8 +2260,8 @@ function renderPartnerHome() {
   return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau menu terdaftar, stok, dan penjualan produk milik Anda saja.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
     ${closingPanel}
     <section class="stats-grid">${statCard("Penjualan bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan penjualan milik Anda`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
-    <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "Menu otomatis tampil ketika Superadmin/SPV menghubungkannya dengan akun mitra.", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
-      <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Superadmin untuk mendaftarkan menu.</div>`}</div>
+    <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "Menu otomatis tampil ketika Admin/SPV menghubungkannya dengan akun mitra.", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
+      <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
     </article><article class="panel">${panelHeader("Aktivitas terbaru", "Penjualan hanya untuk produk yang terhubung dengan akun Anda.", `<span class="status success">LIVE</span>`)}
       <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Total</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
@@ -2232,7 +2298,7 @@ function renderPartnerSales() {
 
 async function newMenuPageSubmit(event) {
   event.preventDefault();
-  if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat menambahkan menu baru.", "error");
+  if (profile?.role !== "superadmin") return toast("Hanya Admin yang dapat menambahkan menu baru.", "error");
   const form = event.currentTarget;
   const button = form.querySelector('[type="submit"]');
   const data = Object.fromEntries(new FormData(form));
@@ -2732,7 +2798,7 @@ async function deleteManagedUser(userId,button) {
       const userSnap=await tx.get(userRef);
       if(!userSnap.exists()) throw new Error("Profil akun sudah tidak ditemukan.");
       const userData=userSnap.data();
-      if(userData.role==="superadmin" || userData.uid===profile.uid) throw new Error("Akun Superadmin utama tidak dapat dihapus.");
+      if(userData.role==="superadmin" || userData.uid===profile.uid) throw new Error("Akun Admin utama tidak dapat dihapus.");
       let partnerRef=null,partnerSnap=null;
       if(userData.role==="partner" && userData.partnerId){
         partnerRef=doc(db,"partners",userData.partnerId);
@@ -2914,6 +2980,16 @@ function toggleSidebarDrawer(){
   const sidebar=$("#sidebar"),backdrop=$("#sidebar-backdrop"),toggle=$("#mobile-menu-btn");
   const opening=!sidebar.classList.contains("open");sidebar.classList.toggle("open",opening);backdrop?.classList.toggle("open",opening);toggle?.setAttribute("aria-expanded",String(opening));
 }
+
+// Keep orientation state in sync with the actual viewport. The manifest allows both orientations.
+function updateKalapOrientation() {
+  document.documentElement.dataset.orientation = window.innerWidth > window.innerHeight ? "landscape" : "portrait";
+}
+window.addEventListener("resize", updateKalapOrientation, { passive: true });
+window.addEventListener("orientationchange", updateKalapOrientation, { passive: true });
+if (screen.orientation?.addEventListener) screen.orientation.addEventListener("change", updateKalapOrientation);
+updateKalapOrientation();
+
 let deferredInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;$("#install-app-btn")?.classList.remove("hidden");});
 $("#install-app-btn")?.addEventListener("click",async()=>{if(!deferredInstallPrompt)return;deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;$("#install-app-btn")?.classList.add("hidden");});
@@ -2926,12 +3002,30 @@ if("serviceWorker" in navigator && (location.protocol==="https:" || location.hos
 $("#login-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!isFirebaseConfigured) return;
-  const button=$("#login-submit"); setBusy(button,true,"Menghubungkan...");
-  try { await signInWithEmailAndPassword(auth, $("#login-email").value.trim(), $("#login-password").value); $("#login-password").value=""; }
-  catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
+  const button=$("#login-submit");
+  const remember = $("#remember-me")?.checked === true;
+  setBusy(button,true,"Menghubungkan...");
+  try {
+    // Remember me uses local persistence; otherwise the login stays in memory only and is cleared when the page is reloaded or closed.
+    await setPersistence(auth, remember ? browserLocalPersistence : inMemoryPersistence);
+    await signInWithEmailAndPassword(auth, $("#login-email").value.trim(), $("#login-password").value);
+    $("#login-password").value="";
+  }
+  catch(error){toast(friendlyError(error),"error");}
+  finally{setBusy(button,false);}
 });
 $("#toggle-password").addEventListener("click",()=>{
-  const field=$("#login-password"); const shown=field.type==="text"; field.type=shown?"password":"text"; $("#toggle-password").textContent=shown?"Lihat":"Sembunyi";
+  const field=$("#login-password");
+  const button=$("#toggle-password");
+  const icon=$("#password-eye-icon");
+  const shown=field.type==="text";
+  field.type=shown?"password":"text";
+  button.setAttribute("aria-label", shown ? "Tampilkan kata sandi" : "Sembunyikan kata sandi");
+  button.setAttribute("title", shown ? "Tampilkan kata sandi" : "Sembunyikan kata sandi");
+  button.setAttribute("aria-pressed", String(!shown));
+  icon.innerHTML = shown
+    ? '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="m3 3 18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a16.5 16.5 0 0 1-3.1 3.9M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7c1.1 0 2.1-.2 3-.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
 });
 $("#logout-btn").addEventListener("click",async()=>{if(auth)await signOut(auth);});
 $("#mobile-menu-btn").addEventListener("click",toggleSidebarDrawer);
