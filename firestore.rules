@@ -14,6 +14,11 @@ service cloud.firestore {
     function isStaff() { return isSuperadmin() || isSpv(); }
     function isPOSUser() { return isStaff() || isCashier(); }
 
+    function businessDateIsOpen(dateKey) {
+      let closingPath = /databases/$(database)/documents/dailyClosings/$(dateKey);
+      return !exists(closingPath) || get(closingPath).data.status == 'open';
+    }
+
     function validNewManagedUser(userId) {
       return request.resource.data.keys().hasAll([
         'uid', 'displayName', 'email', 'role', 'partnerId', 'partnerName',
@@ -69,29 +74,6 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock));
     }
 
-    function validProductReview(submissionId) {
-      return isStaff()
-        && resource.data.status == 'pending'
-        && request.resource.data.status in ['approved', 'rejected']
-        && request.resource.data.reviewedBy == request.auth.uid
-        && request.resource.data.reviewedAt == request.time
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'qtyApproved', 'approvedName', 'approvedPrice', 'menuId', 'barcode', 'reviewedBy',
-          'reviewedByName', 'reviewedAt', 'updatedAt', 'reviewNote'
-        ])
-        && (request.resource.data.status == 'rejected'
-          || (request.resource.data.qtyApproved is int
-            && request.resource.data.qtyApproved > 0
-            && request.resource.data.menuId is string
-            && request.resource.data.barcode is string
-            && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
-            && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.sourceSubmissionId == submissionId
-            && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.partnerId == resource.data.partnerId
-            && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.name == request.resource.data.approvedName
-            && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.price == request.resource.data.approvedPrice
-            && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.qtyApproved));
-    }
 
     match /users/{userId} {
       allow get: if signedIn() && (request.auth.uid == userId || isSuperadmin());
@@ -139,7 +121,7 @@ service cloud.firestore {
 
     match /menus/{menuId} {
       allow read: if isStaff() || isCashier()
-        || (isPartner() && resource.data.partnerId == myProfile().partnerId && resource.data.active == true);
+        || (isPartner() && resource.data.partnerId == myProfile().partnerId);
       allow create: if validNewMenu(menuId);
       allow update: if (isSuperadmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'price', 'active', 'updatedAt', 'updatedBy']))
@@ -152,22 +134,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /productSubmissions/{submissionId} {
-      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
-      allow create: if isPartner()
-        && request.resource.data.partnerId == myProfile().partnerId
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.price is int
-        && request.resource.data.price > 0
-        && request.resource.data.qtyRequested is int
-        && request.resource.data.qtyRequested > 0
-        && request.resource.data.status == 'pending'
-        && request.resource.data.createdAt == request.time;
-      allow update: if validProductReview(submissionId);
-      allow delete: if false;
-    }
 
     match /transactions/{transactionId} {
       allow read: if isStaff() || (isCashier() && resource.data.cashierUid == request.auth.uid);
@@ -184,6 +150,8 @@ service cloud.firestore {
         && (request.resource.data.paymentMethod == 'kalap_operational'
           ? request.resource.data.payerType == 'kalap'
           : request.resource.data.payerType == 'customer')
+        && request.resource.data.businessDate is string
+        && businessDateIsOpen(request.resource.data.businessDate)
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
     }
@@ -294,6 +262,88 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.menuId == resource.data.menuId
         && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.qty == resource.data.qty;
       allow delete: if false;
+    }
+
+    match /dailyClosings/{dateKey} {
+      // POS hanya perlu membaca dokumen pengunci tanggal ini; daftar riwayat khusus Superadmin/SPV.
+      allow get: if isPOSUser();
+      allow list: if isStaff();
+
+      allow create: if isStaff()
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.status == 'closing'
+        && request.resource.data.startedByUid == request.auth.uid
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.closedAt == null
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isStaff() && (
+        // Staff mulai proses closing; status lock mencegah transaksi POS baru.
+        (resource.data.status == 'open'
+          && request.resource.data.status == 'closing'
+          && request.resource.data.dateKey == dateKey
+          && request.resource.data.startedByUid == request.auth.uid
+          && request.resource.data.startedAt == request.time
+          && request.resource.data.closedAt == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'startedAt', 'startedByUid', 'startedByName', 'closedAt'
+          ]))
+        ||
+        // Header ditutup dalam batch yang sama dengan ringkasan tiap mitra.
+        (resource.data.status == 'closing'
+          && request.resource.data.status == 'closed'
+          && request.resource.data.closedByUid == request.auth.uid
+          && request.resource.data.closedAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'closedAt', 'closedByUid', 'closedByName', 'salesTotal',
+            'transactionCount', 'soldQty', 'receivedQty', 'totalRemaining',
+            'partnerCount', 'updatedAt'
+          ]))
+        ||
+        // Jika proses gagal, staff dapat membuka kembali tanggal tersebut.
+        (resource.data.status == 'closing'
+          && request.resource.data.status == 'open'
+          && request.resource.data.failedAt == request.time
+          && request.resource.data.failureMessage is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'failedAt', 'failureMessage'
+          ]))
+      );
+      allow delete: if false;
+
+      match /partnerSummaries/{partnerId} {
+        allow get: if isStaff() || (isPartner() && partnerId == myProfile().partnerId);
+        allow list: if isStaff();
+
+        allow create: if isStaff()
+          && request.resource.data.dateKey == dateKey
+          && request.resource.data.partnerId == partnerId
+          && request.resource.data.status == 'closed'
+          && request.resource.data.disposition == 'pending'
+          && request.resource.data.items is list
+          && request.resource.data.totalRemaining is int
+          && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed'
+          && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.closedByUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.closedAt == request.time;
+
+        allow update: if isPartner()
+          && partnerId == myProfile().partnerId
+          && resource.data.partnerId == myProfile().partnerId
+          && resource.data.status == 'closed'
+          && request.resource.data.status == 'closed'
+          && request.resource.data.disposition in ['share', 'pickup']
+          && request.resource.data.dispositionByUid == request.auth.uid
+          && request.resource.data.dispositionByName is string
+          && request.resource.data.dispositionAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'disposition', 'dispositionAt', 'dispositionByUid', 'dispositionByName', 'updatedAt'
+          ])
+          && get(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed';
+        allow delete: if false;
+      }
     }
 
     match /{document=**} {
