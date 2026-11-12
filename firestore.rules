@@ -1,0 +1,374 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profilePath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(profilePath()); }
+    function myProfile() { return get(profilePath()).data; }
+    function activeUser() { return hasProfile() && myProfile().active == true; }
+    function roleIs(role) { return activeUser() && myProfile().role == role; }
+    function isSuperadmin() { return roleIs('superadmin'); }
+    function isSpv() { return roleIs('spv'); }
+    function isCashier() { return roleIs('cashier'); }
+    function isPartner() { return roleIs('partner'); }
+    function isStaff() { return isSuperadmin() || isSpv(); }
+    function isPOSUser() { return isStaff() || isCashier(); }
+
+    function businessDateIsOpen(dateKey) {
+      let closingPath = /databases/$(database)/documents/dailyClosings/$(dateKey);
+      return !exists(closingPath) || get(closingPath).data.status == 'open';
+    }
+
+    function validNewManagedUser(userId) {
+      return request.resource.data.keys().hasAll([
+        'uid', 'displayName', 'email', 'role', 'partnerId', 'partnerName',
+        'active', 'createdAt', 'createdBy'
+      ])
+      && request.resource.data.uid == userId
+      && request.resource.data.displayName is string
+      && request.resource.data.email is string
+      && request.resource.data.role in ['spv', 'cashier', 'partner']
+      && request.resource.data.active == true
+      && request.resource.data.createdBy == request.auth.uid
+      && request.resource.data.createdAt == request.time
+      && (request.resource.data.role == 'partner'
+        ? request.resource.data.partnerId is string
+          && get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId)).data.active == true
+        : request.resource.data.partnerId == null);
+    }
+
+    function linkedMovement(menuId) {
+      return request.resource.data.lastMovementId is string
+        && existsAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId))
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.menuId == menuId
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.actorUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.stockBefore == resource.data.stock
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.stockAfter == request.resource.data.stock
+        && ((getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'sale' && isPOSUser()
+              && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == resource.data.stock - request.resource.data.stock)
+          || (getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'in' && isStaff()
+              && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock - resource.data.stock));
+    }
+
+    function validNewMenu(menuId) {
+      return isStaff()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.partnerId is string
+        && get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId)).data.active == true
+        && request.resource.data.price is int
+        && request.resource.data.price > 0
+        && request.resource.data.stock is int
+        && request.resource.data.stock >= 0
+        && request.resource.data.active == true
+        && request.resource.data.barcode is string
+        && request.resource.data.barcode.size() > 3
+        && (request.resource.data.stock == 0
+          || (request.resource.data.lastMovementId is string
+            && existsAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId))
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.menuId == menuId
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'in'
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.actorUid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.stockBefore == 0
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.stockAfter == request.resource.data.stock
+            && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock));
+    }
+
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || isSuperadmin());
+      allow list: if isSuperadmin();
+      allow create: if isSuperadmin() && validNewManagedUser(userId);
+      // Pemilik akun boleh memperbarui nama dan metadata waktu perubahan sandinya sendiri.
+      // Password asli tidak pernah disimpan ke Firestore.
+      allow update: if (
+          signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'updatedAt', 'passwordChangedAt', 'passwordChangedByName'
+          ])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.updatedAt == request.time
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['passwordChangedAt'])
+            || (request.resource.data.passwordChangedAt == request.time
+              && request.resource.data.passwordChangedByName is string))
+        ) || (
+          isSuperadmin()
+          && resource.data.role != 'superadmin'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'active', 'updatedAt', 'updatedBy'
+          ])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.active is bool
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid
+        );
+      allow delete: if isSuperadmin() && resource.data.role != 'superadmin';
+    }
+
+    match /partners/{partnerId} {
+      allow read: if isStaff();
+      allow create: if isSuperadmin()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.active == true
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSuperadmin();
+      allow delete: if false;
+    }
+
+    match /menus/{menuId} {
+      allow read: if isStaff() || isCashier()
+        || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+      allow create: if validNewMenu(menuId);
+      allow update: if (isSuperadmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'price', 'active', 'updatedAt', 'updatedBy']))
+        || ((isPOSUser() || isStaff())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId'])
+          && request.resource.data.stock is int
+          && request.resource.data.stock >= 0
+          && request.resource.data.updatedAt == request.time
+          && linkedMovement(menuId));
+      allow delete: if false;
+    }
+
+
+    match /transactions/{transactionId} {
+      allow read: if isStaff() || (isCashier() && resource.data.cashierUid == request.auth.uid);
+      allow create: if isPOSUser()
+        && request.resource.data.cashierUid == request.auth.uid
+        && request.resource.data.status == 'completed'
+        && request.resource.data.total is int
+        && request.resource.data.total > 0
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 10
+        && request.resource.data.paymentMethod in ['cash', 'qris', 'transfer', 'kalap_operational']
+        && request.resource.data.payerType in ['customer', 'kalap']
+        && (request.resource.data.paymentMethod == 'kalap_operational'
+          ? request.resource.data.payerType == 'kalap'
+          : request.resource.data.payerType == 'customer')
+        && request.resource.data.businessDate is string
+        && (request.resource.data.paymentMethod == 'cash'
+          ? request.resource.data.amountReceived is int && request.resource.data.amountReceived >= request.resource.data.total && request.resource.data.changeAmount == request.resource.data.amountReceived - request.resource.data.total
+          : request.resource.data.amountReceived == null && request.resource.data.changeAmount == 0)
+        && businessDateIsOpen(request.resource.data.businessDate)
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /stockMovements/{movementId} {
+      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+      allow create: if request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.menuId is string
+        && request.resource.data.qty is int
+        && request.resource.data.qty > 0
+        && request.resource.data.stockBefore is int
+        && request.resource.data.stockAfter is int
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.type == 'sale' && isPOSUser()
+              && request.resource.data.stockBefore - request.resource.data.stockAfter == request.resource.data.qty
+              && request.resource.data.transactionId is string
+              && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.cashierUid == request.auth.uid
+              && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.movementIds.hasAny([movementId])
+              && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter)
+          || (request.resource.data.type == 'in' && isStaff()
+              && request.resource.data.stockAfter - request.resource.data.stockBefore == request.resource.data.qty
+              && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter));
+      allow update, delete: if false;
+    }
+
+
+    match /cashflows/{cashflowId} {
+      // Superadmin dapat membaca semua arus kas. SPV hanya dapat membaca catatan operasional.
+      allow read: if isStaff();
+      allow create: if (isStaff()
+          && request.resource.data.source == 'operational'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.type in ['income', 'expense']
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.category is string
+          && request.resource.data.category.size() > 0
+          && request.resource.data.createdAt == request.time)
+        || (isSuperadmin()
+          && request.resource.data.source == 'manual'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.type in ['income', 'expense']
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.createdAt == request.time)
+        || (isPOSUser()
+          && request.resource.data.source == 'sale'
+          && request.resource.data.type == 'income'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.transactionId is string
+          && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.total == request.resource.data.amount
+          && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.paymentMethod in ['cash', 'qris', 'transfer']
+          && request.resource.data.createdAt == request.time)
+        || (isPOSUser()
+          && request.resource.data.source == 'operational_sale'
+          && request.resource.data.type == 'expense'
+          && request.resource.data.category == 'Beban operasional - penjualan'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.transactionId is string
+          && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.total == request.resource.data.amount
+          && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.paymentMethod == 'kalap_operational'
+          && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.payerType == 'kalap'
+          && request.resource.data.createdAt == request.time);
+      allow update, delete: if false;
+    }
+
+    match /partnerSales/{partnerSaleId} {
+      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+      allow create: if isPOSUser()
+        && request.resource.data.partnerId is string
+        && request.resource.data.total is int
+        && request.resource.data.total > 0
+        && request.resource.data.transactionId is string
+        && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.cashierUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /stockRequests/{requestId} {
+      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+      allow create: if isPartner()
+        && request.resource.data.partnerId == myProfile().partnerId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.qty is int
+        && request.resource.data.qty > 0
+        && get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.partnerId == myProfile().partnerId
+        && get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.active == true
+        && request.resource.data.createdAt == request.time;
+      allow update: if isStaff()
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'received'
+        && request.resource.data.receivedBy == request.auth.uid
+        && request.resource.data.receivedAt == request.time
+        && request.resource.data.receivedQty == resource.data.qty
+        && request.resource.data.movementId is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'receivedAt', 'receivedBy', 'receivedQty', 'movementId'])
+        && existsAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId))
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.requestId == requestId
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.menuId == resource.data.menuId
+        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.qty == resource.data.qty;
+      allow delete: if false;
+    }
+
+    match /dailyClosings/{dateKey} {
+      // POS hanya perlu membaca dokumen pengunci tanggal ini; daftar riwayat khusus Superadmin/SPV.
+      allow get: if isPOSUser();
+      allow list: if isStaff();
+
+      allow create: if isStaff()
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.status == 'closing'
+        && request.resource.data.startedByUid == request.auth.uid
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.closedAt == null
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isStaff() && (
+        // Staff mulai proses closing; status lock mencegah transaksi POS baru.
+        (resource.data.status == 'open'
+          && request.resource.data.status == 'closing'
+          && request.resource.data.dateKey == dateKey
+          && request.resource.data.startedByUid == request.auth.uid
+          && request.resource.data.startedAt == request.time
+          && request.resource.data.closedAt == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'startedAt', 'startedByUid', 'startedByName', 'closedAt'
+          ]))
+        ||
+        // Header ditutup dalam batch yang sama dengan ringkasan tiap mitra.
+        (resource.data.status == 'closing'
+          && request.resource.data.status == 'closed'
+          && request.resource.data.closedByUid == request.auth.uid
+          && request.resource.data.closedAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'closedAt', 'closedByUid', 'closedByName', 'salesTotal',
+            'transactionCount', 'soldQty', 'receivedQty', 'totalRemaining',
+            'paymentBreakdown', 'operationalItems', 'partnerCount', 'updatedAt'
+          ]))
+        ||
+        // Jika proses gagal, staff dapat membuka kembali tanggal tersebut.
+        (resource.data.status == 'closing'
+          && request.resource.data.status == 'open'
+          && request.resource.data.failedAt == request.time
+          && request.resource.data.failureMessage is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'failedAt', 'failureMessage'
+          ]))
+      );
+      allow delete: if false;
+
+      match /partnerSummaries/{partnerId} {
+        allow get: if isStaff() || (isPartner() && partnerId == myProfile().partnerId);
+        allow list: if isStaff();
+
+        allow create: if isStaff()
+          && request.resource.data.dateKey == dateKey
+          && request.resource.data.partnerId == partnerId
+          && request.resource.data.status == 'closed'
+          && request.resource.data.disposition == 'pending'
+          && request.resource.data.items is list
+          && request.resource.data.totalRemaining is int
+          && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed'
+          && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.closedByUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.closedAt == request.time;
+
+        allow update: if isPartner()
+          && partnerId == myProfile().partnerId
+          && resource.data.partnerId == myProfile().partnerId
+          && resource.data.status == 'closed'
+          && request.resource.data.status == 'closed'
+          && request.resource.data.disposition in ['share', 'pickup']
+          && request.resource.data.dispositionByUid == request.auth.uid
+          && request.resource.data.dispositionByName is string
+          && request.resource.data.dispositionAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'disposition', 'dispositionAt', 'dispositionByUid', 'dispositionByName', 'updatedAt'
+          ])
+          && get(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed';
+        allow delete: if false;
+      }
+    }
+
+
+    match /partnerPayouts/{payoutId} {
+      allow read: if isSuperadmin();
+      allow create, update: if isSuperadmin()
+        && request.resource.data.dateKey is string
+        && request.resource.data.partnerId is string
+        && request.resource.data.partnerName is string
+        && request.resource.data.grossSales is int
+        && request.resource.data.kalapShare is int
+        && request.resource.data.transferAmount is int
+        && request.resource.data.kalapShare >= 0
+        && request.resource.data.transferAmount == request.resource.data.grossSales - request.resource.data.kalapShare
+        && request.resource.data.status == 'paid'
+        && request.resource.data.markedPaidBy == request.auth.uid
+        && request.resource.data.markedPaidAt == request.time;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
