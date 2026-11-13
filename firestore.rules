@@ -251,20 +251,84 @@ service cloud.firestore {
         && request.resource.data.qty > 0
         && get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.partnerId == myProfile().partnerId
         && get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.active == true
-        && request.resource.data.createdAt == request.time;
-      allow update: if isStaff()
-        && resource.data.status == 'pending'
-        && request.resource.data.status == 'received'
-        && request.resource.data.receivedBy == request.auth.uid
-        && request.resource.data.receivedAt == request.time
-        && request.resource.data.receivedQty == resource.data.qty
-        && request.resource.data.movementId is string
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'receivedAt', 'receivedBy', 'receivedQty', 'movementId'])
-        && existsAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId))
-        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.requestId == requestId
-        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.menuId == resource.data.menuId
-        && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.qty == resource.data.qty;
+        && get(/databases/$(database)/documents/partners/$(myProfile().partnerId)).data.active == true
+        && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/stockRequestLocks/$(request.resource.data.menuId))
+        && getAfter(/databases/$(database)/documents/stockRequestLocks/$(request.resource.data.menuId)).data.requestId == requestId
+        && getAfter(/databases/$(database)/documents/stockRequestLocks/$(request.resource.data.menuId)).data.partnerId == myProfile().partnerId;
+      allow update: if isStaff() && (
+        // Revisi jumlah: pengajuan tetap terkunci dan menunggu keputusan Admin/SPV.
+        (resource.data.status in ['pending', 'revised']
+          && request.resource.data.status == 'revised'
+          && request.resource.data.qty is int
+          && request.resource.data.qty > 0
+          && request.resource.data.qty <= 100000
+          && request.resource.data.previousQty == resource.data.qty
+          && request.resource.data.revisedAt == request.time
+          && request.resource.data.revisedBy == request.auth.uid
+          && request.resource.data.revisedByName is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'qty', 'status', 'previousQty', 'revisionNote', 'revisedAt', 'revisedBy', 'revisedByName'
+          ]))
+        ||
+        // Penolakan melepaskan kunci menu pada transaksi yang sama.
+        (resource.data.status in ['pending', 'revised']
+          && request.resource.data.status == 'rejected'
+          && request.resource.data.rejectReason is string
+          && request.resource.data.rejectedBy == request.auth.uid
+          && request.resource.data.rejectedByName is string
+          && request.resource.data.rejectedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'rejectReason', 'rejectedAt', 'rejectedBy', 'rejectedByName'
+          ])
+          && (!exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+            || !existsAfter(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))))
+        ||
+        // Penerimaan stok harus membuat movement yang cocok dan melepaskan kunci menu.
+        (resource.data.status in ['pending', 'revised']
+          && request.resource.data.status == 'received'
+          && request.resource.data.receivedBy == request.auth.uid
+          && request.resource.data.receivedAt == request.time
+          && request.resource.data.receivedQty == resource.data.qty
+          && request.resource.data.receivedByName is string
+          && request.resource.data.movementId is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'receivedAt', 'receivedBy', 'receivedByName', 'receivedQty', 'movementId'
+          ])
+          && existsAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId))
+          && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.requestId == requestId
+          && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.menuId == resource.data.menuId
+          && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.movementId)).data.qty == resource.data.qty
+          && (!exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+            || !existsAfter(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))))
+      );
       allow delete: if false;
+    }
+
+    match /stockRequestLocks/{menuId} {
+      allow get: if isStaff()
+        || (isPartner()
+          && (!exists(/databases/$(database)/documents/stockRequestLocks/$(menuId))
+            || resource.data.partnerId == myProfile().partnerId));
+      allow list: if isStaff();
+      allow create: if isPartner()
+        && request.resource.data.menuId == menuId
+        && request.resource.data.partnerId == myProfile().partnerId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.requestId is string
+        && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId))
+        && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.menuId == menuId
+        && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.partnerId == myProfile().partnerId
+        && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.createdBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.status == 'pending';
+      allow update: if false;
+      allow delete: if isStaff() && (
+        // Bersihkan lock yatim bila dokumen pengajuannya sudah tidak ada.
+        !exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+        || (existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status in ['received', 'rejected'])
+      );
     }
 
     match /dailyClosings/{dateKey} {

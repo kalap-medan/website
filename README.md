@@ -1,43 +1,40 @@
-# KALAP Management System v1.6.1
+# KALAP Management System v1.7.0
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, JavaScript, dan Firebase Web Config dalam satu file.
-- `firestore.rules`: aturan akses terbaru.
-- `firestore.indexes.json`: tidak memerlukan composite index tambahan pada query utama versi ini.
-- `manifest.webmanifest` + `icons/`: identitas PWA KALAP (K. putih, latar merah).
-- `service-worker.js`: dukungan instalasi dan cache shell dasar.
+- `firestore.rules`: aturan akses Firestore, termasuk penguncian satu pengajuan stok aktif per menu.
+- `firestore.indexes.json`: indeks yang digunakan aplikasi. Perubahan v1.7.0 tidak menambah composite index.
+- `manifest.webmanifest` + `icons/`: identitas PWA KALAP.
+- `service-worker.js`: cache shell PWA dengan versi baru agar aplikasi memperbarui file.
 
-## Update GitHub Pages
-1. Upload seluruh isi ZIP ke root repository GitHub Pages.
-2. Replace `index.html` dan tambahkan file/folder pendukung lainnya.
+## Perubahan v1.7.0
+- Menu Baru hanya meminta nama mitra, nama menu, dan harga. Tombol `Simpan` mendaftarkan menu sebagai katalog dengan stok awal 0; kode QR unik dibuat otomatis.
+- Menu & Persediaan menampilkan total seluruh menu, menu aktif, dan total stok tersedia saat ini. Form pencatatan stok langsung di halaman tersebut dihapus.
+- Permintaan Stok diganti menjadi Pengajuan Stok. Admin/SPV dapat menerima, merevisi jumlah, atau menolak pengajuan mitra.
+- Admin/SPV dapat memakai tombol `Input` untuk mencari nama menu atau memindai QR, memilih jumlah stok yang masuk, serta menyimpan penerimaan manual.
+- Penerimaan manual diblokir bila menu masih memiliki pengajuan aktif, termasuk pengajuan lama yang belum memiliki lock, untuk mengurangi risiko stok ganda.
+- Daftar pengajuan dapat dicari berdasarkan nama menu, mitra, catatan, status, atau kode QR dan difilter berdasarkan mitra.
+- Profil mitra yang ditinggalkan oleh proses hapus akun versi lama direkonsiliasi menjadi nonaktif; menu terkait juga dinonaktifkan dan pengajuan yang belum diproses dibatalkan. Mitra manual yang tidak pernah ditautkan ke akun tidak ikut dihapus.
+- Label menggunakan kode QR dan layout cetak 4 × 3 cm.
+
+## Cara memperbarui GitHub Pages
+1. Cadangkan repository yang sedang berjalan.
+2. Ekstrak ZIP ini, lalu upload seluruh isi folder ke root repository GitHub Pages. Replace file lama sesuai nama dan pertahankan folder `icons/`.
 3. Pastikan GitHub Pages mengarah ke branch `main` dan root folder.
-4. Buka `https://<username>.github.io/<repository>/` lalu tekan Ctrl+Shift+R.
+4. Buka situs KALAP lalu lakukan hard refresh (`Ctrl+Shift+R`). Pada aplikasi PWA yang sudah terpasang, tutup dan buka kembali aplikasi agar service worker versi baru aktif.
 
-## Firebase
-1. Gunakan project Firebase KALAP yang sudah ada.
-2. Di Firestore Database > Rules, replace seluruh aturan dengan `firestore.rules`, lalu Publish.
-3. Tidak perlu mengaktifkan Firebase Hosting, Cloud Functions, Node.js, atau Blaze untuk paket ini.
-4. Pastikan domain `<username>.github.io` ada di Authentication > Settings > Authorized domains.
+## Wajib: perbarui Firestore Rules
+1. Buka Firebase Console → Firestore Database → Rules.
+2. Replace seluruh isi Rules dengan file `firestore.rules` dari paket ini, lalu klik **Publish**.
+3. Rules baru mengatur hubungan atomik antara pengajuan stok dan dokumen lock `stockRequestLocks`. Jangan hanya mengunggah `index.html`; perubahan ini memerlukan rules baru.
+4. Tidak perlu menambah composite index berdasarkan query yang digunakan versi ini.
 
-## Fitur v1.6.1
-- POS: pembayaran Tunai/QRIS/Transfer/Operasional KALAP; tunai meminta nominal diterima dan menghitung kembalian. Tidak ada halaman operasional terpisah.
-- Dashboard Superadmin/SPV: rentang tanggal dari/sampai, grafik multi-hari, klik grafik untuk detail harian.
-- Closing: total penjualan, unit terjual, sisa stok, jumlah transaksi, rincian metode bayar dan daftar menu yang ditanggung KALAP.
-- Transferan mitra: perhitungan bagian KALAP 20% dan transfer bersih 80%, dengan rekening mitra. Status transfer ditandai manual setelah transfer bank benar-benar dilakukan.
-- Drawer navigasi hamburger di desktop dan mobile.
-- Form mitra saat input produk manual mendukung ketik-cari (datalist), bukan dropdown panjang.
-- PWA: nama aplikasi KALAP dan ikon K. putih dengan titik pada latar merah.
+## Pengaturan cetak QR
+- Aplikasi mengirim ukuran halaman cetak `40 mm × 30 mm` (4 × 3 cm) untuk laptop maupun tablet.
+- Pada dialog/driver printer, pilih ukuran media/label `40 × 30 mm`, skala `100%` atau `Actual size`, dan margin `None/0`. Browser atau driver printer dapat mengabaikan ukuran dari CSS bila ukuran label tidak tersedia atau dipaksa ke ukuran kertas lain.
 
-## Catatan penting
-- Pengiriman transfer bank tetap dilakukan melalui aplikasi bank. Tombol `Tandai transfer` hanya menyimpan status pembayaran di sistem.
-- Riwayat stok historis pada dialog grafik diambil dari catatan `stockMovements`; batas query histori 12.000 catatan terakhir. Jika bisnis melampaui batas tersebut, perlu strategi arsip/pagination historis.
-- Firebase Rules melindungi akses data; jangan menonaktifkan rules atau menggunakan `allow read, write: if true`.
-- PWA memerlukan HTTPS (GitHub Pages sudah HTTPS) dan file manifest, icon, serta service worker disimpan pada root repository.
-
-
-## Catatan QA v1.6.1
-- Memperbaiki deklarasi variabel ganda pada halaman Closing yang membuat script module gagal diparse.
-- Menghapus handler dan halaman operasional lama yang tidak lagi dipakai; Operasional KALAP tetap menjadi metode pembayaran POS.
-- Memperbaiki event pemilih mitra pada formulir Menu Baru agar datalist input tidak diperlakukan sebagai elemen select.
-- Tombol Edit rekening tersedia dari kartu mitra.
-- Aturan payout memvalidasi jumlah transfer + potongan = penjualan kotor. Potongan 20% dibulatkan ke Rupiah terdekat di aplikasi.
+## Catatan operasional
+- Penerimaan pengajuan menambahkan stok berdasarkan jumlah final yang disetujui Admin/SPV dan mencatat stock movement pada transaksi Firestore yang sama.
+- Tombol manual tidak akan menerima stok jika pengajuan untuk menu yang sama masih berstatus menunggu atau direvisi.
+- Penghapusan profil mitra tidak menghapus transaksi, pembayaran, atau riwayat penjualan lama; data historis tetap disimpan sebagai arsip.
+- Firebase Web Config tetap berada di frontend seperti versi sebelumnya. Keamanan akses data bergantung pada Firebase Authentication dan Firestore Rules yang dipublikasikan.
