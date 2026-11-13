@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
   <link rel="manifest" href="./manifest.webmanifest?v=2.0.2">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.2</title>
+  <title>KALAP Management System v2.0.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1019,7 +1019,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.2 — large, dot-aligned QR labels for Blueprint ECO80BT */
+/* KALAP v2.0.3 — fixed-size, dot-aligned QR labels for Blueprint ECO80BT */
 .label-selector-grid { grid-template-columns:minmax(0,1.5fr) minmax(145px,.7fr) minmax(135px,.65fr); }
 .label-preview { display:grid; width:40mm; height:30mm; grid-template-rows:3.3mm 21.8mm 3.3mm; row-gap:.2mm; padding:.4mm 1mm; border-radius:3px; }
 .label-preview.is-portrait { width:30mm; height:40mm; grid-template-rows:4.2mm 26mm 4.2mm; padding:.6mm 1mm; }
@@ -1031,6 +1031,21 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 @media (max-width:640px) {
   .label-selector-grid { grid-template-columns:1fr; }
   .label-preview { margin-inline:auto; }
+}
+
+
+/* KALAP v2.0.3 — fixed 30 × 40 mm label stock and login persistence control */
+.remember-row { margin: 15px 2px 18px; }
+.label-selector-grid { grid-template-columns: minmax(0,1fr) 135px !important; }
+.label-preview { width: 30mm !important; height: 40mm !important; grid-template-rows: 4.2mm 26mm 4.2mm !important; row-gap: .2mm !important; padding: .6mm 1mm !important; margin-inline: auto; }
+.label-preview.is-portrait { width: 30mm !important; height: 40mm !important; grid-template-rows: 4.2mm 26mm 4.2mm !important; padding: .6mm 1mm !important; }
+.label-preview-barcode { width: 27mm !important; height: 26mm !important; }
+@media (max-width:640px) { .label-selector-grid { grid-template-columns: 1fr !important; } }
+@media print {
+  @page { size: 30mm 40mm; margin: 0 !important; }
+  html, body { width: 30mm !important; min-width: 30mm !important; margin: 0 !important; padding: 0 !important; }
+  body.printing-labels, body.printing-labels #label-print-root { width: 30mm !important; max-width: 30mm !important; }
+  body.printing-labels .print-label { width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; }
 }
 
 </style>
@@ -1065,6 +1080,12 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
             <svg class="eye-icon" id="password-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
+        <label class="remember-row" for="login-remember">
+          <input id="login-remember" type="checkbox" autocomplete="off">
+          <span class="remember-check" aria-hidden="true"></span>
+          <span>Ingat Saya</span>
+          <small>Sesi berakhir saat tab ditutup</small>
+        </label>
         <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk</button>
         <div id="firebase-setup-note" class="setup-note hidden">
           Firebase belum dikonfigurasi. Periksa objek <code>firebaseConfig</code> di bagian awal JavaScript pada <code>index.html</code>, lalu muat ulang halaman.
@@ -1081,7 +1102,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.2</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.3</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1112,7 +1133,7 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
   createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile,
-  setPersistence, browserLocalPersistence
+  setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -1156,7 +1177,22 @@ const PAYMENT_ICONS = {
   kalap_operational: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg>'
 };
 
+const REMEMBER_ME_STORAGE_KEY = "kalap.auth.remember.v1";
+function rememberMeEnabled() {
+  try { return localStorage.getItem(REMEMBER_ME_STORAGE_KEY) === "true"; }
+  catch (_) { return false; }
+}
+function saveRememberMePreference(enabled) {
+  try {
+    if (enabled) localStorage.setItem(REMEMBER_ME_STORAGE_KEY, "true");
+    else localStorage.removeItem(REMEMBER_ME_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Preferensi Ingat Saya tidak dapat disimpan di browser:", error);
+  }
+}
+
 let app, auth, db;
+let authPersistenceReady = Promise.resolve();
 let currentUser = null;
 let profile = null;
 let activePage = "dashboard";
@@ -1859,7 +1895,7 @@ function resetStore() {
   store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
 }
 
-function startApp() {
+async function startApp() {
   if (!isFirebaseConfigured) {
     $("#firebase-setup-note")?.classList.remove("hidden");
     $("#login-submit").disabled = true;
@@ -1867,6 +1903,17 @@ function startApp() {
   }
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+  const rememberEnabled = rememberMeEnabled();
+  const rememberCheckbox = $("#login-remember");
+  if (rememberCheckbox) rememberCheckbox.checked = rememberEnabled;
+  // Legacy sessions from before this option default to tab/session persistence.
+  // A user can opt into persistent login explicitly by checking Ingat Saya.
+  try {
+    authPersistenceReady = setPersistence(auth, rememberEnabled ? browserLocalPersistence : browserSessionPersistence);
+    await authPersistenceReady;
+  } catch (persistenceError) {
+    console.warn("Firebase Auth persistence could not be configured:", persistenceError);
+  }
   try {
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
@@ -2738,15 +2785,14 @@ function renderLabelsPage() {
   const partners = store.partners.filter(partner => partner.active !== false);
   const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
   const selectedLabel = selected ? `${selected.name} — ${selected.partnerName || "Mitra"}` : "";
-  return `${pageHeading("Cetak label", "Cari menu atau mitra, pilih orientasi label, lalu cetak nama menu, QR Code, dan harga.", `<span class="status neutral">QR Code · ECO80BT</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>QR Code besar dengan modul kotak yang tajam</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
+  return `${pageHeading("Cetak label", "Semua label menggunakan ukuran tetap 30 × 40 mm (portrait).", `<span class="status neutral">QR Code · ECO80BT</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>Ukuran label 30 × 40 mm</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
     <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
         <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan QR..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
-        <div class="form-field"><label for="label-orientation">Orientasi</label><select id="label-orientation" name="orientation"><option value="landscape" selected>Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div>
         <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
         <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."}</div>
-        <div class="label-print-actions"><span class="helper-text" id="label-orientation-hint">Landscape: cocok untuk stiker fisik 40 × 30 mm. Cetak pada 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
+        <div class="label-print-actions"><span class="helper-text">Ukuran tetap 30 × 40 mm · Portrait · Skala cetak 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
 }
@@ -2865,12 +2911,6 @@ function attachPageEvents() {
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
-  $("#label-orientation")?.addEventListener("change", event => {
-    const hint = $("#label-orientation-hint");
-    if (hint) hint.textContent = event.target.value === "portrait"
-      ? "Portrait: gunakan stiker fisik 30 × 40 mm. Cetak pada 100% / Actual Size."
-      : "Landscape: gunakan stiker fisik 40 × 30 mm. Cetak pada 100% / Actual Size.";
-  });
   $("#label-unified-search")?.addEventListener("input", () => {
     labelSelectedMenuId = "";
     const hidden = $("#label-menu-select"); if (hidden) hidden.value = "";
@@ -3450,9 +3490,8 @@ function handleBulkLabelPrint(event) {
   if (typeof window.qrcode !== "function") return toast("Pustaka QR belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
   setBusy(button, true, "Menyiapkan QR...");
   try {
-    const orientation = data.orientation === "portrait" ? "portrait" : "landscape";
-    printMenuLabels(menu, copies, orientation);
-    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak QR (${orientation}).`, "success");
+    printMenuLabels(menu, copies);
+    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak QR ukuran 30 × 40 mm.`, "success");
   } catch (error) {
     console.error(error);
     toast("QR gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
@@ -3461,7 +3500,7 @@ function handleBulkLabelPrint(event) {
   }
 }
 
-function drawMenuQr(target, value, orientation = "landscape") {
+function drawMenuQr(target, value) {
   if (!target || typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
   const code = String(value || "").trim();
   if (!/^\d{12}$/.test(code)) throw new Error("ID QR menu harus berupa 12 digit angka.");
@@ -3475,7 +3514,7 @@ function drawMenuQr(target, value, orientation = "landscape") {
   const modules = qr.getModuleCount();
   if (modules !== 21) throw new Error(`Ukuran QR tidak sesuai (ditemukan ${modules} modul).`);
 
-  const printerDotsPerModule = orientation === "portrait" ? 7 : 6;
+  const printerDotsPerModule = 7; // Fixed 30 × 40 mm portrait label.
   const moduleMm = printerDotsPerModule * 25.4 / 203;
   const quietZone = 4;
   const totalModules = modules + quietZone * 2;
@@ -3529,53 +3568,42 @@ function openLabelModal(menuId) {
   const menu = store.menus.find(item => item.id === menuId && item.deleted !== true);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Label menampilkan nama menu, QR Code, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Orientasi label</label><select name="orientation" id="single-label-orientation"><option value="landscape">Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
-  try { drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu), "landscape"); }
+  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Ukuran tetap 30 × 40 mm (portrait). Label menampilkan nama menu, QR Code, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  try { drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu)); }
   catch (error) { root.querySelector("#label-preview-barcode").textContent = "QR tidak dapat dibuat. Periksa koneksi internet."; }
-  const preview = root.querySelector("#label-preview");
-  const orientationSelect = root.querySelector("#single-label-orientation");
-  orientationSelect.addEventListener("change", () => {
-    const orientation = orientationSelect.value === "portrait" ? "portrait" : "landscape";
-    preview.classList.toggle("is-portrait", orientation === "portrait");
-    drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu), orientation);
-  });
   root.querySelector("#label-print-form").addEventListener("submit", event => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const copies = Math.min(300, Math.max(1, Number(formData.get("copies")) || 1));
-    const orientation = formData.get("orientation") === "portrait" ? "portrait" : "landscape";
     root.innerHTML = "";
-    printMenuLabels(menu, copies, orientation);
+    printMenuLabels(menu, copies);
   });
   root.querySelectorAll("[data-label-close], [data-label-backdrop]").forEach(item => item.addEventListener("click", event => {
     if (event.target === item || item.matches("[data-label-close]")) root.innerHTML = "";
   }));
 }
 
-function printMenuLabels(menu, copies = 1, orientation = "landscape") {
+function printMenuLabels(menu, copies = 1) {
   if (typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
   if (!Number.isInteger(copies) || copies < 1 || copies > 500) throw new Error("Jumlah label tidak valid.");
   if (document.body.classList.contains("printing-labels")) throw new Error("Pekerjaan cetak label sebelumnya belum selesai.");
 
-  const layout = orientation === "portrait"
-    ? { width: 30, height: 40, qrWidth: 27, qrHeight: 26, qrSize: 25.4, rows: "4.2mm 26mm 4.2mm", padding: ".6mm 1mm" }
-    : { width: 40, height: 30, qrWidth: 36, qrHeight: 22, qrSize: 21.771, rows: "3.4mm 22mm 3.4mm", padding: ".4mm 1mm" };
+  // KALAP hanya mendukung label GAP ukuran 30 × 40 mm (portrait).
+  const layout = { width: 30, height: 40, qrWidth: 27, qrHeight: 26, qrSize: 25.4, rows: "4.2mm 26mm 4.2mm", padding: ".6mm 1mm" };
   let root = document.getElementById("label-print-root");
   if (!root) { root = document.createElement("div"); root.id = "label-print-root"; document.body.appendChild(root); }
   root.innerHTML = "";
-  root.dataset.orientation = orientation;
+  root.dataset.size = "30x40";
 
   // QR vector dibuat satu kali; seluruh salinan memakai SVG identik dalam satu spool job.
   const template = document.createElement("div");
   template.className = "print-label";
   template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
-  drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu), orientation);
+  drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu));
   const fragment = document.createDocumentFragment();
   for (let index = 0; index < copies; index += 1) fragment.appendChild(template.cloneNode(true));
   root.appendChild(fragment);
 
-  // Dynamic @page size is necessary because physical portrait/landscape labels
-  // have different feed lengths on GAP media.
   let printStyle = document.getElementById("kalap-label-print-dynamic-style");
   if (!printStyle) {
     printStyle = document.createElement("style");
@@ -3584,13 +3612,13 @@ function printMenuLabels(menu, copies = 1, orientation = "landscape") {
   }
   const { width, height, qrWidth, qrHeight, qrSize, rows, padding } = layout;
   printStyle.textContent = `
-    @page { size: ${width}mm ${height}mm; margin: 0 !important; }
+    @page { size: 30mm 40mm; margin: 0 !important; }
     @media print {
-      html, body { width: ${width}mm !important; min-width: ${width}mm !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
-      body.printing-labels { width: ${width}mm !important; }
+      html, body { width: 30mm !important; min-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      body.printing-labels { width: 30mm !important; min-width: 30mm !important; }
       body.printing-labels > *:not(#label-print-root) { display: none !important; }
-      body.printing-labels #label-print-root { display: block !important; position: static !important; width: ${width}mm !important; max-width: ${width}mm !important; margin: 0 !important; padding: 0 !important; }
-      body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: ${width}mm !important; min-width: ${width}mm !important; max-width: ${width}mm !important; height: ${height}mm !important; min-height: ${height}mm !important; max-height: ${height}mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
+      body.printing-labels #label-print-root { display: block !important; position: static !important; width: 30mm !important; max-width: 30mm !important; margin: 0 !important; padding: 0 !important; }
+      body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
       body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
       body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 8pt/1.05 Arial, sans-serif !important; }
       body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${qrWidth}mm !important; max-width: 100% !important; height: ${qrHeight}mm !important; overflow: hidden !important; background: #fff !important; }
@@ -3608,7 +3636,7 @@ function printMenuLabels(menu, copies = 1, orientation = "landscape") {
     if (safetyTimer) clearTimeout(safetyTimer);
     document.body.classList.remove("printing-labels");
     root.innerHTML = "";
-    delete root.dataset.orientation;
+    delete root.dataset.size;
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup, { once: true });
@@ -3829,7 +3857,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.2", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.3", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -3846,8 +3874,11 @@ $("#login-form").addEventListener("submit", async event => {
   const button=$("#login-submit");
   setBusy(button,true,"Menghubungkan...");
   try {
-    await setPersistence(auth, browserLocalPersistence);
+    const remember = $("#login-remember")?.checked === true;
+    await authPersistenceReady.catch(() => {});
+    await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
     await signInWithEmailAndPassword(auth, $("#login-email").value.trim(), $("#login-password").value);
+    saveRememberMePreference(remember);
     $("#login-password").value="";
   }
   catch(error){toast(friendlyError(error),"error");}
@@ -3866,7 +3897,7 @@ $("#toggle-password").addEventListener("click",()=>{
     ? '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
     : '<path d="m3 3 18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a16.5 16.5 0 0 1-3.1 3.9M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7c1.1 0 2.1-.2 3-.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
 });
-$("#logout-btn").addEventListener("click",async()=>{if(auth)await signOut(auth);});
+$("#logout-btn").addEventListener("click",async()=>{saveRememberMePreference(false);if(auth)await signOut(auth);});
 $("#mobile-menu-btn").addEventListener("click",toggleSidebarDrawer);
 $("#sidebar-backdrop")?.addEventListener("click",closeSidebarDrawer);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeSidebarDrawer();});
