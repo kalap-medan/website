@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.0.1">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.0.2">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.1</title>
+  <title>KALAP Management System v2.0.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -963,7 +963,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 @media (max-width:560px) { .menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; .label-selector-grid { grid-template-columns:1fr; } .cash-payment-total,.cash-change-panel { align-items:flex-start; flex-direction:column; gap:7px; } .cash-payment-total strong,.cash-change-panel strong { font-size:18px; } }
 
 
-/* KALAP v1.9.0 — Blueprint ECO80BT / Code 128 label printing */
+/* KALAP v1.9.0 — Blueprint ECO80BT label printing base */
 .label-preview {
   width:40mm; height:30mm; box-sizing:border-box; border:1px dashed #e4b9b8;
   border-radius:5px; background:#fff; color:#111; display:grid;
@@ -980,7 +980,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
   overflow:hidden; background:#fff; padding:0; box-sizing:border-box;
 }
 .label-preview-barcode svg,.print-label-barcode svg {
-  display:block; width:100% !important; height:100% !important; max-width:100% !important;
+  display:block; width:auto !important; height:auto !important; max-width:100% !important;
   max-height:100% !important; shape-rendering:crispEdges; overflow:visible;
 }
 .label-preview-code,.print-label-code {
@@ -1019,14 +1019,14 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.1 — thin-module, tall-bar labels for ECO80BT */
+/* KALAP v2.0.2 — large, dot-aligned QR labels for Blueprint ECO80BT */
 .label-selector-grid { grid-template-columns:minmax(0,1.5fr) minmax(145px,.7fr) minmax(135px,.65fr); }
-.label-preview { display:grid; width:40mm; height:30mm; grid-template-rows:4.2mm 19.2mm 4.2mm; row-gap:.3mm; padding:.5mm 1mm; border-radius:3px; }
-.label-preview.is-portrait { width:30mm; height:40mm; grid-template-rows:5mm 26mm 5mm; padding:.6mm 1mm; }
+.label-preview { display:grid; width:40mm; height:30mm; grid-template-rows:3.3mm 21.8mm 3.3mm; row-gap:.2mm; padding:.4mm 1mm; border-radius:3px; }
+.label-preview.is-portrait { width:30mm; height:40mm; grid-template-rows:4.2mm 26mm 4.2mm; padding:.6mm 1mm; }
 .label-preview-name { width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:600 8pt/1.05 Arial,sans-serif; }
-.label-preview-barcode,.print-label-barcode { display:flex; align-items:center; justify-content:center; width:36mm; max-width:100%; height:19.2mm; overflow:hidden; background:#fff; }
+.label-preview-barcode,.print-label-barcode { display:flex; align-items:center; justify-content:center; width:36mm; max-width:100%; height:22mm; overflow:hidden; background:#fff; }
 .label-preview.is-portrait .label-preview-barcode { width:27mm; height:26mm; }
-.label-preview-barcode svg { display:block; width:auto !important; height:100% !important; max-width:100% !important; max-height:100% !important; shape-rendering:crispEdges; }
+.label-preview-barcode svg,.print-label-barcode svg { display:block; max-width:100%; max-height:100%; flex:0 0 auto; shape-rendering:crispEdges; }
 .label-preview-price { font:700 9pt/1.05 Arial,sans-serif; white-space:nowrap; }
 @media (max-width:640px) {
   .label-selector-grid { grid-template-columns:1fr; }
@@ -1035,7 +1035,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/barcodes/JsBarcode.code128.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -1081,7 +1081,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.1</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.2</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1363,8 +1363,8 @@ function transactionCode() {
 }
 function compactLegacyMenuBarcode(menu) {
   // Legacy KLP-* values were long alphanumeric strings. A deterministic
-  // 12-digit numeric alias lets Code 128C encode them compactly while old
-  // printed KLP codes remain accepted by searches through menu.barcode.
+  // 12-digit numeric alias keeps printed QR payloads short while old
+  // printed KLP/barcode values remain accepted by searches through menu.barcode.
   const seed = String(menu?.id || menu?.barcode || "KALAP-MENU");
   const hash32 = (value, initial) => {
     let hash = initial >>> 0;
@@ -1383,6 +1383,13 @@ function menuBarcode(menu) {
   if (/^\d{12}$/.test(stored)) return stored;
   if (stored && !stored.toUpperCase().startsWith("KLP-")) return stored;
   return compactLegacyMenuBarcode(menu);
+}
+function menuQrPayload(menu) {
+  // Keep QR data compact and numeric so it fits QR Version 1 (21 x 21 modules).
+  // Menus that already have a 12-digit KALAP code reuse it; legacy alphanumeric
+  // codes receive the same deterministic 12-digit alias used by old label flows.
+  const stored = String(menu?.barcode || "").trim();
+  return /^\d{12}$/.test(stored) ? stored : compactLegacyMenuBarcode(menu);
 }
 
 // Semua operasi tulis dilakukan langsung ke Cloud Firestore.
@@ -1465,7 +1472,7 @@ async function callApi(name, payload = {}) {
     if (!nameValue || !Number.isSafeInteger(price) || price < 1) throw new Error("Nama menu dan harga jual harus valid.");
     const menuRef = doc(collection(db, "menus"));
     let barcodeValue = "";
-    // Numeric 12-digit IDs are encoded by JsBarcode as Code 128C (digit pairs),
+    // Numeric 12-digit IDs are saved as compact identifiers and reused by QR labels,
     // giving a shorter symbol with wider white gaps on 203-DPI label media.
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const candidate = String(Math.floor(100000000000 + Math.random() * 900000000000));
@@ -2412,8 +2419,8 @@ function renderPosPage() {
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
   return `${pageHeading("Kasir / POS", "Cari nama menu atau scan barcode, lalu masukkan ke keranjang.", `<span class="status success">● Sistem siap</span>`)}
     <div class="pos-layout"><section class="panel">${panelHeader("Daftar menu", `${integer(availableMenus.length)} menu aktif`, `<span class="muted" style="font-size:10px">Klik menu untuk menambahkan</span>`)}
-      <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan barcode..." autocomplete="off" aria-label="Cari atau scan menu"><button type="button" class="icon-clear-btn" id="clear-pos-search" aria-label="Bersihkan pencarian" title="Bersihkan pencarian">×</button></div>
-      <p class="pos-search-hint">Scanner barcode akan mengetikkan kode menu ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
+      <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan QR/barcode..." autocomplete="off" aria-label="Cari atau scan menu"><button type="button" class="icon-clear-btn" id="clear-pos-search" aria-label="Bersihkan pencarian" title="Bersihkan pencarian">×</button></div>
+      <p class="pos-search-hint">Scanner QR/barcode akan mengetikkan ID menu ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
       <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
     </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Bayar</button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
     <section class="panel" style="margin-top:15px">${panelHeader("Transaksi terbaru", "Aktivitas penjualan pada bulan yang dipilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(store.transactions.slice(0, 5), true)}</section>`;
@@ -2422,7 +2429,7 @@ function renderPosPage() {
 function filteredPosMenus() {
   const queryText = posSearchQuery.trim().toLowerCase();
   return store.menus.filter(menu => menu.active !== false && menu.deleted !== true).filter(menu => !queryText ||
-    [menu.name, menu.partnerName, menuBarcode(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText)));
+    [menu.name, menu.partnerName, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText)));
 }
 
 function drawPosMenuResults() {
@@ -2456,7 +2463,7 @@ function initPosMenuSearch() {
     const value = input.value.trim().toLowerCase();
     if (!value) return;
     const active = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
-    const exact = active.find(menu => menuBarcode(menu).toLowerCase() === value || String(menu.barcode || "").toLowerCase() === value);
+    const exact = active.find(menu => [menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(code => String(code || "").toLowerCase() === value));
     const matches = exact ? [exact] : filteredPosMenus();
     if (matches.length === 1) {
       const menu = matches[0];
@@ -2508,7 +2515,7 @@ function renderStockPage() {
   const activeMenus = allMenus.filter(menu => menu.active !== false);
   const q = menuListSearchQuery.trim().toLowerCase();
   const filteredMenus = allMenus.filter(menu => {
-    const text = `${menu.name || ""} ${menu.partnerName || ""} ${menuBarcode(menu)}`.toLowerCase();
+    const text = `${menu.name || ""} ${menu.partnerName || ""} ${menuBarcode(menu)} ${menuQrPayload(menu)}`.toLowerCase();
     const status = menu.active === false ? "inactive" : "active";
     return (!q || text.includes(q)) && (menuStatusFilter === "all" || menuStatusFilter === status);
   });
@@ -2523,8 +2530,8 @@ function renderStockPage() {
     </section>
     <section class="panel">
       ${panelHeader("Semua menu KALAP", `${integer(filteredMenus.length)} dari ${integer(allMenus.length)} menu`, `<button class="btn btn-light" data-export-menus>Ekspor daftar CSV</button>`)}
-      <div class="table-toolbar"><input id="menu-search" type="search" value="${escapeHtml(menuListSearchQuery)}" placeholder="Cari nama menu, mitra, atau barcode..."><select id="menu-status-filter"><option value="all" ${menuStatusFilter === "all" ? "selected" : ""}>Semua status</option><option value="active" ${menuStatusFilter === "active" ? "selected" : ""}>Aktif</option><option value="inactive" ${menuStatusFilter === "inactive" ? "selected" : ""}>Nonaktif</option></select></div>
-      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>Kode barcode</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><div class="account-actions"><button class="action-link" data-edit-menu="${menu.id}">Edit</button><button class="action-link danger-link" data-delete-menu="${menu.id}">Hapus</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role === "superadmin" ? 7 : 6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
+      <div class="table-toolbar"><input id="menu-search" type="search" value="${escapeHtml(menuListSearchQuery)}" placeholder="Cari nama menu, mitra, atau ID QR..."><select id="menu-status-filter"><option value="all" ${menuStatusFilter === "all" ? "selected" : ""}>Semua status</option><option value="active" ${menuStatusFilter === "active" ? "selected" : ""}>Aktif</option><option value="inactive" ${menuStatusFilter === "inactive" ? "selected" : ""}>Nonaktif</option></select></div>
+      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>ID QR</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuQrPayload(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><div class="account-actions"><button class="action-link" data-edit-menu="${menu.id}">Edit</button><button class="action-link danger-link" data-delete-menu="${menu.id}">Hapus</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role === "superadmin" ? 7 : 6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
       <div class="pagination-row"><span class="helper-text">Halaman ${menuListCurrentPage} dari ${pages} · ${integer(filteredMenus.length)} menu</span><div class="page-buttons"><button type="button" data-menu-list-page="prev" ${menuListCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-menu-list-page="next" ${menuListCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
     </section>`;
 }
@@ -2632,7 +2639,7 @@ function renderRequestsPage() {
   const filtered = allRequests.filter(row => {
     const menu = store.menus.find(item => item.id === row.menuId);
     const partnerMatches = !staffCanReceive || !requestPartnerFilter || row.partnerId === requestPartnerFilter;
-    const searchMatches = !q || [row.partnerName, row.menuName, row.note, row.status, menuBarcode(menu || {})]
+    const searchMatches = !q || [row.partnerName, row.menuName, row.note, row.status, menuBarcode(menu || {}), menuQrPayload(menu || {})]
       .some(value => String(value || "").toLowerCase().includes(q));
     return partnerMatches && searchMatches;
   });
@@ -2664,7 +2671,7 @@ function renderRequestsPage() {
     return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
   }).join("");
   return `${header}${form}<section class="panel">${panelHeader(staffCanReceive ? "Daftar pengajuan dari mitra" : "Riwayat pengajuan Anda", `${integer(filtered.length)} pengajuan ditemukan`, actionHeader)}
-    <div class="table-toolbar">${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, atau scan barcode..." autocomplete="off"></div>
+    <div class="table-toolbar">${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, atau scan QR..." autocomplete="off"></div>
     <div class="table-wrap"><table><thead><tr>${staffCanReceive ? "<th>Mitra</th>" : ""}<th>Menu</th><th>Jumlah diajukan</th><th>Catatan</th><th>Tanggal</th><th>Status / aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="${staffCanReceive ? 6 : 5}" class="table-empty">Belum ada pengajuan yang sesuai dengan pencarian.</td></tr>`}</tbody></table></div>
     <div class="pagination-row"><span class="helper-text">Halaman ${requestCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-request-page="prev" ${requestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-request-page="next" ${requestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
   </section>`;
@@ -2731,14 +2738,14 @@ function renderLabelsPage() {
   const partners = store.partners.filter(partner => partner.active !== false);
   const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
   const selectedLabel = selected ? `${selected.name} — ${selected.partnerName || "Mitra"}` : "";
-  return `${pageHeading("Cetak label", "Cari menu atau mitra, pilih orientasi label, lalu cetak nama menu, barcode, dan harga.", `<span class="status neutral">Code 128 · ECO80BT</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>Barcode Code 128 dengan garis lebih halus</strong><br>Label hanya memuat nama menu, barcode, dan harga. Teks nomor barcode tidak dicetak.</div></div>
+  return `${pageHeading("Cetak label", "Cari menu atau mitra, pilih orientasi label, lalu cetak nama menu, QR Code, dan harga.", `<span class="status neutral">QR Code · ECO80BT</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>QR Code besar dengan modul kotak yang tajam</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
     <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
-        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan barcode</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan barcode..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
+        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan QR..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
         <div class="form-field"><label for="label-orientation">Orientasi</label><select id="label-orientation" name="orientation"><option value="landscape" selected>Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div>
         <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
-        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>Barcode: ${escapeHtml(menuBarcode(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan barcode terlebih dahulu."}</div>
+        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."}</div>
         <div class="label-print-actions"><span class="helper-text" id="label-orientation-hint">Landscape: cocok untuk stiker fisik 40 × 30 mm. Cetak pada 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
@@ -2771,7 +2778,7 @@ async function newMenuPageSubmit(event) {
       name: String(data.name || "").trim(), partnerId: matchedPartner.id, price: parseMoneyInput(data.price)
     });
     form.reset();
-    toast(`Menu ${result.name} berhasil didaftarkan. Barcode ${result.barcode} dibuat otomatis. Stok awal tetap 0.`, "success");
+    toast(`Menu ${result.name} berhasil didaftarkan. ID QR ${result.barcode} dibuat otomatis. Stok awal tetap 0.`, "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -3373,7 +3380,7 @@ function filterMenuRows() {
 
 function exportMenusCsv() {
   if(!["superadmin","spv"].includes(profile?.role)) return;
-  const rows=[["Nama menu","Mitra","Harga jual","Stok","Barcode","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>[menu.name,menu.partnerName||"",menu.price,menu.stock,menuBarcode(menu),menu.active===false?"Nonaktif":"Aktif"])];
+  const rows=[["Nama menu","Mitra","Harga jual","Stok","ID QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>[menu.name,menu.partnerName||"",menu.price,menu.stock,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"])];
   const csv=rows.map(row=>row.map(value=>`"${String(value??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
 }
@@ -3398,9 +3405,9 @@ function refreshUnifiedLabelSearch() {
   const queryText = String(input.value || "").trim().toLowerCase();
   labelSearchQuery = input.value;
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true && (!queryText ||
-    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText))))
+    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText))))
     .sort((a,b) => String(a.name||"").localeCompare(String(b.name||""))).slice(0, 12);
-  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · ${escapeHtml(menuBarcode(menu))}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan barcode berasal dari label menu KALAP.</div>`;
+  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · QR ${escapeHtml(menuQrPayload(menu))}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
   $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
 }
 
@@ -3408,8 +3415,8 @@ function updateLabelSelectionSummary() {
   const target = $("#label-selection-summary");
   if (!target) return;
   const menu = store.menus.find(item => item.id === labelSelectedMenuId && item.deleted !== true);
-  if (!menu) { target.textContent = "Belum ada menu dipilih. Cari atau scan barcode terlebih dahulu."; return; }
-  target.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · ${escapeHtml(menu.partnerName||"—")} · ${money(menu.price)}<br><small>Barcode: ${escapeHtml(menuBarcode(menu))}</small>`;
+  if (!menu) { target.textContent = "Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."; return; }
+  target.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · ${escapeHtml(menu.partnerName||"—")} · ${money(menu.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(menu))}</small>`;
 }
 
 function handleLabelSearchKeydown(event) {
@@ -3420,7 +3427,7 @@ function handleLabelSearchKeydown(event) {
   const normalizedQuery = queryText.replace(/[\s-]/g, "");
   if (!queryText) return;
   const active = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
-  const exact = active.find(menu => [menuBarcode(menu), menu.barcode].some(value => {
+  const exact = active.find(menu => [menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => {
     const candidate = String(value || "").trim().toLowerCase();
     return candidate === queryText || candidate.replace(/[\s-]/g, "") === normalizedQuery;
   }));
@@ -3428,7 +3435,7 @@ function handleLabelSearchKeydown(event) {
   const matches = active.filter(menu => String(menu.name || "").trim().toLowerCase() === queryText || String(menu.partnerName || "").trim().toLowerCase() === queryText);
   if (matches.length === 1) selectLabelMenu(matches[0].id);
   else if (matches.length > 1) toast(`Ada ${matches.length} menu milik mitra/nama tersebut. Pilih menu yang benar dari daftar di bawah.`, "info");
-  else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan barcode menu KALAP.", "error");
+  else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan QR menu KALAP.", "error");
 }
 
 function handleBulkLabelPrint(event) {
@@ -3440,60 +3447,81 @@ function handleBulkLabelPrint(event) {
   const copies = Number(data.copies);
   if (!menu || menu.active === false) return toast("Cari lalu pilih satu menu aktif sebelum mencetak.", "error");
   if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah label harus antara 1 sampai 500.", "error");
-  if (typeof window.JsBarcode !== "function") return toast("Pustaka barcode belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
-  setBusy(button, true, "Menyiapkan barcode...");
+  if (typeof window.qrcode !== "function") return toast("Pustaka QR belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
+  setBusy(button, true, "Menyiapkan QR...");
   try {
     const orientation = data.orientation === "portrait" ? "portrait" : "landscape";
     printMenuLabels(menu, copies, orientation);
-    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak Code 128 (${orientation}).`, "success");
+    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak QR (${orientation}).`, "success");
   } catch (error) {
     console.error(error);
-    toast("Barcode gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
+    toast("QR gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
   } finally {
     setTimeout(() => setBusy(button, false), 700);
   }
 }
 
-function drawMenuBarcode(target, value, orientation = "landscape") {
-  if (!target || typeof window.JsBarcode !== "function") throw new Error("Pustaka barcode belum termuat.");
+function drawMenuQr(target, value, orientation = "landscape") {
+  if (!target || typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
   const code = String(value || "").trim();
-  if (!code || !/^[\x20-\x7E]+$/.test(code)) throw new Error("Isi barcode harus berupa karakter ASCII yang valid.");
+  if (!/^\d{12}$/.test(code)) throw new Error("ID QR menu harus berupa 12 digit angka.");
+
+  // Fixed QR Version 1 / Error Correction M: exactly 21 x 21 modules.
+  // Each module is mapped to a whole number of 203-DPI printer dots to avoid
+  // fractional scaling, gray edges, and uneven black squares on ECO80BT.
+  const qr = window.qrcode(1, "M");
+  qr.addData(code, "Numeric");
+  qr.make();
+  const modules = qr.getModuleCount();
+  if (modules !== 21) throw new Error(`Ukuran QR tidak sesuai (ditemukan ${modules} modul).`);
+
+  const printerDotsPerModule = orientation === "portrait" ? 7 : 6;
+  const moduleMm = printerDotsPerModule * 25.4 / 203;
+  const quietZone = 4;
+  const totalModules = modules + quietZone * 2;
+  const sizeMm = totalModules * moduleMm;
+
   target.innerHTML = "";
-  const isNumericEven = /^\d{8,24}$/.test(code) && code.length % 2 === 0;
-  const isPortrait = orientation === "portrait";
-  // Code 128C compresses numeric pairs. On 203-DPI ECO80BT media, the module
-  // target is about 2 printer dots in landscape and just under 2 in portrait.
-  // Taller bars improve scan area without making each black module wider.
-  const moduleWidth = isNumericEven ? (isPortrait ? 0.80 : 1.00) : (isPortrait ? 0.48 : 0.68);
-  const barHeight = isPortrait ? 96 : 76;
-  const quietZone = moduleWidth * 10;
+  target.style.background = "#fff";
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Barcode Code 128 menu KALAP");
+  svg.setAttribute("aria-label", "QR Code menu KALAP");
+  svg.setAttribute("viewBox", `0 0 ${totalModules} ${totalModules}`);
+  svg.setAttribute("width", `${sizeMm.toFixed(3)}mm`);
+  svg.setAttribute("height", `${sizeMm.toFixed(3)}mm`);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  target.appendChild(svg);
-  window.JsBarcode(svg, code, {
-    format: isNumericEven ? "CODE128C" : "CODE128",
-    lineColor: "#000000",
-    background: "#ffffff",
-    width: moduleWidth,
-    height: barHeight,
-    displayValue: false,
-    margin: 0,
-    marginLeft: quietZone,
-    marginRight: quietZone,
-    marginTop: 0,
-    marginBottom: 0
-  });
-  // Keep the SVG's natural width and scale only to the barcode area's height.
-  // This avoids CSS width:100% stretching narrow bars into heavy black columns.
-  svg.style.width = "auto";
-  svg.style.height = "100%";
+  svg.style.setProperty("width", `${sizeMm.toFixed(3)}mm`, "important");
+  svg.style.setProperty("height", `${sizeMm.toFixed(3)}mm`, "important");
   svg.style.maxWidth = "100%";
   svg.style.maxHeight = "100%";
+  svg.style.flex = "0 0 auto";
   svg.style.display = "block";
-  svg.style.flex = "0 1 auto";
   svg.style.shapeRendering = "crispEdges";
+
+  const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  background.setAttribute("x", "0");
+  background.setAttribute("y", "0");
+  background.setAttribute("width", String(totalModules));
+  background.setAttribute("height", String(totalModules));
+  background.setAttribute("fill", "#fff");
+  svg.appendChild(background);
+
+  let pathData = "";
+  for (let row = 0; row < modules; row += 1) {
+    for (let col = 0; col < modules; col += 1) {
+      if (qr.isDark(row, col)) {
+        const x = col + quietZone;
+        const y = row + quietZone;
+        pathData += `M${x} ${y}h1v1h-1z`;
+      }
+    }
+  }
+  const modulesPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  modulesPath.setAttribute("d", pathData);
+  modulesPath.setAttribute("fill", "#000");
+  modulesPath.setAttribute("shape-rendering", "crispEdges");
+  svg.appendChild(modulesPath);
+  target.appendChild(svg);
   return svg;
 }
 
@@ -3501,15 +3529,15 @@ function openLabelModal(menuId) {
   const menu = store.menus.find(item => item.id === menuId && item.deleted !== true);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Label menampilkan nama menu, barcode Code 128, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Orientasi label</label><select name="orientation" id="single-label-orientation"><option value="landscape">Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
-  try { drawMenuBarcode(root.querySelector("#label-preview-barcode"), menuBarcode(menu), "landscape"); }
-  catch (error) { root.querySelector("#label-preview-barcode").textContent = "Barcode tidak dapat dibuat. Periksa koneksi internet."; }
+  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Label menampilkan nama menu, QR Code, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Orientasi label</label><select name="orientation" id="single-label-orientation"><option value="landscape">Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  try { drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu), "landscape"); }
+  catch (error) { root.querySelector("#label-preview-barcode").textContent = "QR tidak dapat dibuat. Periksa koneksi internet."; }
   const preview = root.querySelector("#label-preview");
   const orientationSelect = root.querySelector("#single-label-orientation");
   orientationSelect.addEventListener("change", () => {
     const orientation = orientationSelect.value === "portrait" ? "portrait" : "landscape";
     preview.classList.toggle("is-portrait", orientation === "portrait");
-    drawMenuBarcode(root.querySelector("#label-preview-barcode"), menuBarcode(menu), orientation);
+    drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu), orientation);
   });
   root.querySelector("#label-print-form").addEventListener("submit", event => {
     event.preventDefault();
@@ -3525,23 +3553,23 @@ function openLabelModal(menuId) {
 }
 
 function printMenuLabels(menu, copies = 1, orientation = "landscape") {
-  if (typeof window.JsBarcode !== "function") throw new Error("Pustaka barcode belum termuat.");
+  if (typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
   if (!Number.isInteger(copies) || copies < 1 || copies > 500) throw new Error("Jumlah label tidak valid.");
   if (document.body.classList.contains("printing-labels")) throw new Error("Pekerjaan cetak label sebelumnya belum selesai.");
 
   const layout = orientation === "portrait"
-    ? { width: 30, height: 40, barcodeWidth: 27, barcodeHeight: 26, rows: "5mm 26mm 5mm", padding: ".6mm 1mm" }
-    : { width: 40, height: 30, barcodeWidth: 36, barcodeHeight: 19.2, rows: "4.2mm 19.2mm 4.2mm", padding: ".5mm 1mm" };
+    ? { width: 30, height: 40, qrWidth: 27, qrHeight: 26, qrSize: 25.4, rows: "4.2mm 26mm 4.2mm", padding: ".6mm 1mm" }
+    : { width: 40, height: 30, qrWidth: 36, qrHeight: 22, qrSize: 21.771, rows: "3.4mm 22mm 3.4mm", padding: ".4mm 1mm" };
   let root = document.getElementById("label-print-root");
   if (!root) { root = document.createElement("div"); root.id = "label-print-root"; document.body.appendChild(root); }
   root.innerHTML = "";
   root.dataset.orientation = orientation;
 
-  // Barcode vector dibuat satu kali; salinan memakai SVG identik dalam satu spool job.
+  // QR vector dibuat satu kali; seluruh salinan memakai SVG identik dalam satu spool job.
   const template = document.createElement("div");
   template.className = "print-label";
   template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
-  drawMenuBarcode(template.querySelector(".print-label-barcode"), menuBarcode(menu), orientation);
+  drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu), orientation);
   const fragment = document.createDocumentFragment();
   for (let index = 0; index < copies; index += 1) fragment.appendChild(template.cloneNode(true));
   root.appendChild(fragment);
@@ -3554,7 +3582,7 @@ function printMenuLabels(menu, copies = 1, orientation = "landscape") {
     printStyle.id = "kalap-label-print-dynamic-style";
     document.head.appendChild(printStyle);
   }
-  const { width, height, barcodeWidth, barcodeHeight, rows, padding } = layout;
+  const { width, height, qrWidth, qrHeight, qrSize, rows, padding } = layout;
   printStyle.textContent = `
     @page { size: ${width}mm ${height}mm; margin: 0 !important; }
     @media print {
@@ -3562,11 +3590,11 @@ function printMenuLabels(menu, copies = 1, orientation = "landscape") {
       body.printing-labels { width: ${width}mm !important; }
       body.printing-labels > *:not(#label-print-root) { display: none !important; }
       body.printing-labels #label-print-root { display: block !important; position: static !important; width: ${width}mm !important; max-width: ${width}mm !important; margin: 0 !important; padding: 0 !important; }
-      body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .3mm !important; align-content: center !important; justify-items: center !important; width: ${width}mm !important; min-width: ${width}mm !important; max-width: ${width}mm !important; height: ${height}mm !important; min-height: ${height}mm !important; max-height: ${height}mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
+      body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: ${width}mm !important; min-width: ${width}mm !important; max-width: ${width}mm !important; height: ${height}mm !important; min-height: ${height}mm !important; max-height: ${height}mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
       body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
       body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 8pt/1.05 Arial, sans-serif !important; }
-      body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${barcodeWidth}mm !important; max-width: 100% !important; height: ${barcodeHeight}mm !important; overflow: hidden !important; background: #fff !important; }
-      body.printing-labels .print-label-barcode svg { display: block !important; width: auto !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
+      body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${qrWidth}mm !important; max-width: 100% !important; height: ${qrHeight}mm !important; overflow: hidden !important; background: #fff !important; }
+      body.printing-labels .print-label-barcode svg { display: block !important; width: ${qrSize}mm !important; height: ${qrSize}mm !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
       body.printing-labels .print-label-price { height: auto !important; line-height: 1.05 !important; align-self: center !important; font: 700 9pt/1.05 Arial, sans-serif !important; white-space: nowrap !important; }
     }
   `;
@@ -3664,8 +3692,8 @@ function openRejectStockRequestModal(requestId) {
 async function openManualStockInputModal() {
   if (!["superadmin", "spv"].includes(profile?.role)) return toast("Input stok manual hanya dapat dilakukan Admin/SPV.", "error");
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-manual-stock-backdrop><section class="modal"><div class="modal-head"><div><h2>Input stok manual</h2><p>Scan barcode menu atau ketik nama menu. Stok hanya akan ditambahkan jika tidak ada pengajuan yang menunggu.</p></div><button class="modal-close" data-manual-stock-close>×</button></div>
-    <form id="manual-stock-input-form"><div class="form-field"><label>Scan barcode / cari nama menu</label><input id="manual-stock-lookup" type="search" autocomplete="off" placeholder="Scan barcode atau ketik nama menu..." autofocus></div>
+  root.innerHTML = `<div class="modal-backdrop" data-manual-stock-backdrop><section class="modal"><div class="modal-head"><div><h2>Input stok manual</h2><p>Scan QR/barcode menu atau ketik nama menu. Stok hanya akan ditambahkan jika tidak ada pengajuan yang menunggu.</p></div><button class="modal-close" data-manual-stock-close>×</button></div>
+    <form id="manual-stock-input-form"><div class="form-field"><label>Scan QR / cari nama menu</label><input id="manual-stock-lookup" type="search" autocomplete="off" placeholder="Scan QR atau ketik nama menu..." autofocus></div>
       <div id="manual-stock-search-results" class="manual-lookup-results"></div><div id="manual-stock-selected" class="manual-existing-banner"></div>
       <input type="hidden" name="menuId" value="">
       <div id="manual-stock-quantity-fields" class="hidden"><div class="form-field"><label>Jumlah stok yang masuk hari ini</label><input name="qty" type="number" min="1" max="100000" step="1" placeholder="Jumlah unit" required></div><div class="form-field"><label>Catatan (opsional)</label><input name="note" maxlength="160" placeholder="Contoh: stok kiriman hari ini"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan stok</button></div></div>
@@ -3684,10 +3712,10 @@ async function openManualStockInputModal() {
   const selectMenu = async menu => {
     if (!menu) return;
     root.querySelector('[name="menuId"]').value = menu.id;
-    lookup.value = `${menu.name} · ${menuBarcode(menu)}`;
+    lookup.value = `${menu.name} · ${menuQrPayload(menu)}`;
     results.innerHTML = "";
     selected.classList.add("show");
-    selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong><br><small>Mitra: ${escapeHtml(menu.partnerName || "—")} · Stok sekarang: ${integer(menu.stock)} unit · Barcode: ${escapeHtml(menuBarcode(menu))}</small>`;
+    selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong><br><small>Mitra: ${escapeHtml(menu.partnerName || "—")} · Stok sekarang: ${integer(menu.stock)} unit · QR ID: ${escapeHtml(menuQrPayload(menu))}</small>`;
     quantityFields.classList.add("hidden");
     pendingBox.classList.add("hidden");
     pendingBox.innerHTML = "";
@@ -3722,8 +3750,8 @@ async function openManualStockInputModal() {
     const q = lookup.value.trim().toLowerCase();
     if (!q) { results.innerHTML = ""; return; }
     const matches = store.menus.filter(menu => menu.active !== false
-      && [menu.name, menuBarcode(menu), menu.barcode, menu.partnerName].some(value => String(value || "").toLowerCase().includes(q))).slice(0, 8);
-    results.innerHTML = matches.map(menu => `<button type="button" data-manual-stock-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><br><small>${escapeHtml(menu.partnerName || "—")} · stok ${integer(menu.stock)} · ${escapeHtml(menuBarcode(menu))}</small></button>`).join("")
+      && [menu.name, menuBarcode(menu), menuQrPayload(menu), menu.barcode, menu.partnerName].some(value => String(value || "").toLowerCase().includes(q))).slice(0, 8);
+    results.innerHTML = matches.map(menu => `<button type="button" data-manual-stock-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><br><small>${escapeHtml(menu.partnerName || "—")} · stok ${integer(menu.stock)} · QR ${escapeHtml(menuQrPayload(menu))}</small></button>`).join("")
       || `<div class="helper-text">Menu tidak ditemukan. Pastikan menu sudah didaftarkan di Menu Baru.</div>`;
     results.querySelectorAll("[data-manual-stock-select]").forEach(button => button.addEventListener("click", () => selectMenu(store.menus.find(menu => menu.id === button.dataset.manualStockSelect))));
   };
@@ -3732,11 +3760,11 @@ async function openManualStockInputModal() {
     if (event.key !== "Enter") return;
     event.preventDefault();
     const q = lookup.value.trim().toLowerCase();
-    const exact = store.menus.find(menu => menu.active !== false && [menuBarcode(menu), menu.barcode].some(value => String(value || "").toLowerCase() === q));
+    const exact = store.menus.find(menu => menu.active !== false && [menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase() === q));
     const matches = exact ? [exact] : store.menus.filter(menu => menu.active !== false && String(menu.name || "").trim().toLowerCase() === q);
     if (matches.length === 1) selectMenu(matches[0]);
     else if (matches.length > 1) drawMatches();
-    else toast("Menu tidak ditemukan. Ketik nama menu atau scan barcode yang terdaftar.", "error");
+    else toast("Menu tidak ditemukan. Ketik nama menu atau scan QR yang terdaftar.", "error");
   });
   root.querySelector("#manual-stock-input-form").addEventListener("submit", async event => {
     event.preventDefault();
@@ -3801,7 +3829,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.1", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.2", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
