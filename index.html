@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.0.5">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.0.6">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.5</title>
+  <title>KALAP Management System v2.0.6</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -379,6 +379,10 @@ td { border-top-color:#f5e8e6; }
 .profile-security-note { background:#fff0ef;border:1px solid #f2d5d5;border-radius:12px;padding:13px;color:#853b40;font-size:11px;line-height:1.6; }
 .manual-lookup-results { display:grid;gap:6px;margin-top:7px; }
 .manual-lookup-results button { border:1px solid #efd9d9;background:#fff8f7;border-radius:9px;padding:9px 11px;text-align:left;color:#4b3334; }
+.stock-request-menu-results { display:grid;gap:6px;margin-top:7px; }
+.stock-request-menu-results button { width:100%;border:1px solid #efd9d9;background:#fff8f7;border-radius:9px;padding:9px 11px;text-align:left;color:#4b3334; }
+.stock-request-menu-results button:hover { border-color:var(--kalap-red,#c8202b); }
+#stock-request-form .form-field { min-width:0; }
 .manual-existing-banner { display:none;margin:8px 0;padding:10px;border-radius:9px;background:#eaf7ef;color:#276b4c;font-size:11px; }
 .manual-existing-banner.show { display:block; }
 @media (max-width:640px) { .payment-choice-grid{grid-template-columns:1fr;} .payment-choice{min-height:72px;grid-template-columns:36px 1fr;justify-items:start;text-align:left;padding:12px 16px;} .pos-searchbar{align-items:stretch;flex-direction:column;} .pos-pagination{align-items:flex-start;flex-direction:column;} .account-actions{min-width:0;} .receipt-paper{padding:16px 14px;} }
@@ -931,7 +935,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.5: stock-request navigation badge */
+/* KALAP v2.0.6: stock-request navigation badge */
 .nav-badge {
   margin-left: auto;
   min-width: 21px;
@@ -1121,7 +1125,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.5</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.6</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1843,36 +1847,76 @@ async function callApi(name, payload = {}) {
       const menu = menuSnap.data();
       if (menu.active === false) throw new Error("Menu ini sudah nonaktif dan tidak dapat menerima stok.");
       let qty = requestedQty;
+      let stockDelta = requestedQty;
+      let movementQty = requestedQty;
+      let movementType = "in";
+      let adjustmentType = null;
+      let requestData = null;
+      let adjustmentBaseRef = null;
       if (requestId) {
         const requestSnap = await tx.get(doc(db, "stockRequests", requestId));
         if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
-        const requestData = requestSnap.data();
+        requestData = requestSnap.data();
         if (!["pending", "revised"].includes(requestData.status) || requestData.menuId !== menuId
           || requestData.partnerId !== menu.partnerId || (lockSnap.exists() && lockSnap.data().requestId !== requestId)) {
           throw new Error("Pengajuan stok sudah diproses atau datanya tidak cocok.");
         }
         qty = Number(requestData.qty);
         if (!Number.isInteger(qty) || qty < 1 || qty > 100000) throw new Error("Jumlah pada pengajuan tidak valid.");
+        if (requestData.requestType === "adjustment") {
+          const baseRequestId = String(requestData.baseRequestId || "").trim();
+          if (!baseRequestId) throw new Error("Catatan stok sumber untuk koreksi ini tidak ditemukan.");
+          adjustmentBaseRef = doc(db, "stockRequests", baseRequestId);
+          const baseRequestSnap = await tx.get(adjustmentBaseRef);
+          if (!baseRequestSnap.exists() || baseRequestSnap.data().status !== "received"
+            || baseRequestSnap.data().latestAdjustmentRequestId) {
+            throw new Error("Riwayat stok sumber sudah tidak tersedia atau sudah dikoreksi melalui pengajuan lain.");
+          }
+          if (baseRequestSnap.data().menuId !== menuId || baseRequestSnap.data().partnerId !== requestData.partnerId) {
+            throw new Error("Riwayat koreksi tidak cocok dengan menu dan mitra.");
+          }
+          stockDelta = Number(requestData.deltaQty);
+          if (!Number.isSafeInteger(stockDelta) || stockDelta === 0) throw new Error("Selisih penyesuaian stok tidak valid.");
+          movementType = "adjustment";
+          movementQty = Math.abs(stockDelta);
+          adjustmentType = stockDelta > 0 ? "ditambah" : "dikurang";
+        } else {
+          stockDelta = qty;
+          movementQty = qty;
+        }
       } else if (lockSnap.exists()) {
         throw new Error("Mitra sudah memiliki pengajuan stok untuk menu ini. Buka Pengajuan Stok lalu setujui atau tolak pengajuan tersebut agar tidak terjadi stok ganda.");
       }
       const stockBefore = Number(menu.stock || 0);
-      const stockAfter = stockBefore + qty;
+      const stockAfter = stockBefore + stockDelta;
+      if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
+        throw new Error(stockDelta < 0
+          ? `Stok tersedia hanya ${integer(stockBefore)} unit. Pengurangan ${integer(Math.abs(stockDelta))} unit tidak dapat dilakukan karena stok tidak mencukupi.`
+          : "Jumlah stok melebihi batas angka yang aman.");
+      }
       const createdAt = serverTimestamp();
       tx.update(menuRef, { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
       tx.set(movementRef, {
-        type: "in", qty, menuId, menuName: menu.name, partnerId: menu.partnerId || null,
-        partnerName: menu.partnerName || "—", stockBefore, stockAfter, note: String(payload.note || ""),
-        source: requestId ? "partner_request" : "manual", requestId, actorUid, actorName, createdAt
+        type: movementType, qty: movementQty, ...(movementType === "adjustment" ? { adjustmentDelta: stockDelta, changeType: adjustmentType } : {}),
+        menuId, menuName: menu.name, partnerId: menu.partnerId || null,
+        partnerName: menu.partnerName || "—", stockBefore, stockAfter,
+        note: String(payload.note || (movementType === "adjustment" ? `Koreksi stok mitra: ${adjustmentType}` : "")),
+        source: requestId ? (movementType === "adjustment" ? "partner_stock_adjustment" : "partner_request") : "manual",
+        requestId, actorUid, actorName, createdAt
       });
       if (requestId) {
         tx.update(doc(db, "stockRequests", requestId), {
           status: "received", receivedAt: createdAt, receivedBy: actorUid,
-          receivedByName: actorName, receivedQty: qty, movementId: movementRef.id
+          receivedByName: actorName, receivedQty: qty, receivedDelta: stockDelta, movementId: movementRef.id
         });
+        if (adjustmentBaseRef) {
+          tx.update(adjustmentBaseRef, {
+            latestAdjustmentRequestId: requestId, adjustmentAcceptedAt: createdAt, adjustmentAcceptedBy: actorUid
+          });
+        }
         if (lockSnap.exists()) tx.delete(lockRef);
       }
-      return { menuName: menu.name, stockBefore, stockAfter, qty, requestId };
+      return { menuName: menu.name, stockBefore, stockAfter, qty, stockDelta, requestId, adjustmentType };
     });
   }
 
@@ -1888,8 +1932,15 @@ async function callApi(name, payload = {}) {
       if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
       const requestData = requestSnap.data();
       if (!["pending", "revised"].includes(requestData.status)) throw new Error("Pengajuan ini sudah diproses.");
+      const oldRequestedQty = Number(requestData.qty || 0);
+      const isAdjustment = requestData.requestType === "adjustment";
+      const baselineQty = isAdjustment ? Number(requestData.previousQty || 0) : oldRequestedQty;
+      if (isAdjustment && qty === baselineQty) throw new Error("Jumlah koreksi tidak boleh sama dengan jumlah stok sebelumnya.");
+      const changeType = qty > baselineQty ? "ditambah" : qty < baselineQty ? "dikurang" : "diedit";
       tx.update(requestRef, {
-        previousQty: Number(requestData.qty || 0), qty, status: "revised", revisionNote,
+        previousQty: baselineQty, qty, status: "revised", revisionNote, changeType,
+        changeQty: Math.abs(qty - baselineQty), ...(isAdjustment ? { deltaQty: qty - baselineQty } : {}),
+        changedAt: serverTimestamp(), changedBy: actorUid,
         revisedAt: serverTimestamp(), revisedBy: actorUid, revisedByName: actorName
       });
     });
@@ -1938,20 +1989,103 @@ async function callApi(name, payload = {}) {
     const menuRef = doc(db, "menus", menuId);
     const requestRef = doc(collection(db, "stockRequests"));
     const lockRef = doc(db, "stockRequestLocks", menuId);
-    await runTransaction(db, async tx => {
+    const result = await runTransaction(db, async tx => {
       const menuSnap = await tx.get(menuRef);
       const lockSnap = await tx.get(lockRef);
       if (!menuSnap.exists()) throw new Error("Menu tidak ditemukan.");
       const menu = menuSnap.data();
       if (menu.partnerId !== partnerId || menu.active === false) throw new Error("Anda hanya dapat mengajukan stok untuk menu aktif milik sendiri.");
-      if (lockSnap.exists()) throw new Error("Menu ini masih memiliki pengajuan stok yang belum diproses. Tunggu Admin/SPV menyetujui atau menolaknya terlebih dahulu.");
-      const createdAt = serverTimestamp();
       const partnerName = profile.partnerName || menu.partnerName || "Mitra";
-      tx.set(requestRef, { partnerId, partnerName, menuId, menuName: menu.name, qty,
+      if (lockSnap.exists()) {
+        const existingRequestId = String(lockSnap.data().requestId || "");
+        if (!existingRequestId) throw new Error("Pengajuan lama masih terkunci. Hubungi Admin untuk memeriksanya.");
+        const existingRef = doc(db, "stockRequests", existingRequestId);
+        const existingSnap = await tx.get(existingRef);
+        if (!existingSnap.exists()) throw new Error("Pengajuan sebelumnya belum ditemukan. Hubungi Admin untuk memeriksa pengunci stok.");
+        const existing = existingSnap.data();
+        if (existing.partnerId !== partnerId || existing.menuId !== menuId) throw new Error("Pengajuan aktif tidak cocok dengan menu ini.");
+        if (existing.requestType === "adjustment") throw new Error("Pengajuan edit stok untuk menu ini masih menunggu persetujuan. Tunggu keputusan Admin/SPV terlebih dahulu.");
+        if (existing.status !== "pending") throw new Error("Pengajuan menu ini sudah direvisi atau diproses Admin/SPV. Tunggu keputusan sebelum menambahkan stok lagi.");
+        const previousQty = Number(existing.qty || 0);
+        const totalQty = previousQty + qty;
+        if (!Number.isSafeInteger(totalQty) || totalQty > 100000) throw new Error("Total pengajuan melebihi batas 100.000 unit.");
+        const createdAt = serverTimestamp();
+        tx.update(existingRef, {
+          previousQty, qty: totalQty, changeType: "ditambah", changeQty: qty,
+          changedAt: createdAt, changedBy: actorUid, changedByName: actorName,
+          note: String(payload.note || existing.note || "")
+        });
+        return { requestId: existingRequestId, merged: true, previousQty, qty: totalQty };
+      }
+      const createdAt = serverTimestamp();
+      tx.set(requestRef, { partnerId, partnerName, menuId, menuName: menu.name, qty, requestType: "stock",
         note: String(payload.note || ""), status: "pending", createdAt, createdBy: actorUid });
       tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, createdAt, createdBy: actorUid });
+      return { requestId: requestRef.id, merged: false, qty };
     });
-    return { requestId: requestRef.id };
+    return result;
+  }
+
+  if (name === "createStockAdjustmentRequest") {
+    requireRole("partner");
+    const partnerId = profile.partnerId;
+    const baseRequestId = String(payload.requestId || "").trim();
+    const targetQty = Number(payload.qty);
+    if (!partnerId || !baseRequestId || !Number.isInteger(targetQty) || targetQty < 1 || targetQty > 100000) {
+      throw new Error("Data koreksi stok tidak valid. Jumlah harus berupa bilangan bulat 1–100.000.");
+    }
+    const baseRef = doc(db, "stockRequests", baseRequestId);
+    const requestRef = doc(collection(db, "stockRequests"));
+    const result = await runTransaction(db, async tx => {
+      const baseSnap = await tx.get(baseRef);
+      if (!baseSnap.exists()) throw new Error("Riwayat stok yang akan diedit tidak ditemukan.");
+      const base = baseSnap.data();
+      if (base.partnerId !== partnerId || base.status !== "received") throw new Error("Anda hanya dapat mengedit stok milik sendiri yang sudah diterima.");
+      if (base.latestAdjustmentRequestId) throw new Error("Pengajuan stok ini sudah pernah dikoreksi. Gunakan riwayat koreksi terakhir untuk mengajukan perubahan berikutnya.");
+      const menuId = String(base.menuId || "");
+      const menuRef = doc(db, "menus", menuId);
+      const lockRef = doc(db, "stockRequestLocks", menuId);
+      const menuSnap = await tx.get(menuRef);
+      const lockSnap = await tx.get(lockRef);
+      if (!menuSnap.exists() || menuSnap.data().partnerId !== partnerId || menuSnap.data().active === false) {
+        throw new Error("Menu sudah tidak aktif atau tidak tersedia untuk koreksi.");
+      }
+      if (lockSnap.exists()) throw new Error("Menu ini masih memiliki pengajuan stok yang menunggu keputusan. Selesaikan pengajuan tersebut terlebih dahulu.");
+      const previousQty = Number(base.receivedQty ?? base.qty);
+      const deltaQty = targetQty - previousQty;
+      if (!Number.isSafeInteger(previousQty) || previousQty < 1 || deltaQty === 0) {
+        throw new Error(deltaQty === 0 ? "Jumlah baru sama dengan jumlah yang sudah diterima. Tidak ada perubahan untuk diajukan." : "Jumlah stok sebelumnya tidak valid.");
+      }
+      const createdAt = serverTimestamp();
+      const partnerName = profile.partnerName || base.partnerName || menuSnap.data().partnerName || "Mitra";
+      const changeType = deltaQty > 0 ? "ditambah" : "dikurang";
+      tx.set(requestRef, {
+        partnerId, partnerName, menuId, menuName: base.menuName || menuSnap.data().name || "Menu",
+        requestType: "adjustment", baseRequestId, previousQty, qty: targetQty, deltaQty,
+        changeType, changeQty: Math.abs(deltaQty), note: String(payload.note || "").trim().slice(0, 160),
+        status: "pending", createdAt, createdBy: actorUid
+      });
+      tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, createdAt, createdBy: actorUid });
+      return { requestId: requestRef.id, previousQty, qty: targetQty, deltaQty, changeType };
+    });
+    return result;
+  }
+
+  if (name === "deleteReceivedStockRequest") {
+    requireRole("superadmin");
+    const requestId = String(payload.requestId || "").trim();
+    if (!requestId) throw new Error("Riwayat pengajuan tidak valid.");
+    await runTransaction(db, async tx => {
+      const requestRef = doc(db, "stockRequests", requestId);
+      const requestSnap = await tx.get(requestRef);
+      if (!requestSnap.exists()) throw new Error("Riwayat pengajuan sudah tidak tersedia.");
+      const requestData = requestSnap.data();
+      if (requestData.status !== "received") throw new Error("Hanya pengajuan yang sudah diterima yang dapat dihapus dari riwayat.");
+      const lockSnap = await tx.get(doc(db, "stockRequestLocks", String(requestData.menuId || "")));
+      if (lockSnap.exists()) throw new Error("Riwayat tidak dapat dihapus saat ada pengajuan stok lain yang masih menunggu untuk menu ini.");
+      tx.delete(requestRef);
+    });
+    return { requestId };
   }
 
   throw new Error(`Aksi ${name} tidak dikenali.`);
@@ -2799,8 +2933,10 @@ function renderRequestsPage() {
   const q = requestSearchQuery.trim().toLowerCase();
   const filtered = allRequests.filter(row => {
     const menu = store.menus.find(item => item.id === row.menuId);
-    const partnerMatches = !staffCanReceive || !requestPartnerFilter || row.partnerId === requestPartnerFilter;
-    const searchMatches = !q || [row.partnerName, row.menuName, row.note, row.status, menuBarcode(menu || {}), menuQrPayload(menu || {})]
+    const partnerMatches = !staffCanReceive || !requestPartnerFilter
+      || String(row.partnerName || "").toLowerCase().includes(requestPartnerFilter.trim().toLowerCase());
+    const searchMatches = !q || [row.partnerName, row.menuName, row.note, row.status, row.changeType,
+      menuBarcode(menu || {}), menuQrPayload(menu || {})]
       .some(value => String(value || "").toLowerCase().includes(q));
     return partnerMatches && searchMatches;
   });
@@ -2813,26 +2949,51 @@ function renderRequestsPage() {
     ? pageHeading("Pengajuan stok", "Kelola pengajuan mitra: setujui, revisi jumlah, tolak, atau catat stok secara manual.", `<span class="status pending">${integer(pendingCount)} menu menunggu</span>`)
     : pageHeading("Pengajuan stok", "Ajukan stok tambahan untuk menu yang terdaftar pada akun Anda.");
   const form = staffCanReceive ? "" : renderStockRequestForm();
-  const activePartners = store.partners.filter(partner => partner.active !== false).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   const partnerFilter = staffCanReceive
-    ? `<select id="request-partner-filter" aria-label="Filter nama mitra"><option value="">Semua mitra</option>${activePartners.map(partner => `<option value="${partner.id}" ${requestPartnerFilter === partner.id ? "selected" : ""}>${escapeHtml(partner.name)}</option>`).join("")}</select>`
+    ? `<input id="request-partner-filter" type="search" value="${escapeHtml(requestPartnerFilter)}" aria-label="Cari nama mitra" placeholder="Cari nama mitra..." autocomplete="off">`
     : "";
   const actionHeader = staffCanReceive ? `<button type="button" class="btn btn-primary" id="open-manual-stock-input">＋ Input</button>` : "";
   const rows = visible.map(row => {
     const status = row.status || "pending";
     const canProcess = staffCanReceive && ["pending", "revised"].includes(status);
+    const isAdjustment = row.requestType === "adjustment";
+    const previousQty = Number(row.previousQty || 0);
+    const changeLabel = row.changeType === "ditambah" ? "Ditambah"
+      : row.changeType === "dikurang" ? "Dikurangi"
+      : row.changeType === "diedit" ? "Diedit" : "";
+    const changeDetail = row.changeType
+      ? `<div class="muted request-extra"><strong>${changeLabel}</strong>${previousQty ? ` · ${integer(previousQty)} → ${integer(row.qty)} unit` : ""}${row.changeQty ? ` (${row.changeType === "dikurang" ? "−" : "+"}${integer(row.changeQty)} unit)` : ""}</div>`
+      : "";
+    const requestKind = isAdjustment
+      ? `<div class="muted request-extra">Pengajuan koreksi stok · ${row.changeType === "dikurang" ? "pengurangan" : "penambahan"} dari jumlah sebelumnya ${integer(previousQty)} unit</div>` : "";
     const revision = status === "revised"
       ? `<div class="muted request-extra">${row.previousQty ? `Sebelumnya ${integer(row.previousQty)} unit. ` : ""}${escapeHtml(row.revisionNote || "Menunggu persetujuan atas jumlah revisi.")}</div>` : "";
     const partnerStatus = status === "rejected"
       ? `<div class="muted request-extra">${escapeHtml(row.rejectReason || "Pengajuan ditolak.")}</div>`
       : status === "revised" ? `<div class="muted request-extra">Direvisi oleh ${escapeHtml(row.revisedByName || "tim KALAP")}</div>` : "";
-    const actions = canProcess
-      ? `<div class="request-actions"><button class="action-link" data-accept-request="${row.id}">Terima ${integer(row.qty)} unit</button><button class="action-link" data-revise-request="${row.id}">Revisi</button><button class="action-link danger-link" data-reject-request="${row.id}">Tolak</button></div>`
-      : `<span class="status ${status === "received" ? "success" : status === "rejected" ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}`;
-    return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
+    let actions;
+    if (canProcess) {
+      const acceptLabel = isAdjustment
+        ? `Setujui koreksi (${row.changeType === "dikurang" ? "−" : "+"}${integer(row.changeQty || Math.abs(row.deltaQty || 0))} unit)`
+        : `Terima ${integer(row.qty)} unit`;
+      actions = `<div class="request-actions"><button class="action-link" data-accept-request="${row.id}">${acceptLabel}</button><button class="action-link" data-revise-request="${row.id}">Revisi</button><button class="action-link danger-link" data-reject-request="${row.id}">Tolak</button></div>`;
+    } else {
+      const deleteAction = profile.role === "superadmin" && status === "received"
+        ? `<button class="action-link danger-link" data-delete-received-stock="${row.id}">Hapus riwayat</button>` : "";
+      const hasPendingCorrection = allRequests.some(request => request.requestType === "adjustment"
+        && request.baseRequestId === row.id && ["pending", "revised"].includes(request.status));
+      const editAction = profile.role === "partner" && status === "received" && !row.latestAdjustmentRequestId && !hasPendingCorrection
+        ? `<button class="action-link" data-edit-received-stock="${row.id}">Ajukan edit stok</button>` : "";
+      const correctedLabel = profile.role === "partner" && status === "received" && row.latestAdjustmentRequestId
+        ? `<div class="muted request-extra">Batch ini sudah dikoreksi. Gunakan riwayat koreksi terbaru untuk perubahan berikutnya.</div>`
+        : profile.role === "partner" && status === "received" && hasPendingCorrection
+          ? `<div class="muted request-extra">Pengajuan edit untuk batch ini sedang menunggu persetujuan Admin/SPV.</div>` : "";
+      actions = `<span class="status ${status === "received" ? "success" : status === "rejected" ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${deleteAction}${editAction}`;
+    }
+    return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${requestKind}${changeDetail}${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
   }).join("");
   return `${header}${form}<section class="panel">${panelHeader(staffCanReceive ? "Daftar pengajuan dari mitra" : "Riwayat pengajuan Anda", `${integer(filtered.length)} pengajuan ditemukan`, actionHeader)}
-    <div class="table-toolbar">${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, atau scan QR..." autocomplete="off"></div>
+    <div class="table-toolbar">${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, status, atau scan QR..." autocomplete="off"></div>
     <div class="table-wrap"><table><thead><tr>${staffCanReceive ? "<th>Mitra</th>" : ""}<th>Menu</th><th>Jumlah diajukan</th><th>Catatan</th><th>Tanggal</th><th>Status / aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="${staffCanReceive ? 6 : 5}" class="table-empty">Belum ada pengajuan yang sesuai dengan pencarian.</td></tr>`}</tbody></table></div>
     <div class="pagination-row"><span class="helper-text">Halaman ${requestCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-request-page="prev" ${requestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-request-page="next" ${requestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
   </section>`;
@@ -2990,9 +3151,10 @@ function attachPageEvents() {
   $("#finance-form")?.addEventListener("submit", financeSubmit);
   initMoneyInputs();
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
+  initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
-  $("#request-partner-filter")?.addEventListener("change", event => { requestPartnerFilter = event.target.value; requestCurrentPage = 1; renderPage(); });
+  $("#request-partner-filter")?.addEventListener("input", event => { requestPartnerFilter = event.target.value; requestCurrentPage = 1; renderPage(); const input=$("#request-partner-filter"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
   $("#open-manual-stock-input")?.addEventListener("click", openManualStockInputModal);
   $$('[data-request-page]').forEach(button => button.addEventListener("click", () => { requestCurrentPage += button.dataset.requestPage === "next" ? 1 : -1; renderPage(); }));
   $("#closing-search")?.addEventListener("input", event => { closingSearchQuery = event.target.value; closingSummaryPage = 1; renderPage(); const input=$("#closing-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
@@ -3023,6 +3185,8 @@ function attachPageEvents() {
   $$('[data-accept-request]').forEach(button => button.addEventListener("click", () => acceptStockRequest(button.dataset.acceptRequest, button)));
   $$('[data-revise-request]').forEach(button => button.addEventListener("click", () => openReviseStockRequestModal(button.dataset.reviseRequest)));
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
+  $$('[data-edit-received-stock]').forEach(button => button.addEventListener("click", () => openReceivedStockAdjustmentModal(button.dataset.editReceivedStock)));
+  $$('[data-delete-received-stock]').forEach(button => button.addEventListener("click", () => deleteReceivedStockRequest(button.dataset.deleteReceivedStock, button)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
   $("#label-unified-search")?.addEventListener("input", () => {
@@ -3767,10 +3931,23 @@ function printMenuLabels(menu, copies = 1) {
 }
 
 async function stockRequestSubmit(event) {
-  event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); const data=Object.fromEntries(new FormData(form));
-  setBusy(button,true);
-  try { await callApi("createStockRequest", {...data,qty:Number(data.qty)}); form.reset(); toast("Pengajuan stok dikirim ke tim KALAP.","success"); }
-  catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const data = Object.fromEntries(new FormData(form));
+  if (!data.menuId) return toast("Cari lalu pilih menu terlebih dahulu.", "error");
+  setBusy(button, true, "Mengirim...");
+  try {
+    const result = await callApi("createStockRequest", { ...data, qty: Number(data.qty) });
+    form.reset();
+    $("#stock-request-menu-results", form).innerHTML = "";
+    $("#stock-request-menu-selected", form).innerHTML = "";
+    $("#stock-request-menu-selected", form).classList.remove("show");
+    toast(result.merged
+      ? `Pengajuan digabung: ${integer(result.previousQty)} + ${integer(Number(data.qty))} = ${integer(result.qty)} unit. Tidak dibuat pengajuan terpisah.`
+      : "Pengajuan stok dikirim ke tim KALAP.", "success");
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
 }
 async function acceptStockRequest(requestId, button) {
   const request = store.stockRequests.find(item => item.id === requestId);
@@ -3782,7 +3959,9 @@ async function acceptStockRequest(requestId, button) {
       note: `Penerimaan pengajuan mitra ${request.partnerName || ""}`, requestId
     });
     if ($("#manual-stock-input-form")) $("#modal-root").innerHTML = "";
-    toast(`Pengajuan diterima. ${integer(result.qty)} unit ${result.menuName} ditambahkan ke stok.`, "success");
+    toast(result.adjustmentType
+      ? `Koreksi diterima. Stok ${result.menuName} ${result.adjustmentType} ${integer(Math.abs(result.stockDelta))} unit.`
+      : `Pengajuan diterima. ${integer(result.qty)} unit ${result.menuName} ditambahkan ke stok.`, "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -3831,6 +4010,49 @@ function openRejectStockRequestModal(requestId) {
   root.querySelectorAll("[data-request-modal-close], [data-request-modal-backdrop]").forEach(item => item.addEventListener("click", event => {
     if (event.target === item || item.matches("[data-request-modal-close]")) root.innerHTML = "";
   }));
+}
+
+function openReceivedStockAdjustmentModal(requestId) {
+  const request = store.stockRequests.find(item => item.id === requestId);
+  if (!request || request.status !== "received" || profile?.role !== "partner") return;
+  const currentQty = Number(request.receivedQty ?? request.qty);
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="modal-backdrop" data-request-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Ajukan edit stok diterima</h2><p>${escapeHtml(request.menuName || "Menu")} · Jumlah tercatat ${integer(currentQty)} unit</p></div><button class="modal-close" data-request-modal-close>×</button></div>
+    <form id="received-stock-adjustment-form"><div class="form-field"><label>Jumlah stok yang benar</label><input name="qty" type="number" min="1" max="100000" step="1" value="${currentQty}" required><small class="helper-text">Masukkan jumlah total yang seharusnya tercatat untuk pengajuan ini, bukan selisihnya. Admin/SPV akan memeriksa sebelum saldo stok berubah.</small></div><div class="form-field"><label>Alasan koreksi</label><input name="note" maxlength="160" placeholder="Contoh: sebelumnya salah input jumlah"></div><div class="form-actions"><button type="button" class="btn btn-light" data-request-modal-close>Batal</button><button type="submit" class="btn btn-primary">Kirim permintaan edit</button></div></form></section></div>`;
+  root.querySelector("#received-stock-adjustment-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('[type="submit"]');
+    const data = Object.fromEntries(new FormData(form));
+    setBusy(button, true, "Mengirim...");
+    try {
+      const result = await callApi("createStockAdjustmentRequest", { requestId, qty: Number(data.qty), note: data.note || "" });
+      root.innerHTML = "";
+      const detail = result.deltaQty > 0 ? `ditambah ${integer(result.deltaQty)}` : `dikurangi ${integer(Math.abs(result.deltaQty))}`;
+      toast(`Permintaan edit stok dikirim: ${detail} dari ${integer(result.previousQty)} menjadi ${integer(result.qty)} unit. Menunggu persetujuan Admin/SPV.`, "success");
+    } catch (error) { toast(friendlyError(error), "error"); }
+    finally { setBusy(button, false); }
+  });
+  root.querySelectorAll("[data-request-modal-close], [data-request-modal-backdrop]").forEach(item => item.addEventListener("click", event => {
+    if (event.target === item || item.matches("[data-request-modal-close]")) root.innerHTML = "";
+  }));
+}
+
+async function deleteReceivedStockRequest(requestId, button) {
+  if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat menghapus riwayat pengajuan diterima.", "error");
+  const request = store.stockRequests.find(item => item.id === requestId);
+  if (!request || request.status !== "received") return;
+  const confirmed = await kalapConfirm(
+    `Hapus riwayat pengajuan ${request.menuName || "menu"} milik ${request.partnerName || "mitra"}? Saldo stok dan catatan pergerakan stok tidak akan dihapus atau diubah.`,
+    { title: "Hapus riwayat pengajuan", confirmText: "Hapus riwayat", danger: true }
+  );
+  if (!confirmed) return;
+  setBusy(button, true, "Menghapus...");
+  try {
+    await callApi("deleteReceivedStockRequest", { requestId });
+    toast("Riwayat pengajuan berhasil dihapus. Saldo stok tetap aman.", "success");
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
 }
 
 async function openManualStockInputModal() {
@@ -3936,9 +4158,51 @@ async function openManualStockInputModal() {
 }
 
 function renderStockRequestForm() {
-  const ownMenus=store.menus.filter(menu=>menu.partnerId===profile.partnerId && menu.active!==false);
-  const options=ownMenus.map(menu=>`<option value="${menu.id}">${escapeHtml(menu.name)} · stok ${integer(menu.stock)}</option>`).join("");
-  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Pengajuan akan diperiksa oleh Admin/SPV sebelum stok masuk ke kasir")}<form id="stock-request-form" class="inline-form"><div class="form-field"><label>Menu</label><select name="menuId" required><option value="">${ownMenus.length?"Pilih menu milik Anda":"Belum ada menu terdaftar untuk akun ini"}</option>${options}</select></div><div class="form-field"><label>Jumlah</label><input name="qty" type="number" min="1" step="1" required placeholder="Jumlah unit"></div><div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Contoh: siap dikirim jam 08.00"></div><button type="submit" class="btn btn-primary" ${ownMenus.length?"":"disabled"}>Kirim pengajuan</button></form></section>`;
+  const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
+  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Cari menu milik Anda. Jika menu yang sama masih menunggu persetujuan, jumlah baru akan digabung ke pengajuan tersebut.")}
+    <form id="stock-request-form" class="inline-form">
+      <div class="form-field"><label for="stock-request-menu-search">Cari menu</label><input id="stock-request-menu-search" type="search" autocomplete="off" placeholder="Ketik nama menu..." ${ownMenus.length ? "" : "disabled"}><div id="stock-request-menu-results" class="stock-request-menu-results" aria-live="polite"></div><div id="stock-request-menu-selected" class="manual-existing-banner"></div><input type="hidden" name="menuId" required></div>
+      <div class="form-field"><label>Jumlah tambahan</label><input name="qty" type="number" min="1" max="100000" step="1" required placeholder="Jumlah unit"></div>
+      <div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Contoh: stok kiriman hari ini"></div>
+      <button type="submit" class="btn btn-primary" ${ownMenus.length ? "" : "disabled"}>Kirim pengajuan</button>
+    </form>${ownMenus.length ? "" : `<div class="table-empty">Belum ada menu aktif yang terdaftar untuk akun ini.</div>`}</section>`;
+}
+
+function initStockRequestMenuSearch() {
+  const form = $("#stock-request-form");
+  if (!form) return;
+  const menus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
+  const input = $("#stock-request-menu-search", form);
+  const hidden = $("input[name='menuId']", form);
+  const results = $("#stock-request-menu-results", form);
+  const selected = $("#stock-request-menu-selected", form);
+  const draw = () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { results.innerHTML = ""; return; }
+    const matches = menus.filter(menu => `${menu.name || ""} ${menu.partnerName || ""}`.toLowerCase().includes(q)).slice(0, 8);
+    results.innerHTML = matches.length ? matches.map(menu => `<button type="button" data-stock-request-menu-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span class="muted"> · Stok saat ini ${integer(menu.stock)} unit</span></button>`).join("")
+      : `<div class="muted request-extra">Menu tidak ditemukan pada daftar menu aktif Anda.</div>`;
+    results.querySelectorAll("[data-stock-request-menu-select]").forEach(button => button.addEventListener("click", () => {
+      const menu = menus.find(item => item.id === button.dataset.stockRequestMenuSelect);
+      if (!menu) return;
+      hidden.value = menu.id;
+      input.value = menu.name;
+      selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · Stok saat ini ${integer(menu.stock)} unit`;
+      selected.classList.add("show");
+      results.innerHTML = "";
+    }));
+  };
+  input.addEventListener("input", () => {
+    hidden.value = "";
+    selected.innerHTML = "";
+    selected.classList.remove("show");
+    draw();
+  });
+  input.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    const first = results.querySelector("[data-stock-request-menu-select]");
+    if (first) { event.preventDefault(); first.click(); }
+  });
 }
 
 function closeSidebarDrawer(){
@@ -3973,7 +4237,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.5", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.6", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
