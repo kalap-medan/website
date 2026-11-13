@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
   <link rel="manifest" href="./manifest.webmanifest?v=2.0.2">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.3</title>
+  <title>KALAP Management System v2.0.4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1019,7 +1019,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.3 — fixed-size, dot-aligned QR labels for Blueprint ECO80BT */
+/* KALAP v2.0.4 — stale stock-lock recovery for Superadmin menu deletion */
 .label-selector-grid { grid-template-columns:minmax(0,1.5fr) minmax(145px,.7fr) minmax(135px,.65fr); }
 .label-preview { display:grid; width:40mm; height:30mm; grid-template-rows:3.3mm 21.8mm 3.3mm; row-gap:.2mm; padding:.4mm 1mm; border-radius:3px; }
 .label-preview.is-portrait { width:30mm; height:40mm; grid-template-rows:4.2mm 26mm 4.2mm; padding:.6mm 1mm; }
@@ -1034,7 +1034,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.3 — fixed 30 × 40 mm label stock and login persistence control */
+/* KALAP v2.0.4 — fixed 30 × 40 mm labels and simplified login remember control */
 .remember-row { margin: 15px 2px 18px; }
 .label-selector-grid { grid-template-columns: minmax(0,1fr) 135px !important; }
 .label-preview { width: 30mm !important; height: 40mm !important; grid-template-rows: 4.2mm 26mm 4.2mm !important; row-gap: .2mm !important; padding: .6mm 1mm !important; margin-inline: auto; }
@@ -1084,7 +1084,6 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
           <input id="login-remember" type="checkbox" autocomplete="off">
           <span class="remember-check" aria-hidden="true"></span>
           <span>Ingat Saya</span>
-          <small>Sesi berakhir saat tab ditutup</small>
         </label>
         <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk</button>
         <div id="firebase-setup-note" class="setup-note hidden">
@@ -1102,7 +1101,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.3</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.4</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1370,7 +1369,7 @@ function friendlyError(error) {
   if (code.includes("auth/weak-password")) return "Kata sandi terlalu lemah. Gunakan minimal 8 karakter.";
   if (code.includes("auth/requires-recent-login")) return "Sesi perlu diverifikasi ulang. Keluar lalu login kembali, kemudian coba ganti kata sandi.";
   if (code.includes("auth/too-many-requests")) return "Terlalu banyak percobaan. Coba lagi beberapa saat.";
-  if (code.includes("permission-denied")) return "Akses ditolak. Periksa role akun dan Firestore Rules.";
+  if (code.includes("permission-denied")) return "Firebase menolak tindakan ini. Pastikan akun aktif memiliki role yang sesuai dan Firestore Rules versi terbaru sudah dipublikasikan.";
   if (code.includes("failed-precondition")) return error.message || "Tindakan tidak dapat diproses karena kondisi belum terpenuhi.";
   if (code.includes("already-exists")) return "Email akun tersebut sudah digunakan.";
   if (code.includes("unavailable")) return "Layanan Firebase sedang tidak tersedia. Periksa koneksi internet.";
@@ -1531,17 +1530,60 @@ async function callApi(name, payload = {}) {
 
   if (name === "deleteMenu") {
     requireRole("superadmin");
-    const menuId = String(payload.menuId || "");
+    if (!actorUid) throw new Error("Sesi Superadmin tidak ditemukan. Silakan masuk kembali.");
+    const menuId = String(payload.menuId || "").trim();
     if (!menuId) throw new Error("Menu tidak valid.");
+
     const menuRef = doc(db, "menus", menuId);
-    const menuSnap = await getDoc(menuRef);
-    if (!menuSnap.exists() || menuSnap.data().deleted === true) throw new Error("Menu sudah tidak tersedia.");
-    const pendingSnap = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menuId)));
-    const pending = pendingSnap.docs.find(row => ["pending", "revised"].includes(row.data().status));
-    const lockSnap = await getDoc(doc(db, "stockRequestLocks", menuId));
-    if (pending || lockSnap.exists()) throw new Error("Menu belum bisa dihapus karena masih memiliki pengajuan stok yang menunggu keputusan. Selesaikan pengajuannya terlebih dahulu.");
-    await updateDoc(menuRef, { deleted: true, active: false, deletedAt: serverTimestamp(), deletedBy: actorUid, updatedAt: serverTimestamp(), updatedBy: actorUid });
-    return { menuId, name: menuSnap.data().name };
+    const lockRef = doc(db, "stockRequestLocks", menuId);
+
+    // Pengajuan pending/revised yang benar-benar aktif tetap melindungi menu.
+    // Riwayat request yang sudah diterima/ditolak tidak boleh menghalangi penghapusan.
+    const requestsSnap = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menuId)));
+    const activeRequest = requestsSnap.docs.find(row => ["pending", "revised"].includes(String(row.data().status || "").toLowerCase()));
+    if (activeRequest) {
+      const statusText = String(activeRequest.data().status).toLowerCase() === "revised" ? "sudah direvisi dan masih menunggu keputusan" : "masih menunggu keputusan";
+      throw new Error(`Menu belum bisa dihapus karena pengajuan stok ${statusText}. Selesaikan atau tolak pengajuan tersebut terlebih dahulu.`);
+    }
+
+    // Bersihkan lock yatim/lock lama yang tertinggal dari pengajuan terminal.
+    // Penghapusan lock dan soft-delete menu dilakukan dalam satu transaksi agar
+    // tidak ada jendela waktu yang memungkinkan pengajuan baru masuk bersamaan.
+    let deletedMenuName = "Menu";
+    await runTransaction(db, async transaction => {
+      const menuSnap = await transaction.get(menuRef);
+      if (!menuSnap.exists() || menuSnap.data().deleted === true) throw new Error("Menu sudah tidak tersedia.");
+      deletedMenuName = String(menuSnap.data().name || "Menu");
+
+      const lockSnap = await transaction.get(lockRef);
+      if (lockSnap.exists()) {
+        const requestId = String(lockSnap.data().requestId || "").trim();
+        if (requestId) {
+          const requestRef = doc(db, "stockRequests", requestId);
+          const requestSnap = await transaction.get(requestRef);
+          if (requestSnap.exists()) {
+            const requestStatus = String(requestSnap.data().status || "").toLowerCase();
+            if (["pending", "revised"].includes(requestStatus)) {
+              throw new Error("Menu masih memiliki pengajuan stok aktif. Selesaikan atau tolak pengajuan tersebut terlebih dahulu.");
+            }
+            if (!["received", "rejected"].includes(requestStatus)) {
+              throw new Error("Pengunci stok memiliki status yang belum dikenali. Periksa pengajuan stok menu ini terlebih dahulu.");
+            }
+          }
+        }
+        transaction.delete(lockRef);
+      }
+
+      transaction.update(menuRef, {
+        deleted: true,
+        active: false,
+        deletedAt: serverTimestamp(),
+        deletedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        updatedBy: actorUid
+      });
+    });
+    return { menuId, name: deletedMenuName };
   }
 
   if (name === "updateMenu") {
@@ -3857,7 +3899,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.3", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.4", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});

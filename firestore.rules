@@ -130,7 +130,9 @@ service cloud.firestore {
       allow update: if (isSuperadmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'price', 'active', 'updatedAt', 'updatedBy']))
         || (isSuperadmin()
-          && resource.data.deleted != true
+          // Menu lama belum tentu memiliki field `deleted`; gunakan default false.
+          // Akses field langsung akan membuat evaluasi Rules gagal untuk dokumen lama.
+          && resource.data.get('deleted', false) != true
           && request.resource.data.deleted == true
           && request.resource.data.active == false
           && request.resource.data.deletedAt == request.time
