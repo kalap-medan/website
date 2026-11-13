@@ -1,4 +1,4 @@
-# KALAP Management System v1.9.0
+# KALAP Management System v2.0.1
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, JavaScript, dan Firebase Web Config dalam satu file.
@@ -11,6 +11,23 @@
 - Cetak label memakai barcode Code 128 (1D), bukan QR. Kode barcode yang dicetak untuk menu lama dipersingkat secara deterministik menjadi 9 karakter ID setelah awalan `KLP-` agar modul barcode lebih lebar pada label 40 × 30 mm; barcode lama tetap diterima sebagai kode pencarian saat pemindaian.
 - Satu barcode SVG dibuat sekali lalu digunakan ulang pada seluruh salinan, dan semua label dikirim dalam satu pekerjaan cetak browser. Halaman setiap label dipisahkan mengikuti media label GAP 40 × 30 mm.
 - Profil cetak diarahkan untuk Blueprint ECO80BT: label GAP 40 × 30 mm, skala 100%, margin 0, dan tanpa fit-to-page. Model ini memakai TSPL/CPCL, sehingga aplikasi menggunakan driver printer untuk merender halaman; tidak mengirim perintah ESC/POS mentah.
+
+## Perubahan v2.0.1 — barcode lebih ringkas dan pengaturan cetak ECO80BT
+- Label cetak hanya berisi tiga elemen: nama menu, simbol barcode Code 128, dan harga. Angka/kode barcode tidak dicetak sebagai teks di bawah simbol.
+- Menu baru memperoleh barcode numerik unik 12 digit. Karena seluruh payload berupa angka genap, simbol dibuat dengan Code 128C yang mengodekan angka berpasangan sehingga lebih ringkas dibanding kode alfanumerik lama.
+- Barcode menu lama yang tersimpan dengan awalan `KLP-` mendapat alias numerik 12 digit yang stabil berdasarkan ID dokumen. Nilai barcode lama tetap diterima sebagai alias pencarian agar label lama tidak langsung kehilangan fungsi scan.
+- Lebar modul/bar diatur sekitar 2 titik printer pada orientasi landscape dan sedikit di bawah 2 titik pada portrait, dengan quiet zone di kiri dan kanan. Tinggi area barcode diperbesar tanpa memaksa SVG melebar horizontal.
+- Pengaturan orientasi tersedia pada halaman Cetak Label dan popup cetak: `Landscape` memakai ukuran fisik 40 × 30 mm, sedangkan `Portrait` memakai 30 × 40 mm. Preview dan ukuran halaman mengikuti orientasi yang dipilih.
+- Semua salinan dipersiapkan dalam satu dokumen dan memanggil dialog cetak satu kali. Tiap stiker GAP tetap menjadi satu halaman fisik agar sensor printer dapat membaca jeda label.
+- Tidak ada perubahan pada Firestore Rules atau struktur data. Kode numerik baru disimpan di field `barcode` yang sudah tersedia.
+
+## Pengaturan hasil cetak ECO80BT
+- Untuk stiker fisik 40 × 30 mm, pilih `Landscape`. Untuk stiker fisik 30 × 40 mm, pilih `Portrait`. Orientasi di aplikasi harus sama dengan ukuran fisik stiker yang benar-benar terpasang; jangan memilih 30 × 40 mm saat roll yang terpasang 40 × 30 mm.
+- Pada dialog cetak, pilih driver Blueprint ECO80BT dan ukuran kertas khusus yang sama dengan label, skala `100% / Actual Size`, margin `None/0`, serta matikan `Fit to page` / `Shrink to fit`.
+- Setiap label GAP akan memerlukan feed singkat saat printer berpindah ke label berikutnya. Itu perilaku sensor media normal. Aplikasi hanya dapat mengirim satu pekerjaan cetak gabungan; aplikasi web tidak dapat menghapus jeda mekanis sensor GAP atau menjamin printer tidak berhenti sesaat.
+- Ketebalan/kepekatan panas (print darkness/heat) dan kecepatan motor berada pada driver atau utility printer, bukan CSS/browser. Jika hasil masih terlalu gelap, turunkan level density/darkness sedikit demi sedikit di driver/utility (bila opsinya tersedia), lalu uji satu label. Jangan menebak angka level karena rentang driver bisa berbeda.
+- Aplikasi mengirim satu batch `window.print()` untuk seluruh label, bukan satu job per label. Printer tetap akan melakukan feed singkat antar-label karena ECO80BT membaca gap dan tidak mendukung continuous; jeda mekanis ini tidak dapat dihilangkan oleh aplikasi web. Aplikasi tidak menambahkan timer/jeda manual antar-label.
+- Halaman bantuan resmi Blueprint mencantumkan Utility Tools Printer BP-ECO80BT dan materi driver: https://www.blueprint-indonesia.com/Bantuan.htm.
 
 ## Perubahan sebelumnya (v1.8.0)
 - Halaman Menu & Persediaan menyediakan aksi Hapus bagi Superadmin. Penghapusan bersifat arsip (soft delete): menu disembunyikan dari POS, katalog aktif, dan label, sedangkan stok serta jejak transaksi tetap dipertahankan. Menu dengan pengajuan stok aktif harus diselesaikan lebih dahulu.
@@ -31,7 +48,7 @@
 - Label menggunakan barcode dan layout cetak 4 × 3 cm.
 
 ## Informasi printer
-- Blueprint ECO80BT adalah printer label thermal GAP; spesifikasi yang dipublikasikan menyebut resolusi 203 DPI, kecepatan hingga 80 mm/s, lebar cetak 78 mm, dan command set TSPL/CPCL. Detail kecepatan dan feed tetap diatur melalui driver/utility printer, bukan dari CSS halaman web.
+- Blueprint ECO80BT adalah printer label thermal GAP; spesifikasi pabrikan menyebut resolusi 203 DPI, kecepatan hingga 80 mm/s, lebar cetak 78 mm, command set TSPL/CPCL, dan media tidak mendukung mode continuous. Detail kecepatan dan feed tetap diatur melalui driver/utility printer, bukan dari CSS halaman web.
 - Untuk Windows, gunakan koneksi USB dan driver ECO80BT. Untuk Android, produsen mencantumkan koneksi Bluetooth; browser/web print dapat berbeda dukungannya antar perangkat.
 - Utility printer ECO80BT disediakan pada halaman bantuan Blueprint: https://www.blueprint-indonesia.com/Bantuan.htm
 
@@ -46,8 +63,8 @@
 - Bila instalasi masih memakai Rules sebelum v1.8.0, terapkan Rules dari paket v1.8.0 terlebih dahulu untuk mendapatkan perlindungan pengajuan stok dan pembatalan transaksi.
 
 ## Pengaturan cetak barcode ECO80BT
-- Aplikasi mengirim ukuran halaman cetak `40 mm × 30 mm` (4 × 3 cm) untuk laptop maupun tablet. Setiap label adalah satu halaman fisik karena ECO80BT menggunakan media GAP (bukan continuous).
-- Pada driver Blueprint ECO80BT, pilih media label/GAP dengan ukuran `40 × 30 mm`, orientasi portrait, skala `100%` atau `Actual size`, dan margin `None/0`. Matikan `Fit to page`/`Shrink to fit`. Setelah mengganti ukuran atau jenis label, jalankan kalibrasi gap/media dari driver atau utility Blueprint agar sensor membaca jarak antar-label. Jika ukuran 40 × 30 mm tidak tersedia, buat ukuran media khusus di driver terlebih dahulu. Browser atau driver printer dapat mengabaikan ukuran dari CSS bila ukuran label tidak tersedia atau dipaksa ke ukuran kertas lain.
+- Orientasi default adalah landscape `40 × 30 mm`; tersedia portrait `30 × 40 mm`. Setelan harus cocok dengan ukuran stiker fisik yang sedang dipasang. Barcode dihasilkan sebagai Code 128C numerik untuk menu KALAP.
+- Setiap label adalah satu halaman fisik karena ECO80BT menggunakan media GAP (bukan continuous). Browser/driver dapat mengabaikan ukuran CSS bila ukuran media khusus belum tersedia atau dipaksa ke ukuran kertas lain.
 
 ## Catatan operasional
 - Penerimaan pengajuan menambahkan stok berdasarkan jumlah final yang disetujui Admin/SPV dan mencatat stock movement pada transaksi Firestore yang sama.

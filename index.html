@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.9.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.0.1">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v1.9.0</title>
+  <title>KALAP Management System v2.0.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1018,6 +1018,21 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
   body.printing-labels .print-label-barcode svg { shape-rendering:crispEdges !important; }
 }
 
+
+/* KALAP v2.0.1 — thin-module, tall-bar labels for ECO80BT */
+.label-selector-grid { grid-template-columns:minmax(0,1.5fr) minmax(145px,.7fr) minmax(135px,.65fr); }
+.label-preview { display:grid; width:40mm; height:30mm; grid-template-rows:4.2mm 19.2mm 4.2mm; row-gap:.3mm; padding:.5mm 1mm; border-radius:3px; }
+.label-preview.is-portrait { width:30mm; height:40mm; grid-template-rows:5mm 26mm 5mm; padding:.6mm 1mm; }
+.label-preview-name { width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:600 8pt/1.05 Arial,sans-serif; }
+.label-preview-barcode,.print-label-barcode { display:flex; align-items:center; justify-content:center; width:36mm; max-width:100%; height:19.2mm; overflow:hidden; background:#fff; }
+.label-preview.is-portrait .label-preview-barcode { width:27mm; height:26mm; }
+.label-preview-barcode svg { display:block; width:auto !important; height:100% !important; max-width:100% !important; max-height:100% !important; shape-rendering:crispEdges; }
+.label-preview-price { font:700 9pt/1.05 Arial,sans-serif; white-space:nowrap; }
+@media (max-width:640px) {
+  .label-selector-grid { grid-template-columns:1fr; }
+  .label-preview { margin-inline:auto; }
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/barcodes/JsBarcode.code128.min.js"></script>
@@ -1066,7 +1081,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.9.0</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.1</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1346,13 +1361,28 @@ function transactionCode() {
   const suffix = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `KLP-${date}-${suffix}`;
 }
+function compactLegacyMenuBarcode(menu) {
+  // Legacy KLP-* values were long alphanumeric strings. A deterministic
+  // 12-digit numeric alias lets Code 128C encode them compactly while old
+  // printed KLP codes remain accepted by searches through menu.barcode.
+  const seed = String(menu?.id || menu?.barcode || "KALAP-MENU");
+  const hash32 = (value, initial) => {
+    let hash = initial >>> 0;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  };
+  const first = String(hash32(seed, 2166136261) % 1000000).padStart(6, "0");
+  const second = String(hash32(`${seed}|KALAP-CODE128`, 2246822519) % 1000000).padStart(6, "0");
+  return `${first}${second}`;
+}
 function menuBarcode(menu) {
   const stored = String(menu?.barcode || "").trim();
-  // Preserve custom/short codes. Legacy v1.7-v1.8 KLP codes carried the full
-  // Firestore ID; shorten those for a wider, more reliable Code 128 symbol.
-  if (stored && !(stored.toUpperCase().startsWith("KLP-") && stored.length > 16)) return stored;
-  const token = String(menu?.id || "MENU").replace(/[^a-z0-9]/gi, "").slice(0, 9).toUpperCase();
-  return `KLP-${token || "MENU"}`;
+  if (/^\d{12}$/.test(stored)) return stored;
+  if (stored && !stored.toUpperCase().startsWith("KLP-")) return stored;
+  return compactLegacyMenuBarcode(menu);
 }
 
 // Semua operasi tulis dilakukan langsung ke Cloud Firestore.
@@ -1434,14 +1464,19 @@ async function callApi(name, payload = {}) {
     const price = Number(payload.price);
     if (!nameValue || !Number.isSafeInteger(price) || price < 1) throw new Error("Nama menu dan harga jual harus valid.");
     const menuRef = doc(collection(db, "menus"));
-    const idToken = menuRef.id.replace(/[^a-z0-9]/gi, "").toUpperCase();
-    let barcodeValue = `KLP-${idToken.slice(0, 9)}`;
-    const shortCodeSnap = await getDocs(query(collection(db, "menus"), where("barcode", "==", barcodeValue)));
-    if (!shortCodeSnap.empty) {
-      barcodeValue = `KLP-${idToken.slice(0, 12)}`;
-      const extendedCodeSnap = await getDocs(query(collection(db, "menus"), where("barcode", "==", barcodeValue)));
-      if (!extendedCodeSnap.empty) throw new Error("Kode barcode unik gagal dibuat. Silakan simpan menu sekali lagi.");
+    let barcodeValue = "";
+    // Numeric 12-digit IDs are encoded by JsBarcode as Code 128C (digit pairs),
+    // giving a shorter symbol with wider white gaps on 203-DPI label media.
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const candidate = String(Math.floor(100000000000 + Math.random() * 900000000000));
+      const usedInLoadedMenus = store.menus.some(menu =>
+        menuBarcode(menu) === candidate || String(menu.barcode || "").trim() === candidate
+      );
+      if (usedInLoadedMenus) continue;
+      const existingBarcode = await getDocs(query(collection(db, "menus"), where("barcode", "==", candidate)));
+      if (existingBarcode.empty) { barcodeValue = candidate; break; }
     }
+    if (!barcodeValue) throw new Error("Kode barcode unik gagal dibuat. Silakan simpan menu sekali lagi.");
     const createdAt = serverTimestamp();
     await setDoc(menuRef, {
       name: nameValue, partnerId, partnerName: partner.name, category: "Lainnya",
@@ -2387,7 +2422,7 @@ function renderPosPage() {
 function filteredPosMenus() {
   const queryText = posSearchQuery.trim().toLowerCase();
   return store.menus.filter(menu => menu.active !== false && menu.deleted !== true).filter(menu => !queryText ||
-    [menu.name, menu.partnerName, menuBarcode(menu)].some(value => String(value || "").toLowerCase().includes(queryText)));
+    [menu.name, menu.partnerName, menuBarcode(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText)));
 }
 
 function drawPosMenuResults() {
@@ -2696,14 +2731,15 @@ function renderLabelsPage() {
   const partners = store.partners.filter(partner => partner.active !== false);
   const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
   const selectedLabel = selected ? `${selected.name} — ${selected.partnerName || "Mitra"}` : "";
-  return `${pageHeading("Cetak label", "Cari nama menu, mitra, atau scan barcode dari satu kolom pencarian. Label dicetak pada ukuran 4 × 3 cm.", `<span class="status neutral">40 × 30 mm</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>Barcode Code 128 otomatis dari katalog menu</strong><br>Ketik nama menu/mitra atau arahkan scanner barcode ke kolom pencarian, lalu pilih menu yang cocok.</div></div>
+  return `${pageHeading("Cetak label", "Cari menu atau mitra, pilih orientasi label, lalu cetak nama menu, barcode, dan harga.", `<span class="status neutral">Code 128 · ECO80BT</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>Barcode Code 128 dengan garis lebih halus</strong><br>Label hanya memuat nama menu, barcode, dan harga. Teks nomor barcode tidak dicetak.</div></div>
     <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
         <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan barcode</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan barcode..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
+        <div class="form-field"><label for="label-orientation">Orientasi</label><select id="label-orientation" name="orientation"><option value="landscape" selected>Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div>
         <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
         <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>Barcode: ${escapeHtml(menuBarcode(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan barcode terlebih dahulu."}</div>
-        <div class="label-print-actions"><span class="helper-text">Ukuran 40 × 30 mm · skala 100% / Actual Size · margin 0.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
+        <div class="label-print-actions"><span class="helper-text" id="label-orientation-hint">Landscape: cocok untuk stiker fisik 40 × 30 mm. Cetak pada 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
 }
@@ -2822,6 +2858,12 @@ function attachPageEvents() {
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
+  $("#label-orientation")?.addEventListener("change", event => {
+    const hint = $("#label-orientation-hint");
+    if (hint) hint.textContent = event.target.value === "portrait"
+      ? "Portrait: gunakan stiker fisik 30 × 40 mm. Cetak pada 100% / Actual Size."
+      : "Landscape: gunakan stiker fisik 40 × 30 mm. Cetak pada 100% / Actual Size.";
+  });
   $("#label-unified-search")?.addEventListener("input", () => {
     labelSelectedMenuId = "";
     const hidden = $("#label-menu-select"); if (hidden) hidden.value = "";
@@ -3401,8 +3443,9 @@ function handleBulkLabelPrint(event) {
   if (typeof window.JsBarcode !== "function") return toast("Pustaka barcode belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
   setBusy(button, true, "Menyiapkan barcode...");
   try {
-    printMenuLabels(menu, copies);
-    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak Code 128.`, "success");
+    const orientation = data.orientation === "portrait" ? "portrait" : "landscape";
+    printMenuLabels(menu, copies, orientation);
+    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak Code 128 (${orientation}).`, "success");
   } catch (error) {
     console.error(error);
     toast("Barcode gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
@@ -3411,32 +3454,46 @@ function handleBulkLabelPrint(event) {
   }
 }
 
-function drawMenuBarcode(target, value) {
+function drawMenuBarcode(target, value, orientation = "landscape") {
   if (!target || typeof window.JsBarcode !== "function") throw new Error("Pustaka barcode belum termuat.");
   const code = String(value || "").trim();
   if (!code || !/^[\x20-\x7E]+$/.test(code)) throw new Error("Isi barcode harus berupa karakter ASCII yang valid.");
   target.innerHTML = "";
+  const isNumericEven = /^\d{8,24}$/.test(code) && code.length % 2 === 0;
+  const isPortrait = orientation === "portrait";
+  // Code 128C compresses numeric pairs. On 203-DPI ECO80BT media, the module
+  // target is about 2 printer dots in landscape and just under 2 in portrait.
+  // Taller bars improve scan area without making each black module wider.
+  const moduleWidth = isNumericEven ? (isPortrait ? 0.80 : 1.00) : (isPortrait ? 0.48 : 0.68);
+  const barHeight = isPortrait ? 96 : 76;
+  const quietZone = moduleWidth * 10;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Barcode Code 128 ${code}`);
-  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-label", "Barcode Code 128 menu KALAP");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   target.appendChild(svg);
   window.JsBarcode(svg, code, {
-    format: "CODE128",
+    format: isNumericEven ? "CODE128C" : "CODE128",
     lineColor: "#000000",
     background: "#ffffff",
-    width: 1.3,
-    height: 72,
+    width: moduleWidth,
+    height: barHeight,
     displayValue: false,
-    margin: 10,
-    marginLeft: 10,
-    marginRight: 10,
-    marginTop: 2,
-    marginBottom: 2
+    margin: 0,
+    marginLeft: quietZone,
+    marginRight: quietZone,
+    marginTop: 0,
+    marginBottom: 0
   });
-  svg.style.width = "100%";
+  // Keep the SVG's natural width and scale only to the barcode area's height.
+  // This avoids CSS width:100% stretching narrow bars into heavy black columns.
+  svg.style.width = "auto";
   svg.style.height = "100%";
+  svg.style.maxWidth = "100%";
+  svg.style.maxHeight = "100%";
   svg.style.display = "block";
+  svg.style.flex = "0 1 auto";
+  svg.style.shapeRendering = "crispEdges";
   return svg;
 }
 
@@ -3444,56 +3501,97 @@ function openLabelModal(menuId) {
   const menu = store.menus.find(item => item.id === menuId && item.deleted !== true);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label 4 × 3 cm</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-code">${escapeHtml(menuBarcode(menu))}</div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Barcode Code 128: ${escapeHtml(menuBarcode(menu))}</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
-  try { drawMenuBarcode(root.querySelector("#label-preview-barcode"), menuBarcode(menu)); }
+  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Label menampilkan nama menu, barcode Code 128, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Orientasi label</label><select name="orientation" id="single-label-orientation"><option value="landscape">Landscape · 40 × 30 mm</option><option value="portrait">Portrait · 30 × 40 mm</option></select></div><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  try { drawMenuBarcode(root.querySelector("#label-preview-barcode"), menuBarcode(menu), "landscape"); }
   catch (error) { root.querySelector("#label-preview-barcode").textContent = "Barcode tidak dapat dibuat. Periksa koneksi internet."; }
+  const preview = root.querySelector("#label-preview");
+  const orientationSelect = root.querySelector("#single-label-orientation");
+  orientationSelect.addEventListener("change", () => {
+    const orientation = orientationSelect.value === "portrait" ? "portrait" : "landscape";
+    preview.classList.toggle("is-portrait", orientation === "portrait");
+    drawMenuBarcode(root.querySelector("#label-preview-barcode"), menuBarcode(menu), orientation);
+  });
   root.querySelector("#label-print-form").addEventListener("submit", event => {
     event.preventDefault();
-    const copies = Math.min(300, Math.max(1, Number(new FormData(event.currentTarget).get("copies")) || 1));
+    const formData = new FormData(event.currentTarget);
+    const copies = Math.min(300, Math.max(1, Number(formData.get("copies")) || 1));
+    const orientation = formData.get("orientation") === "portrait" ? "portrait" : "landscape";
     root.innerHTML = "";
-    printMenuLabels(menu, copies);
+    printMenuLabels(menu, copies, orientation);
   });
   root.querySelectorAll("[data-label-close], [data-label-backdrop]").forEach(item => item.addEventListener("click", event => {
     if (event.target === item || item.matches("[data-label-close]")) root.innerHTML = "";
   }));
 }
 
-function printMenuLabels(menu, copies = 1) {
+function printMenuLabels(menu, copies = 1, orientation = "landscape") {
   if (typeof window.JsBarcode !== "function") throw new Error("Pustaka barcode belum termuat.");
   if (!Number.isInteger(copies) || copies < 1 || copies > 500) throw new Error("Jumlah label tidak valid.");
+  if (document.body.classList.contains("printing-labels")) throw new Error("Pekerjaan cetak label sebelumnya belum selesai.");
+
+  const layout = orientation === "portrait"
+    ? { width: 30, height: 40, barcodeWidth: 27, barcodeHeight: 26, rows: "5mm 26mm 5mm", padding: ".6mm 1mm" }
+    : { width: 40, height: 30, barcodeWidth: 36, barcodeHeight: 19.2, rows: "4.2mm 19.2mm 4.2mm", padding: ".5mm 1mm" };
   let root = document.getElementById("label-print-root");
   if (!root) { root = document.createElement("div"); root.id = "label-print-root"; document.body.appendChild(root); }
   root.innerHTML = "";
+  root.dataset.orientation = orientation;
 
-  // Render the barcode once, then clone the identical vector SVG for each label.
-  // This avoids re-encoding hundreds of symbols and keeps one single print job.
+  // Barcode vector dibuat satu kali; salinan memakai SVG identik dalam satu spool job.
   const template = document.createElement("div");
   template.className = "print-label";
-  template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-code">${escapeHtml(menuBarcode(menu))}</div><div class="print-label-price">${money(menu.price)}</div>`;
-  drawMenuBarcode(template.querySelector(".print-label-barcode"), menuBarcode(menu));
+  template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
+  drawMenuBarcode(template.querySelector(".print-label-barcode"), menuBarcode(menu), orientation);
   const fragment = document.createDocumentFragment();
   for (let index = 0; index < copies; index += 1) fragment.appendChild(template.cloneNode(true));
   root.appendChild(fragment);
 
+  // Dynamic @page size is necessary because physical portrait/landscape labels
+  // have different feed lengths on GAP media.
+  let printStyle = document.getElementById("kalap-label-print-dynamic-style");
+  if (!printStyle) {
+    printStyle = document.createElement("style");
+    printStyle.id = "kalap-label-print-dynamic-style";
+    document.head.appendChild(printStyle);
+  }
+  const { width, height, barcodeWidth, barcodeHeight, rows, padding } = layout;
+  printStyle.textContent = `
+    @page { size: ${width}mm ${height}mm; margin: 0 !important; }
+    @media print {
+      html, body { width: ${width}mm !important; min-width: ${width}mm !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      body.printing-labels { width: ${width}mm !important; }
+      body.printing-labels > *:not(#label-print-root) { display: none !important; }
+      body.printing-labels #label-print-root { display: block !important; position: static !important; width: ${width}mm !important; max-width: ${width}mm !important; margin: 0 !important; padding: 0 !important; }
+      body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .3mm !important; align-content: center !important; justify-items: center !important; width: ${width}mm !important; min-width: ${width}mm !important; max-width: ${width}mm !important; height: ${height}mm !important; min-height: ${height}mm !important; max-height: ${height}mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
+      body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
+      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 8pt/1.05 Arial, sans-serif !important; }
+      body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${barcodeWidth}mm !important; max-width: 100% !important; height: ${barcodeHeight}mm !important; overflow: hidden !important; background: #fff !important; }
+      body.printing-labels .print-label-barcode svg { display: block !important; width: auto !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
+      body.printing-labels .print-label-price { height: auto !important; line-height: 1.05 !important; align-self: center !important; font: 700 9pt/1.05 Arial, sans-serif !important; white-space: nowrap !important; }
+    }
+  `;
+
   document.body.classList.add("printing-labels");
   let cleaned = false;
+  let safetyTimer = null;
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
+    if (safetyTimer) clearTimeout(safetyTimer);
     document.body.classList.remove("printing-labels");
     root.innerHTML = "";
+    delete root.dataset.orientation;
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup, { once: true });
 
-  // Wait for two paint frames so all label pages and inline SVGs are laid out
-  // before opening the print dialog. All copies remain in one browser spool job.
+  // One browser print invocation sends the complete set as a single job.
+  // Each GAP label remains one physical page so the printer can detect the gap.
   requestAnimationFrame(() => requestAnimationFrame(() => {
     try { window.print(); }
     catch (error) { cleanup(); console.error(error); toast("Dialog cetak gagal dibuka. Periksa driver printer.", "error"); }
   }));
-  // Safety cleanup only; afterprint normally clears the print DOM immediately.
-  setTimeout(cleanup, 5 * 60 * 1000);
+  safetyTimer = setTimeout(cleanup, 15 * 60 * 1000);
 }
 
 async function stockRequestSubmit(event) {
@@ -3703,7 +3801,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.9.0", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.1", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
