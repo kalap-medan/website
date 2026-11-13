@@ -1,50 +1,45 @@
-# KALAP Management System v2.0.4
+# KALAP Management System v2.0.5
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: aturan akses Firestore. Hak penghapusan menu dibatasi di sisi aplikasi dan Firestore untuk role `superadmin` saja.
-- `firestore.indexes.json`: indeks Firestore.
+- `firestore.rules`: aturan keamanan Firestore. Tidak ada perubahan Rules pada v2.0.5; gunakan Rules v2.0.4 yang sudah dipublikasikan.
+- `firestore.indexes.json`: konfigurasi indeks Firestore.
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.0.4 agar browser mengambil source terbaru.
+- `service-worker.js`: cache shell versi 2.0.5 agar browser mengambil source terbaru.
 
-## Perubahan v2.0.4
-- **Perbaikan hapus menu Superadmin.** Penghapusan tetap hanya untuk role `superadmin`. Firestore Rules memakai `resource.data.get('deleted', false)` agar menu lama yang belum memiliki field `deleted` tetap dapat dihapus. Pengajuan stok dengan status `pending` atau `revised` yang aktif tetap harus diselesaikan; lock yang tertinggal dari pengajuan `received`/`rejected` atau dokumen pengajuan yang sudah tidak ada akan dibersihkan otomatis bersamaan dengan soft-delete menu dalam satu transaksi Firestore.
-- Teks kecil penjelasan sesi di halaman Login dihapus; checkbox `Ingat Saya` tetap berfungsi seperti sebelumnya.
+## Perubahan v2.0.5
+- **Pendapatan mitra dipotong 20% secara otomatis.** Dokumen penjualan mitra menyimpan `grossTotal`, `kalapShare`, dan `netTotal`. Dashboard mitra, aktivitas terbaru, serta halaman Penjualan Saya menampilkan nominal bersih setelah potongan 20% untuk KALAP. Riwayat lama yang belum memiliki field tersebut dihitung dengan rumus yang sama saat ditampilkan.
+- **Transferan mitra diselaraskan dengan perhitungan dashboard.** Rekap transfer dan konfirmasi transfer menjumlahkan nilai kotor, potongan, dan bersih pada basis per catatan penjualan, sehingga nominal yang terlihat di dashboard mitra cocok dengan perhitungan admin.
+- **Badge Pengajuan Stok realtime.** Navbar Superadmin dan SPV menampilkan jumlah menu/pengajuan yang masih berstatus `pending` atau `revised`. Menu unik yang masih diajukan dihitung satu kali, bukan jumlah unit stok atau duplikasi dokumen lama. Badge bertambah dan berkurang mengikuti snapshot Firestore.
+- **Pencarian Cetak Label.** Daftar hasil tidak ditampilkan saat kolom kosong. Menu baru muncul ketika pengguna mengetik, mencari nama mitra/menu, atau melakukan scan QR; setelah menu dipilih hasil pencarian menutup dan ringkasan menu terpilih tetap terlihat.
+- **Menu & Persediaan Superadmin menjadi katalog saja.** Keterangan stok dan kolom stok dihilangkan dari tampilan serta ekspor CSV Superadmin. Pemantauan stok untuk SPV tetap dipertahankan.
+- Keterangan stok awal di halaman pendaftaran Menu Baru dihapus dari tampilan; stok awal sistem tetap nol sampai ada pengajuan stok yang diterima.
+- Cache PWA diperbarui ke v2.0.5.
 
-## Fitur yang dipertahankan dari v2.0.3
-- **Hapus menu hanya untuk Superadmin.** Tombol Hapus hanya dirender untuk role `superadmin`, fungsi penghapusan memeriksa role kembali, dan Firestore Rules mengizinkan perubahan soft-delete hanya untuk Superadmin. SPV, Kasir, dan Mitra tidak mendapat akses penghapusan.
-- Penghapusan menu merupakan **soft delete**: menu disembunyikan dari POS, katalog aktif, dan cetak label, sedangkan dokumen menu, stok terakhir, serta hubungan riwayat transaksi tetap tersimpan untuk audit. Menu yang masih memiliki pengajuan stok tertunda tidak dapat dihapus sampai pengajuan diselesaikan.
-- **Ukuran cetak label dikunci ke 30 × 40 mm (portrait).** Pilihan 40 × 30 mm dan selector orientasi dihapus dari halaman Cetak Label maupun popup cetak. QR memakai grid 7 dot/modul pada printer 203 DPI.
-- **Ingat Saya** ditambahkan di halaman Login. Jika dicentang, Firebase Auth memakai `browserLocalPersistence` sehingga login tetap tersimpan setelah tab/browser ditutup. Jika tidak dicentang, Firebase Auth memakai `browserSessionPersistence`, sehingga sesi berakhir saat tab/window ditutup.
-- Sesi yang sudah ada dari versi lama tanpa preferensi Ingat Saya akan dipindahkan ke session persistence pada pembukaan pertama v2.0.3. Centang Ingat Saya dan login kembali untuk mempertahankan sesi lintas penutupan browser.
-- Preferensi hanya menyimpan pilihan ingat sesi, bukan email atau kata sandi. Logout manual menghapus preferensi Ingat Saya.
-- Cache PWA diperbarui ke v2.0.4.
+## Perhitungan pendapatan mitra
+- Penjualan kotor mitra dihitung dari subtotal item milik mitra dalam satu transaksi.
+- Bagian KALAP = `Math.round(penjualanKotor × 20%)`.
+- Pendapatan bersih mitra = `penjualanKotor − bagianKALAP`.
+- Perhitungan per catatan penjualan digunakan konsisten di portal mitra, rekap transfer, dan penandaan transfer.
+- Transaksi yang dibatalkan tetap dikeluarkan dari total pendapatan, karena status catatan partner sales ikut diubah menjadi `cancelled` saat pembatalan transaksi.
 
-## Pengaturan cetak ECO80BT
-1. Pilih driver Blueprint ECO80BT dan media label GAP khusus 30 × 40 mm (portrait).
-2. Atur skala `100% / Actual Size`, margin `None/0`, dan matikan `Fit to page` / `Shrink to fit`.
-3. Pastikan kalibrasi sensor gap sesuai dengan roll label.
-4. Uji satu label dan pindai QR sebelum mencetak dalam jumlah banyak.
+## Perilaku badge Pengajuan Stok
+- Hanya terlihat di navbar Superadmin dan SPV.
+- Menghitung dokumen berstatus `pending` dan `revised`.
+- Tidak menghitung pengajuan yang sudah `received` atau `rejected`.
 
-ECO80BT adalah printer label thermal 203 DPI. Aplikasi membuat QR vektor dengan modul yang selaras ke grid dot printer, tetapi hasil akhir juga dipengaruhi density/darkness, kecepatan, kualitas label, kalibrasi gap, dan pengaturan driver. Density/darkness dan kecepatan printhead harus disetel dari driver atau Utility BP-ECO80BT; halaman web tidak dapat mengatur panas printhead secara langsung.
-
-Media GAP membutuhkan feed singkat antar-label agar sensor dapat menemukan awal label berikutnya. Aplikasi mengirim seluruh salinan dalam satu pekerjaan cetak, tetapi tidak dapat menghilangkan feed mekanis sensor GAP.
-
-Halaman bantuan Blueprint: https://www.blueprint-indonesia.com/Bantuan.htm
-
-## Fitur sistem yang dipertahankan
-- Menu Baru mendaftarkan katalog dengan stok awal 0 dan ID numerik otomatis.
-- Pengajuan Stok mendukung persetujuan, revisi, penolakan, dan input manual Admin/SPV dengan pemeriksaan agar stok tidak ganda.
-- POS mendukung pencarian menu, pemindaian QR/kode lama, pagination produk, berbagai metode pembayaran, dan format nominal Rupiah.
-- Riwayat transaksi mendukung pembatalan dengan pengembalian stok dan koreksi laporan, sesuai aturan periode closing.
-- Cetak label mendukung pencarian menu/mitra/QR dan jumlah salinan, selalu dengan ukuran 30 × 40 mm.
+## Fitur yang dipertahankan
+- Hapus menu hanya untuk Superadmin melalui soft-delete dan Firestore Rules v2.0.4.
+- Label QR 30 × 40 mm portrait untuk Blueprint ECO80BT 203 DPI.
+- Login `Ingat Saya` memakai Firebase Auth local/session persistence.
+- POS, pembatalan transaksi dan pengembalian stok, pengajuan stok dan input manual, closing harian, keuangan, manajemen mitra, serta PWA.
 
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.0.4.
+2. Ekstrak ZIP v2.0.5.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/` serta file tersembunyi `.nojekyll`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Buka aplikasi dan lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali agar service worker terbaru aktif.
+5. Buka aplikasi dan lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali agar service worker v2.0.5 aktif.
 
 ## Firestore
-**Wajib publikasikan `firestore.rules` versi 2.0.4.** Perbaikan penting menggunakan `resource.data.get('deleted', false)` untuk kompatibilitas dokumen menu lama yang belum memiliki field `deleted`. Tanpa Rules terbaru, Firebase dapat menolak penghapusan menu lama meskipun pengguna adalah Superadmin. Tidak ada perubahan indeks Firestore.
+Tidak ada perubahan Firestore Rules atau indeks pada v2.0.5. Tetap gunakan `firestore.rules` versi 2.0.4 yang sudah dipublikasikan sebelumnya. Field `grossTotal`, `kalapShare`, dan `netTotal` adalah tambahan pada dokumen `partnerSales` yang diizinkan oleh aturan create yang ada.

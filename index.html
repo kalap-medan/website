@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.0.2">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.0.5">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.4</title>
+  <title>KALAP Management System v2.0.5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -931,6 +931,26 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
+/* KALAP v2.0.5: stock-request navigation badge */
+.nav-badge {
+  margin-left: auto;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fff;
+  color: #c8102e;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 1px 5px rgba(60, 0, 0, .18);
+}
+.nav-link.active .nav-badge { background: #fff; color: #c8102e; }
+.nav-link-label { min-width: 0; }
+
 /* KALAP v1.8.0: UX and cancellation improvements */
 .menu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 .pos-pagination .page-buttons { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px; }
@@ -1101,7 +1121,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.4</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.0.5</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1678,8 +1698,12 @@ async function callApi(name, payload = {}) {
           actorUid, actorName, createdAt });
       }
       for (const [partnerId, group] of groups.entries()) {
+        const grossTotal = group.total;
+        const kalapShare = Math.round(grossTotal * PARTNER_KALAP_SHARE_RATE);
+        const netTotal = grossTotal - kalapShare;
         tx.set(group.ref, { partnerId, partnerName: group.partnerName, transactionId: saleRef.id,
-          transactionCode: code, total: group.total, qty: group.qty, items: group.items,
+          transactionCode: code, total: grossTotal, grossTotal, kalapShare, netTotal,
+          commissionRate: PARTNER_KALAP_SHARE_RATE, qty: group.qty, items: group.items,
           paymentMethod, businessDate, createdAt, status: "recorded" });
       }
       tx.set(cashflowRef, {
@@ -2108,6 +2132,7 @@ function startSubscriptions() {
     }, onDataError));
     unsubscribers.push(onSnapshot(query(collection(db, "stockRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
       store.stockRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      updateRequestNavBadge();
       renderIfPage("requests", "dashboard");
     }, onDataError));
     unsubscribers.push(onSnapshot(query(collection(db, "dailyClosings"), orderBy("closedAt", "desc"), limit(120)), snap => {
@@ -2261,13 +2286,13 @@ function navItems() {
   switch (profile.role) {
     case "superadmin": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "newMenu", label: "Menu baru", icon: ICONS.newMenu }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Pengajuan stok", icon: ICONS.requests },
+      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat & stok harian", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "newMenu", label: "Menu baru", icon: ICONS.newMenu }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Pengajuan stok", icon: ICONS.requests, badge: pendingStockRequestCount() },
       { section: "MANAJEMEN" }, { id: "partners", label: "Mitra", icon: ICONS.partners }, { id: "accounts", label: "Akun pengguna", icon: ICONS.accounts }, { id: "finance", label: "Keuangan", icon: ICONS.finance }, { id: "partnerTransfers", label: "Transferan mitra", icon: "⇄" },
       { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     case "spv": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard SPV", icon: ICONS.dashboard },
-      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Pengajuan stok", icon: ICONS.requests },
+      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Pemantauan stok", icon: ICONS.stock }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Pengajuan stok", icon: ICONS.requests, badge: pendingStockRequestCount() },
       { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     case "cashier": return [
@@ -2279,10 +2304,29 @@ function navItems() {
     ];
   }
 }
+function updateRequestNavBadge() {
+  const count = pendingStockRequestCount();
+  $$('[data-nav="requests"]').forEach(button => {
+    let badge = button.querySelector('[data-nav-badge="requests"]');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-badge";
+        badge.dataset.navBadge = "requests";
+        button.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? "99+" : integer(count);
+      button.setAttribute("aria-label", `Pengajuan stok, ${integer(count)} menu menunggu keputusan`);
+    } else {
+      badge?.remove();
+      button.removeAttribute("aria-label");
+    }
+  });
+}
 function renderNav() {
   $("#side-nav").innerHTML = navItems().map(item => item.section
     ? `<div class="nav-section-label">${item.section}</div>`
-    : `<button class="nav-link ${activePage === item.id ? "active" : ""}" data-nav="${item.id}"><span class="nav-icon">${item.icon}</span>${item.label}</button>`).join("");
+    : `<button class="nav-link ${activePage === item.id ? "active" : ""}" data-nav="${item.id}"${Number(item.badge || 0) > 0 ? ` aria-label="${escapeHtml(item.label)}, ${integer(item.badge)} menu menunggu keputusan"` : ""}><span class="nav-icon">${item.icon}</span><span class="nav-link-label">${item.label}</span>${Number(item.badge || 0) > 0 ? `<span class="nav-badge" data-nav-badge="${item.id}">${Number(item.badge) > 99 ? "99+" : integer(item.badge)}</span>` : ""}</button>`).join("");
 }
 function renderPage() {
   if (!profile) return;
@@ -2343,6 +2387,33 @@ function panelHeader(title, subtitle, action = "") {
 }
 function selectedMonthControl() { return `<input type="month" id="month-select" value="${monthKey}" aria-label="Pilih bulan">`; }
 function getMonthTransactions() { return store.transactions.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
+const PARTNER_KALAP_SHARE_RATE = 0.20;
+function partnerGrossAmount(row) {
+  const value = Number(row?.grossTotal ?? row?.total ?? 0);
+  return Number.isSafeInteger(value) && value > 0 ? value : 0;
+}
+function partnerCommissionAmount(row) {
+  const gross = partnerGrossAmount(row);
+  const stored = Number(row?.kalapShare);
+  return Number.isSafeInteger(stored) && stored >= 0 && stored <= gross
+    ? stored
+    : Math.round(gross * PARTNER_KALAP_SHARE_RATE);
+}
+function partnerNetAmount(row) {
+  const gross = partnerGrossAmount(row);
+  const stored = Number(row?.netTotal);
+  return Number.isSafeInteger(stored) && stored >= 0 && stored <= gross
+    ? stored
+    : Math.max(0, gross - partnerCommissionAmount(row));
+}
+function sumPartnerNetSales(rows) { return rows.reduce((sum, row) => sum + partnerNetAmount(row), 0); }
+function sumPartnerGrossSales(rows) { return rows.reduce((sum, row) => sum + partnerGrossAmount(row), 0); }
+function sumPartnerCommission(rows) { return rows.reduce((sum, row) => sum + partnerCommissionAmount(row), 0); }
+function pendingStockRequestCount() {
+  // Hitung menu unik yang masih menunggu keputusan, bukan unit stok atau riwayat terminal.
+  const active = store.stockRequests.filter(row => ["pending", "revised"].includes(String(row.status || "pending").toLowerCase()));
+  return new Set(active.map(row => String(row.menuId || row.id || "").trim()).filter(Boolean)).size;
+}
 function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
 function sortNewest(rows, field = "createdAt") { return rows.slice().sort((a,b) => (asDate(b[field])?.getTime() || 0) - (asDate(a[field])?.getTime() || 0)); }
 function sumBy(list, key) { return list.reduce((sum, item) => sum + Number(item[key] || 0), 0); }
@@ -2584,7 +2655,7 @@ function reconcileCart() {
 function renderNewMenuPage() {
   const partners = store.partners.filter(partner => partner.active !== false)
     .slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  return `${pageHeading("Menu baru", "Daftarkan menu yang tersedia di KALAP. Pendaftaran ini tidak menambahkan stok.")}
+  return `${pageHeading("Menu baru", "Daftarkan menu yang tersedia di KALAP.")}
     <section class="panel new-menu-panel">
       ${panelHeader("Daftarkan menu", "Pilih mitra, masukkan nama menu dan harga jual.")}
       ${partners.length ? `<form id="new-menu-page-form" class="new-menu-form">
@@ -2600,6 +2671,7 @@ function renderNewMenuPage() {
 }
 
 function renderStockPage() {
+  const catalogOnly = profile.role === "superadmin";
   const allMenus = store.menus.filter(menu => menu.deleted !== true).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   const activeMenus = allMenus.filter(menu => menu.active !== false);
   const q = menuListSearchQuery.trim().toLowerCase();
@@ -2611,16 +2683,16 @@ function renderStockPage() {
   const pages = Math.max(1, Math.ceil(filteredMenus.length / directoryPageSize));
   menuListCurrentPage = Math.min(menuListCurrentPage, pages);
   const visibleMenus = filteredMenus.slice((menuListCurrentPage - 1) * directoryPageSize, menuListCurrentPage * directoryPageSize);
-  return `${pageHeading(profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", "Ringkasan katalog dan ketersediaan stok hari ini.")}
-    <section class="stats-grid">
-      ${statCard("Total seluruh menu", integer(allMenus.length), "▤", "Semua menu terdaftar")}
-      ${statCard("Menu aktif", integer(activeMenus.length), "✓", "Menu yang dapat dijual di POS")}
-      ${statCard("Total stok tersedia hari ini", integer(activeMenus.reduce((sum, menu) => sum + Number(menu.stock || 0), 0)), "▣", "Akumulasi stok aktif saat ini")}
-    </section>
+  const stats = `<section class="stats-grid">${statCard("Total seluruh menu", integer(allMenus.length), "▤", "Semua menu terdaftar")}${statCard("Menu aktif", integer(activeMenus.length), "✓", "Menu yang dapat dijual di POS")}${!catalogOnly ? statCard("Total stok tersedia hari ini", integer(activeMenus.reduce((sum, menu) => sum + Number(menu.stock || 0), 0)), "▣", "Akumulasi stok aktif saat ini") : ""}</section>`;
+  const stockColumn = catalogOnly ? "" : "<th>Stok</th>";
+  const stockCell = menu => catalogOnly ? "" : `<td><strong>${integer(menu.stock)}</strong></td>`;
+  const emptyColspan = catalogOnly ? (profile.role === "superadmin" ? 6 : 5) : (profile.role === "superadmin" ? 7 : 6);
+  return `${pageHeading(catalogOnly ? "Menu & persediaan" : "Pemantauan stok", catalogOnly ? "Kelola daftar menu, mitra, harga, dan status menu KALAP." : "Pantau daftar menu dan ketersediaan stok hari ini.")}
+    ${stats}
     <section class="panel">
       ${panelHeader("Semua menu KALAP", `${integer(filteredMenus.length)} dari ${integer(allMenus.length)} menu`, `<button class="btn btn-light" data-export-menus>Ekspor daftar CSV</button>`)}
       <div class="table-toolbar"><input id="menu-search" type="search" value="${escapeHtml(menuListSearchQuery)}" placeholder="Cari nama menu, mitra, atau ID QR..."><select id="menu-status-filter"><option value="all" ${menuStatusFilter === "all" ? "selected" : ""}>Semua status</option><option value="active" ${menuStatusFilter === "active" ? "selected" : ""}>Aktif</option><option value="inactive" ${menuStatusFilter === "inactive" ? "selected" : ""}>Nonaktif</option></select></div>
-      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>ID QR</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuQrPayload(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><div class="account-actions"><button class="action-link" data-edit-menu="${menu.id}">Edit</button><button class="action-link danger-link" data-delete-menu="${menu.id}">Hapus</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role === "superadmin" ? 7 : 6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
+      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th>${stockColumn}<th>ID QR</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td>${stockCell(menu)}<td><code>${escapeHtml(menuQrPayload(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><div class="account-actions"><button class="action-link" data-edit-menu="${menu.id}">Edit</button><button class="action-link danger-link" data-delete-menu="${menu.id}">Hapus</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${emptyColspan}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
       <div class="pagination-row"><span class="helper-text">Halaman ${menuListCurrentPage} dari ${pages} · ${integer(filteredMenus.length)} menu</span><div class="page-buttons"><button type="button" data-menu-list-page="prev" ${menuListCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-menu-list-page="next" ${menuListCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
     </section>`;
 }
@@ -2736,9 +2808,9 @@ function renderRequestsPage() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   requestCurrentPage = Math.min(requestCurrentPage, pages);
   const visible = filtered.slice((requestCurrentPage - 1) * pageSize, requestCurrentPage * pageSize);
-  const pendingCount = allRequests.filter(row => ["pending", "revised"].includes(row.status)).length;
+  const pendingCount = pendingStockRequestCount();
   const header = staffCanReceive
-    ? pageHeading("Pengajuan stok", "Kelola pengajuan mitra: setujui, revisi jumlah, tolak, atau catat stok secara manual.", `<span class="status pending">${integer(pendingCount)} menunggu</span>`)
+    ? pageHeading("Pengajuan stok", "Kelola pengajuan mitra: setujui, revisi jumlah, tolak, atau catat stok secara manual.", `<span class="status pending">${integer(pendingCount)} menu menunggu</span>`)
     : pageHeading("Pengajuan stok", "Ajukan stok tambahan untuk menu yang terdaftar pada akun Anda.");
   const form = staffCanReceive ? "" : renderStockRequestForm();
   const activePartners = store.partners.filter(partner => partner.active !== false).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
@@ -2768,9 +2840,9 @@ function renderRequestsPage() {
 
 function renderPartnerTransfersPage() {
   const grouped=new Map();
-  for(const sale of store.transferSales.filter(row=>row.status!=="cancelled")){const id=sale.partnerId;if(!id)continue;const row=grouped.get(id)||{partnerId:id,partnerName:sale.partnerName||"Mitra",gross:0,qty:0,transactions:0};row.gross+=Number(sale.total||0);row.qty+=Number(sale.qty||0);row.transactions+=1;grouped.set(id,row);}
+  for(const sale of store.transferSales.filter(row=>row.status!=="cancelled")){const id=sale.partnerId;if(!id)continue;const row=grouped.get(id)||{partnerId:id,partnerName:sale.partnerName||"Mitra",gross:0,commission:0,transfer:0,qty:0,transactions:0};row.gross+=partnerGrossAmount(sale);row.commission+=partnerCommissionAmount(sale);row.transfer+=partnerNetAmount(sale);row.qty+=Number(sale.qty||0);row.transactions+=1;grouped.set(id,row);}
   const paidMap=new Map(store.partnerPayouts.map(row=>[row.partnerId,row]));
-  const rows=[...grouped.values()].map(row=>{const partner=store.partners.find(item=>item.id===row.partnerId)||{};const commission=Math.round(row.gross*.20);return {...row,partner,commission,transfer:row.gross-commission,payout:paidMap.get(row.partnerId)||null};}).sort((a,b)=>a.partnerName.localeCompare(b.partnerName));
+  const rows=[...grouped.values()].map(row=>{const partner=store.partners.find(item=>item.id===row.partnerId)||{};return {...row,partner,payout:paidMap.get(row.partnerId)||null};}).sort((a,b)=>a.partnerName.localeCompare(b.partnerName));
   const gross=rows.reduce((sum,row)=>sum+row.gross,0),commission=rows.reduce((sum,row)=>sum+row.commission,0),transfer=rows.reduce((sum,row)=>sum+row.transfer,0);
   return `${pageHeading("Transferan mitra", "Rekap penjualan harian, potongan 20% untuk KALAP, dan nominal bersih yang perlu ditransfer.", `<input type="date" id="partner-transfer-date" value="${partnerTransferDate}" aria-label="Tanggal penjualan mitra">`)}
     <section class="stats-grid">${statCard("Total penjualan mitra",money(gross),"↗",`${integer(rows.length)} mitra terjual`)}${statCard("Bagian KALAP · 20%",money(commission),"−","Potongan otomatis dari penjualan kotor")}${statCard("Total transfer mitra",money(transfer),"⇄","Nominal bersih setelah potongan")}${statCard("Tanggal laporan",formatDate(dateFromKey(partnerTransferDate)),"◷","Pilih tanggal dari kontrol di atas")}</section>
@@ -2785,10 +2857,11 @@ async function markPartnerPayoutPaid(partnerId,button) {
   const existingPayout=store.partnerPayouts.find(row=>row.partnerId===partnerId && row.dateKey===partnerTransferDate);
   if(existingPayout?.status==="paid") return toast("Transfer mitra ini sudah ditandai lunas.","info");
   const sales=store.transferSales.filter(row=>row.status!=="cancelled"&&row.partnerId===partnerId);
-  const gross=sales.reduce((sum,row)=>sum+Number(row.total||0),0);
+  const gross=sumPartnerGrossSales(sales);
+  const commission=sumPartnerCommission(sales);
+  const transfer=sumPartnerNetSales(sales);
   if(!gross)return toast("Belum ada penjualan untuk mitra ini pada tanggal tersebut.","error");
   const partner=store.partners.find(row=>row.id===partnerId);if(!partner)return toast("Data mitra tidak ditemukan.","error");
-  const commission=Math.round(gross*.20),transfer=gross-commission;
   if(!partner.bankName||!partner.accountNumber||!partner.accountHolder)return toast("Lengkapi nama bank, nomor rekening, dan pemilik rekening pada menu Mitra terlebih dahulu.","error");
   if(!await kalapConfirm(`Tandai transfer untuk ${partner.name}?\nPenjualan: ${money(gross)}\nBagian KALAP 20%: ${money(commission)}\nTransfer bersih: ${money(transfer)}\n\nPastikan transfer bank benar-benar sudah dilakukan.`, {title:"Konfirmasi transfer mitra", confirmText:"Ya, tandai lunas", danger:false}))return;
   setBusy(button,true,"Menyimpan...");
@@ -2798,7 +2871,7 @@ async function markPartnerPayoutPaid(partnerId,button) {
 
 function renderPartnerHome() {
   const sales = getPartnerMonthSales();
-  const totalSales = sumBy(sales, "total");
+  const totalSales = sumPartnerNetSales(sales);
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
   const activeMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const stock = activeMenus.reduce((sum,menu)=>sum+Number(menu.stock||0),0);
@@ -2815,23 +2888,22 @@ function renderPartnerHome() {
     </section>` : "";
   return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau menu terdaftar, stok, dan penjualan produk milik Anda saja.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
     ${closingPanel}
-    <section class="stats-grid">${statCard("Penjualan bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan penjualan milik Anda`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
+    <section class="stats-grid">${statCard("Pendapatan bersih bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
     <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "Menu otomatis tampil ketika Admin/SPV menghubungkannya dengan akun mitra.", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
       <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
     </article><article class="panel">${panelHeader("Aktivitas terbaru", "Penjualan hanya untuk produk yang terhubung dengan akun Anda.", `<span class="status success">LIVE</span>`)}
-      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Total</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
 }
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
   const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
-  const selectedLabel = selected ? `${selected.name} — ${selected.partnerName || "Mitra"}` : "";
   return `${pageHeading("Cetak label", "Semua label menggunakan ukuran tetap 30 × 40 mm (portrait).", `<span class="status neutral">QR Code · ECO80BT</span>`)}
     <div class="info-banner"><span>▥</span><div><strong>Ukuran label 30 × 40 mm</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
     <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
-        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan QR..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
+        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan QR..." value=""><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
         <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
         <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."}</div>
         <div class="label-print-actions"><span class="helper-text">Ukuran tetap 30 × 40 mm · Portrait · Skala cetak 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
@@ -2845,10 +2917,10 @@ function renderPartnerMenu() {
 }
 function renderPartnerSales() {
   const monthSales = getPartnerMonthSales();
-  const total = sumBy(monthSales,"total");
-  return `${pageHeading("Penjualan saya", "Riwayat penjualan yang berasal dari produk milik Anda.", selectedMonthControl())}
-    <section class="stats-grid">${statCard("Nilai penjualan", money(total), "↗", `Periode ${monthKey}`)}${statCard("Jumlah transaksi", integer(monthSales.length), "▣", "Transaksi yang memuat produk Anda")}${statCard("Unit terjual", integer(monthSales.reduce((s,r)=>s+Number(r.qty||0),0)), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
-    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(monthSales.length)} catatan pada bulan ${monthKey}`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Total penjualan</th></tr></thead><tbody>${monthSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(row.total)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada penjualan untuk periode ini.</td></tr>`}</tbody></table></div></section>`;
+  const total = sumPartnerNetSales(monthSales);
+  return `${pageHeading("Penjualan saya", "Pendapatan yang diterima setelah potongan 20% untuk KALAP.", selectedMonthControl())}
+    <section class="stats-grid">${statCard("Pendapatan bersih", money(total), "↗", `Periode ${monthKey} · sudah dipotong 20%`)}${statCard("Jumlah transaksi", integer(monthSales.length), "▣", "Transaksi yang memuat produk Anda")}${statCard("Unit terjual", integer(monthSales.reduce((s,r)=>s+Number(r.qty||0),0)), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
+    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(monthSales.length)} catatan pada bulan ${monthKey} · nominal bersih mitra`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Pendapatan bersih (80%)</th></tr></thead><tbody>${monthSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada penjualan untuk periode ini.</td></tr>`}</tbody></table></div></section>`;
 }
 
 async function newMenuPageSubmit(event) {
@@ -2866,7 +2938,7 @@ async function newMenuPageSubmit(event) {
       name: String(data.name || "").trim(), partnerId: matchedPartner.id, price: parseMoneyInput(data.price)
     });
     form.reset();
-    toast(`Menu ${result.name} berhasil didaftarkan. ID QR ${result.barcode} dibuat otomatis. Stok awal tetap 0.`, "success");
+    toast(`Menu ${result.name} berhasil didaftarkan. QR Code dibuat otomatis.`, "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -3462,7 +3534,8 @@ function filterMenuRows() {
 
 function exportMenusCsv() {
   if(!["superadmin","spv"].includes(profile?.role)) return;
-  const rows=[["Nama menu","Mitra","Harga jual","Stok","ID QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>[menu.name,menu.partnerName||"",menu.price,menu.stock,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"])];
+  const catalogOnly = profile.role === "superadmin";
+  const rows=[catalogOnly ? ["Nama menu","Mitra","Harga jual","ID QR","Status"] : ["Nama menu","Mitra","Harga jual","Stok","ID QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>catalogOnly ? [menu.name,menu.partnerName||"",menu.price,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"] : [menu.name,menu.partnerName||"",menu.price,menu.stock,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"])];
   const csv=rows.map(row=>row.map(value=>`"${String(value??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
 }
@@ -3472,9 +3545,9 @@ function selectLabelMenu(menuId) {
   const menu = store.menus.find(row => row.id === menuId && row.active !== false && row.deleted !== true);
   if (!menu) return false;
   labelSelectedMenuId = menu.id;
-  labelSearchQuery = `${menu.name} — ${menu.partnerName || "Mitra"}`;
+  labelSearchQuery = "";
   const input = $("#label-unified-search"), hidden = $("#label-menu-select");
-  if (input) input.value = labelSearchQuery;
+  if (input) input.value = "";
   if (hidden) hidden.value = menu.id;
   updateLabelSelectionSummary();
   refreshUnifiedLabelSearch();
@@ -3486,10 +3559,11 @@ function refreshUnifiedLabelSearch() {
   if (!input || !results) return;
   const queryText = String(input.value || "").trim().toLowerCase();
   labelSearchQuery = input.value;
-  const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true && (!queryText ||
-    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText))))
+  if (!queryText) { results.innerHTML = ""; return; }
+  const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true &&
+    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText)))
     .sort((a,b) => String(a.name||"").localeCompare(String(b.name||""))).slice(0, 12);
-  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · QR ${escapeHtml(menuQrPayload(menu))}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
+  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
   $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
 }
 
@@ -3899,7 +3973,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.4", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.5", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
