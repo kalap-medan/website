@@ -238,7 +238,19 @@ service cloud.firestore {
               && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter));
-      allow update, delete: if false;
+      // Superadmin dapat menyembunyikan catatan stok masuk dari riwayat harian.
+      // Data movement tetap dipertahankan sebagai audit trail dan saldo menu tidak berubah.
+      allow update: if isSuperadmin()
+        && resource.data.type == 'in'
+        && resource.data.get('hiddenFromDaily', false) == false
+        && request.resource.data.hiddenFromDaily == true
+        && request.resource.data.hiddenAt == request.time
+        && request.resource.data.hiddenBy == request.auth.uid
+        && request.resource.data.hiddenByName is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
+        ]);
+      allow delete: if false;
     }
 
 
@@ -435,6 +447,8 @@ service cloud.firestore {
             ]))
         ));
       allow delete: if isSuperadmin() && resource.data.status == 'received'
+        && resource.data.get('requestType', 'stock') != 'adjustment'
+        && resource.data.get('latestAdjustmentRequestId', null) == null
         && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId));
     }
 

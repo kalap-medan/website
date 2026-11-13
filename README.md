@@ -1,57 +1,39 @@
-# KALAP Management System v2.0.6
+# KALAP Management System v2.0.8
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: aturan keamanan Firestore **versi baru wajib dipublikasikan** untuk fitur pengajuan edit, penggabungan jumlah pengajuan, dan penghapusan riwayat stok diterima.
-- `firestore.indexes.json`: konfigurasi indeks Firestore.
+- `firestore.rules`: salinan rules versi sebelumnya; **tidak ada perubahan rules pada v2.0.8**.
+- `firestore.indexes.json`: konfigurasi indeks Firestore; tidak berubah.
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.0.6 agar browser mengambil source terbaru.
+- `service-worker.js`: cache shell versi 2.0.8 agar browser mengambil source terbaru.
 
-## Perubahan v2.0.6
-- **Pengajuan stok menu yang sama digabung.** Jika mitra mengajukan 5 unit lalu menambahkan 2 unit saat pengajuan masih menunggu, sistem memperbarui satu pengajuan menjadi 7 unit dan menampilkan keterangan “Ditambah 5 → 7 (+2)”.
-- **Koreksi stok yang sudah diterima.** Mitra dapat mengajukan jumlah total yang benar untuk satu penerimaan yang sudah disetujui. Admin/SPV harus menyetujui; sistem mencatat pergerakan koreksi bertanda `ditambah` atau `dikurang`, lalu menyesuaikan saldo stok dengan selisihnya. Pengurangan ditolak apabila stok tersedia tidak mencukupi. Batch yang sudah dikoreksi tidak dapat dikoreksi lagi lewat catatan lama; gunakan catatan koreksi terbaru.
-- **Hapus riwayat diterima oleh Superadmin.** Superadmin dapat menghapus dokumen riwayat pengajuan berstatus diterima. Saldo stok dan catatan pergerakan stok tetap dipertahankan. Penghapusan diblokir ketika ada pengajuan lain yang sedang terkunci untuk menu tersebut.
-- **Pencarian pengajuan stok.** Pemilihan menu mitra dan pencarian nama mitra pada halaman pengajuan menggunakan kolom pencarian, bukan dropdown.
-- Cache PWA diperbarui ke v2.0.6.
+## Perubahan v2.0.8
+- **Pencarian akun pengguna.** Kolom pencarian di halaman Akun Pengguna dapat mencari nama tampilan, nama, email, role (Admin/SPV/Kasir/Mitra), dan status (aktif/nonaktif).
+- **Pagination akun pengguna.** Daftar akun menampilkan maksimal 7 baris per halaman, lengkap dengan tombol nomor halaman, sebelumnya, dan berikutnya. Pencarian mengembalikan tampilan ke halaman pertama.
+- **Hapus mitra dari halaman Manajemen Mitra.** Tombol Hapus mitra mengarsipkan profil mitra dengan menonaktifkannya, menonaktifkan seluruh menu mitra di POS, membatalkan pengajuan stok yang masih menunggu, menghapus lock pengajuan aktif, dan menonaktifkan akun login Mitra yang terhubung.
+- **Arsip tetap aman.** Penghapusan mitra tidak menghapus transaksi penjualan, laporan, riwayat pergerakan stok, maupun dokumen historis yang terhubung. Profil hanya dikeluarkan dari daftar mitra aktif.
+- Cache PWA diperbarui ke v2.0.8.
 
-## Perubahan yang tetap dipertahankan dari v2.0.5
-- **Pendapatan mitra dipotong 20% secara otomatis.** Dokumen penjualan mitra menyimpan `grossTotal`, `kalapShare`, dan `netTotal`. Dashboard mitra, aktivitas terbaru, serta halaman Penjualan Saya menampilkan nominal bersih setelah potongan 20% untuk KALAP. Riwayat lama yang belum memiliki field tersebut dihitung dengan rumus yang sama saat ditampilkan.
-- **Transferan mitra diselaraskan dengan perhitungan dashboard.** Rekap transfer dan konfirmasi transfer menjumlahkan nilai kotor, potongan, dan bersih pada basis per catatan penjualan, sehingga nominal yang terlihat di dashboard mitra cocok dengan perhitungan admin.
-- **Badge Pengajuan Stok realtime.** Navbar Superadmin dan SPV menampilkan jumlah menu/pengajuan yang masih berstatus `pending` atau `revised`. Menu unik yang masih diajukan dihitung satu kali, bukan jumlah unit stok atau duplikasi dokumen lama. Badge bertambah dan berkurang mengikuti snapshot Firestore.
-- **Pencarian Cetak Label.** Daftar hasil tidak ditampilkan saat kolom kosong. Menu baru muncul ketika pengguna mengetik, mencari nama mitra/menu, atau melakukan scan QR; setelah menu dipilih hasil pencarian menutup dan ringkasan menu terpilih tetap terlihat.
-- **Menu & Persediaan Superadmin menjadi katalog saja.** Keterangan stok dan kolom stok dihilangkan dari tampilan serta ekspor CSV Superadmin. Pemantauan stok untuk SPV tetap dipertahankan.
-- Keterangan stok awal di halaman pendaftaran Menu Baru dihapus dari tampilan; stok awal sistem tetap nol sampai ada pengajuan stok yang diterima.
-- Cache PWA diperbarui ke v2.0.5.
-
-## Perhitungan pendapatan mitra
-- Penjualan kotor mitra dihitung dari subtotal item milik mitra dalam satu transaksi.
-- Bagian KALAP = `Math.round(penjualanKotor × 20%)`.
-- Pendapatan bersih mitra = `penjualanKotor − bagianKALAP`.
-- Perhitungan per catatan penjualan digunakan konsisten di portal mitra, rekap transfer, dan penandaan transfer.
-- Transaksi yang dibatalkan tetap dikeluarkan dari total pendapatan, karena status catatan partner sales ikut diubah menjadi `cancelled` saat pembatalan transaksi.
-
-## Perilaku badge Pengajuan Stok
-- Hanya terlihat di navbar Superadmin dan SPV.
-- Menghitung dokumen berstatus `pending` dan `revised`.
-- Tidak menghitung pengajuan yang sudah `received` atau `rejected`.
-
-## Fitur yang dipertahankan
-- Hapus menu hanya untuk Superadmin melalui soft-delete dan Firestore Rules v2.0.4.
-- Label QR 30 × 40 mm portrait untuk Blueprint ECO80BT 203 DPI.
-- Login `Ingat Saya` memakai Firebase Auth local/session persistence.
-- POS, pembatalan transaksi dan pengembalian stok, pengajuan stok dan input manual, closing harian, keuangan, manajemen mitra, serta PWA.
+## Fitur versi sebelumnya yang tetap dipertahankan
+- Halaman Pengajuan dan Stok Harian digabung, dengan formulir pengajuan di atas dan riwayat stok harian di bawah.
+- Riwayat stok dapat ditelusuri berdasarkan tanggal dan dicari berdasarkan menu/mitra/sumber.
+- Superadmin dapat menyembunyikan catatan stok masuk dari riwayat tanpa mengubah saldo aktual; batch yang memiliki riwayat koreksi dilindungi agar jejak audit tidak terputus.
+- Pengajuan tambahan untuk menu dan mitra yang sama digabung selama pengajuan masih menunggu keputusan.
+- Koreksi stok yang sudah diterima menggunakan alur pengajuan dan persetujuan Admin/SPV.
+- Penghapusan menu tetap menggunakan soft-delete; arsip penjualan dan transaksi tetap dipertahankan.
+- Fitur POS, penjualan, pembatalan transaksi/pengembalian stok, input stok manual, closing harian, keuangan, transfer mitra, cetak label, pencarian menu, login Ingat Saya, dan PWA tetap dipertahankan.
 
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.0.6.
-3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/` serta file tersembunyi `.nojekyll`.
+2. Ekstrak ZIP v2.0.8.
+3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Buka aplikasi dan lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali agar service worker v2.0.6 aktif.
+5. Buka aplikasi dan lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali agar service worker v2.0.8 aktif.
 
-## Firestore — wajib diperbarui
-1. Buka Firebase Console → Firestore Database → Rules.
-2. Ganti seluruh isi Rules dengan file `firestore.rules` dari paket v2.0.6.
-3. Klik **Publish**. Pembaruan rules wajib dilakukan karena mitra sekarang dapat menambah jumlah pengajuan pending dan membuat pengajuan koreksi, serta Superadmin dapat menghapus riwayat yang sudah diterima. Rules baru juga memvalidasi movement koreksi `adjustment`.
-4. Tidak ada perubahan pada `firestore.indexes.json`, jadi indeks tidak perlu diunggah ulang.
+## Firestore — tidak perlu publish Rules ulang
+Pada versi v2.0.8 tidak ada perubahan Firestore Rules maupun indeks. Fitur baru hanya menggunakan operasi update yang memang sudah diizinkan oleh Rules v2.0.7: Superadmin memperbarui status mitra, status akun Mitra, status menu, dan status pengajuan yang terkait.
 
-Jangan hanya mengunggah `index.html`: aplikasi dan Firestore Rules harus sama-sama diperbarui agar fitur baru tidak ditolak oleh izin Firestore.
+File `firestore.rules` dan `firestore.indexes.json` tetap disertakan untuk kelengkapan paket, tetapi tidak perlu di-upload atau di-publish ulang untuk perubahan v2.0.8 ini.
+
+## Catatan penghapusan mitra
+Tombol Hapus mitra pada halaman Manajemen Mitra adalah pengarsipan/nonaktif, bukan penghapusan permanen dokumen. Sistem menjaga referensi mitra pada arsip penjualan, transaksi, dan pergerakan stok. Semua menu terkait dinonaktifkan, pengajuan yang belum diproses dibatalkan, lock pengajuan dibersihkan, dan akun login yang terhubung dinonaktifkan. Apabila proses terhenti karena koneksi, mitra tetap terlihat pada daftar aktif sampai proses update profil mitranya selesai; Admin dapat mencoba lagi.
