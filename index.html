@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.7.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=1.8.0">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v1.7.0</title>
+  <title>KALAP Management System v1.8.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -936,6 +936,38 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
   .remember-row small { font-size: 9px; }
 }
 
+
+/* KALAP v1.8.0: UX and cancellation improvements */
+.menu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.pos-pagination .page-buttons { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px; }
+.pos-pagination .page-buttons button { min-width:34px; min-height:34px; padding:5px 9px !important; font-size:12px !important; }
+.pos-pagination .page-buttons button.active-page { color:#fff; background:var(--kalap-red); border-color:var(--kalap-red); }
+.page-ellipsis { display:inline-flex; align-items:center; padding:0 3px; color:var(--muted); }
+.label-selector-grid { grid-template-columns:minmax(0,1fr) 145px; }
+.label-unified-field { grid-column:1/-1; }
+.label-search-results { display:grid; gap:6px; margin-top:7px; }
+.label-search-result { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); text-align:left; cursor:pointer; }
+.label-search-result strong { font-size:12px; }
+.label-search-result span { color:var(--muted); font-size:10px; text-align:right; }
+.label-search-result.selected,.label-search-result:hover { border-color:var(--kalap-red); background:var(--kalap-cream); }
+.label-search-empty { padding:10px 12px; color:var(--muted); font-size:11px; }
+.payment-symbol { width:30px; height:30px; display:grid; place-items:center; }
+.payment-symbol svg { width:27px; height:27px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.payment-choice .payment-symbol { font-size:0 !important; }
+.cash-tender-box { display:grid; gap:14px; margin:15px 0 6px; padding:18px; border:1px solid var(--line); border-radius:14px; background:#fbfaf7; }
+.cash-payment-total,.cash-change-panel { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+.cash-payment-total span,.cash-change-panel span { color:var(--muted); font-size:11px; font-weight:700; }
+.cash-payment-total strong { color:var(--ink); font-size:18px; font-weight:900; white-space:nowrap; }
+.cash-change-panel { background:color-mix(in srgb,var(--kalap-green) 20%,#fff); border-color:color-mix(in srgb,var(--kalap-green) 60%,#fff); }
+.cash-change-panel strong { color:#276b4c; font-size:21px; font-weight:900; white-space:nowrap; }
+.cash-tender-box .form-field { margin:0; }
+.cash-tender-box .form-field input { min-height:48px; font-size:17px; font-weight:800; letter-spacing:.01em; }
+.cash-tender-box .btn-wide { margin:0; }
+.transaction-cancelled-row { opacity:.78; background:#fff8f7; }
+.transaction-cancel-note { margin-top:12px; padding:12px 14px; border:1px solid #f1d2cf; border-radius:11px; background:#fff5f3; color:#9d4038; font-size:11px; line-height:1.6; }
+.danger-link { color:#b42318 !important; }
+@media (max-width:560px) { .menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; .label-selector-grid { grid-template-columns:1fr; } .cash-payment-total,.cash-change-panel { align-items:flex-start; flex-direction:column; gap:7px; } .cash-payment-total strong,.cash-change-panel strong { font-size:18px; } }
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -968,12 +1000,6 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
             <svg class="eye-icon" id="password-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
-        <label class="remember-row" for="remember-me">
-          <input id="remember-me" type="checkbox">
-          <span class="remember-check" aria-hidden="true"></span>
-          <span>Ingat saya</span>
-          <small>Login ulang saat halaman dibuka kembali</small>
-        </label>
         <button class="btn btn-primary btn-wide" type="submit" id="login-submit">Masuk</button>
         <div id="firebase-setup-note" class="setup-note hidden">
           Firebase belum dikonfigurasi. Periksa objek <code>firebaseConfig</code> di bagian awal JavaScript pada <code>index.html</code>, lalu muat ulang halaman.
@@ -990,7 +1016,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v1.7.0</span></div>
+        <div class="sidebar-version">KALAP System <span>v1.8.0</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1021,7 +1047,7 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
   createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile,
-  setPersistence, browserLocalPersistence, inMemoryPersistence
+  setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -1058,6 +1084,12 @@ const DATE_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", 
 const TIME_SHORT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false });
 const ROLE_LABELS = { superadmin: "Admin", spv: "SPV", cashier: "Kasir", partner: "Mitra" };
 const ICONS = { dashboard: "◫", transactions: "↗", pos: "▣", stock: "▤", partners: "♧", accounts: "♙", finance: "◉", partnerHome: "⌂", partnerMenu: "▦", partnerSales: "◷", requests: "＋", labels: "▥", closing: "◷", newMenu: "＋" };
+const PAYMENT_ICONS = {
+  cash: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="5.4" width="18.4" height="13.2" rx="2.2"/><circle cx="12" cy="12" r="3.1"/><path d="M6.2 9h.01M17.8 15h.01"/></svg>',
+  qris: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM19 14h2M19 18v3M14 20h3"/><path d="M5.5 5.5h2v2h-2zM16.5 5.5h2v2h-2zM5.5 16.5h2v2h-2z"/></svg>',
+  transfer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-5 9 5H3zM5 10v8M9.7 10v8M14.3 10v8M19 10v8M3 20h18M2 22h20"/></svg>',
+  kalap_operational: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg>'
+};
 
 let app, auth, db;
 let currentUser = null;
@@ -1082,8 +1114,8 @@ let menuStatusFilter = "all";
 let menuListCurrentPage = 1;
 let partnerListSearchQuery = "";
 let partnerListCurrentPage = 1;
-let labelMenuSearchQuery = "";
-let labelPartnerSearchQuery = "";
+let labelSearchQuery = "";
+let labelSelectedMenuId = "";
 let lastDataErrorKey = "";
 let lastDataErrorAt = 0;
 const directoryPageSize = 12;
@@ -1132,6 +1164,28 @@ function asDate(value) {
 }
 function dayKeyFromTimestamp(value) { const date = asDate(value); return date ? jakartaDateKey(date) : ""; }
 function money(value) { return IDR.format(Number(value || 0)); }
+function moneyDigits(value) { return String(value ?? "").replace(/\D/g, ""); }
+function parseMoneyInput(value) { const digits = moneyDigits(value); return digits ? Number(digits) : 0; }
+function formatMoneyInput(value) { const digits = moneyDigits(value); return digits ? new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(digits)) : ""; }
+function initMoneyInputs(root = document) {
+  $$('[data-money-input]', root).forEach(input => {
+    input.value = formatMoneyInput(input.value);
+    if (input.dataset.moneyReady === "true") return;
+    input.dataset.moneyReady = "true";
+    input.addEventListener("input", () => {
+      const caret = input.selectionStart ?? input.value.length;
+      const digitsBeforeCaret = moneyDigits(input.value.slice(0, caret)).length;
+      const formatted = formatMoneyInput(input.value);
+      input.value = formatted;
+      let nextCaret = 0, seenDigits = 0;
+      while (nextCaret < formatted.length && seenDigits < digitsBeforeCaret) {
+        if (/\d/.test(formatted[nextCaret])) seenDigits += 1;
+        nextCaret += 1;
+      }
+      try { input.setSelectionRange(nextCaret, nextCaret); } catch (_) {}
+    });
+  });
+}
 function integer(value) { return new Intl.NumberFormat("id-ID").format(Number(value || 0)); }
 function paymentMethodLabel(value) {
   return ({ cash: "TUNAI", qris: "QRIS", transfer: "TRANSFER", kalap_operational: "DITANGGUNG KALAP · BEBAN OPERASIONAL" })[String(value || "").toLowerCase()] || String(value || "—").toUpperCase();
@@ -1335,6 +1389,21 @@ async function callApi(name, payload = {}) {
     return { menuId: menuRef.id, name: nameValue, qrCode, barcode: qrCode, stock: 0 };
   }
 
+  if (name === "deleteMenu") {
+    requireRole("superadmin");
+    const menuId = String(payload.menuId || "");
+    if (!menuId) throw new Error("Menu tidak valid.");
+    const menuRef = doc(db, "menus", menuId);
+    const menuSnap = await getDoc(menuRef);
+    if (!menuSnap.exists() || menuSnap.data().deleted === true) throw new Error("Menu sudah tidak tersedia.");
+    const pendingSnap = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menuId)));
+    const pending = pendingSnap.docs.find(row => ["pending", "revised"].includes(row.data().status));
+    const lockSnap = await getDoc(doc(db, "stockRequestLocks", menuId));
+    if (pending || lockSnap.exists()) throw new Error("Menu belum bisa dihapus karena masih memiliki pengajuan stok yang menunggu keputusan. Selesaikan pengajuannya terlebih dahulu.");
+    await updateDoc(menuRef, { deleted: true, active: false, deletedAt: serverTimestamp(), deletedBy: actorUid, updatedAt: serverTimestamp(), updatedBy: actorUid });
+    return { menuId, name: menuSnap.data().name };
+  }
+
   if (name === "updateMenu") {
     requireRole("superadmin");
     const menuId = String(payload.menuId || "");
@@ -1404,9 +1473,18 @@ async function callApi(name, payload = {}) {
         stockBefore: item.stockBefore, stockAfter: item.stockAfter, movementId: item.movementRef.id
       }));
       const isKalapOperational = paymentMethod === "kalap_operational";
+      const groups = new Map();
+      for (const item of prepared) {
+        if (!item.partnerId) continue;
+        if (!groups.has(item.partnerId)) groups.set(item.partnerId, { total: 0, qty: 0, items: [], partnerName: item.partnerName, ref: doc(collection(db, "partnerSales")) });
+        const group = groups.get(item.partnerId);
+        group.total += item.subtotal; group.qty += item.qty;
+        group.items.push({ menuId: item.menuId, name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal });
+      }
+      const partnerSaleIds = [...groups.values()].map(group => group.ref.id);
       tx.set(saleRef, { transactionCode: code, items: storedItems,
-        movementIds: movementRefs.map(ref => ref.id), total, paymentMethod,
-        payerType: isKalapOperational ? "kalap" : "customer",
+        movementIds: movementRefs.map(ref => ref.id), cashflowId: cashflowRef.id, partnerSaleIds,
+        total, paymentMethod, payerType: isKalapOperational ? "kalap" : "customer",
         isOperationalSale: isKalapOperational, businessDate,
         amountReceived, changeAmount,
         cashierUid: actorUid, cashierName: actorName, createdAt, status: "completed" });
@@ -1417,17 +1495,8 @@ async function callApi(name, payload = {}) {
           stockAfter: item.stockAfter, transactionId: saleRef.id, transactionCode: code,
           actorUid, actorName, createdAt });
       }
-      const groups = new Map();
-      for (const item of prepared) {
-        if (!item.partnerId) continue;
-        if (!groups.has(item.partnerId)) groups.set(item.partnerId, { total: 0, qty: 0, items: [], partnerName: item.partnerName });
-        const group = groups.get(item.partnerId);
-        group.total += item.subtotal; group.qty += item.qty;
-        group.items.push({ menuId: item.menuId, name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal });
-      }
       for (const [partnerId, group] of groups.entries()) {
-        const partnerSaleRef = doc(collection(db, "partnerSales"));
-        tx.set(partnerSaleRef, { partnerId, partnerName: group.partnerName, transactionId: saleRef.id,
+        tx.set(group.ref, { partnerId, partnerName: group.partnerName, transactionId: saleRef.id,
           transactionCode: code, total: group.total, qty: group.qty, items: group.items,
           paymentMethod, businessDate, createdAt, status: "recorded" });
       }
@@ -1437,7 +1506,7 @@ async function callApi(name, payload = {}) {
         category: isKalapOperational ? "Beban operasional - penjualan" : "Penjualan",
         note: isKalapOperational ? `Penjualan ${code} ditanggung KALAP` : `Penjualan ${code}`,
         source: isKalapOperational ? "operational_sale" : "sale",
-        transactionId: saleRef.id, transactionCode: code,
+        transactionId: saleRef.id, transactionCode: code, status: "posted",
         createdAt, createdBy: actorUid, createdByName: actorName
       });
       return { transactionId: saleRef.id, transactionCode: code, total, paymentMethod,
@@ -1446,6 +1515,104 @@ async function callApi(name, payload = {}) {
         items: prepared.map(item => ({ name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal })) };
     });
     return result;
+  }
+
+  if (name === "cancelSale") {
+    requireRole("superadmin", "spv", "cashier");
+    const transactionId = String(payload.transactionId || "");
+    if (!transactionId) throw new Error("Transaksi tidak valid.");
+    const saleRef = doc(db, "transactions", transactionId);
+    const firstSaleSnap = await getDoc(saleRef);
+    if (!firstSaleSnap.exists()) throw new Error("Transaksi tidak ditemukan.");
+    const firstSale = firstSaleSnap.data();
+    if (firstSale.status !== "completed") throw new Error("Transaksi ini sudah dibatalkan atau tidak dapat dibatalkan.");
+    if (profile.role === "cashier" && firstSale.cashierUid !== actorUid) throw new Error("Kasir hanya dapat membatalkan transaksi miliknya sendiri.");
+
+    const hasCashflowLink = typeof firstSale.cashflowId === "string" && firstSale.cashflowId.length > 0;
+    const hasPartnerSaleLinks = Array.isArray(firstSale.partnerSaleIds);
+    if ((!hasCashflowLink || !hasPartnerSaleLinks) && !["superadmin", "spv"].includes(profile.role)) {
+      throw new Error("Transaksi versi lama perlu dibatalkan oleh Admin/SPV agar stok, arus kas, dan penjualan mitra tetap konsisten.");
+    }
+
+    const menuItems = Array.isArray(firstSale.items) ? firstSale.items : [];
+    if (!menuItems.length || menuItems.length > 10) throw new Error("Rincian item transaksi tidak valid atau melebihi batas pembatalan aman.");
+    const businessDate = String(firstSale.businessDate || dayKeyFromTimestamp(firstSale.createdAt) || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Tanggal transaksi tidak valid. Hubungi Admin untuk pemeriksaan manual.");
+
+    const menuRefs = menuItems.map(item => doc(db, "menus", String(item.menuId || "")));
+    const movementRefs = menuItems.map(() => doc(collection(db, "stockMovements")));
+    const cashflowRefs = hasCashflowLink ? [doc(db, "cashflows", firstSale.cashflowId)] : [];
+    const partnerSaleRefs = hasPartnerSaleLinks
+      ? firstSale.partnerSaleIds.map(id => doc(db, "partnerSales", String(id)))
+      : [];
+
+    // Transaksi lama sebelum v1.8 belum menyimpan referensi langsung. Cari tautannya
+    // dengan ID transaksi; fallback ini hanya dijalankan oleh Admin/SPV.
+    if (!cashflowRefs.length && ["superadmin", "spv"].includes(profile.role)) {
+      const legacyCashflows = await getDocs(query(collection(db, "cashflows"), where("transactionId", "==", transactionId)));
+      cashflowRefs.push(...legacyCashflows.docs.map(row => doc(db, "cashflows", row.id)));
+    }
+    if (!hasPartnerSaleLinks && ["superadmin", "spv"].includes(profile.role)) {
+      const legacyPartnerSales = await getDocs(query(collection(db, "partnerSales"), where("transactionId", "==", transactionId)));
+      partnerSaleRefs.push(...legacyPartnerSales.docs.map(row => doc(db, "partnerSales", row.id)));
+    }
+
+    const closingRef = doc(db, "dailyClosings", businessDate);
+    return await runTransaction(db, async tx => {
+      const saleSnap = await tx.get(saleRef);
+      const closingSnap = await tx.get(closingRef);
+      if (!saleSnap.exists() || saleSnap.data().status !== "completed") throw new Error("Transaksi sudah diproses oleh pengguna lain. Stok tidak ditambahkan dua kali.");
+      const sale = saleSnap.data();
+      if (profile.role === "cashier" && sale.cashierUid !== actorUid) throw new Error("Kasir hanya dapat membatalkan transaksi miliknya sendiri.");
+      if (closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status)) throw new Error("Tanggal transaksi sudah masuk proses atau selesai closing. Transaksi tidak dapat dibatalkan dari tanggal yang telah ditutup.");
+
+      const refsToRead = [...menuRefs, ...cashflowRefs, ...partnerSaleRefs];
+      const reads = await Promise.all(refsToRead.map(ref => tx.get(ref)));
+      let cursor = 0;
+      const menuSnaps = reads.slice(cursor, cursor += menuRefs.length);
+      const cashflowSnaps = reads.slice(cursor, cursor += cashflowRefs.length);
+      const partnerSnaps = reads.slice(cursor, cursor + partnerSaleRefs.length);
+      const createdAt = serverTimestamp();
+      const cancelMovementIds = [];
+
+      for (let i = 0; i < menuItems.length; i += 1) {
+        const menuItem = menuItems[i], menuSnap = menuSnaps[i];
+        if (!menuSnap.exists()) throw new Error(`Menu ${menuItem.name || "transaksi"} tidak ditemukan. Hubungi Admin untuk pemeriksaan manual.`);
+        const menu = menuSnap.data();
+        const qty = Number(menuItem.qty);
+        if (!Number.isInteger(qty) || qty < 1) throw new Error("Jumlah item pada transaksi tidak valid.");
+        const stockBefore = Number(menu.stock || 0);
+        const stockAfter = stockBefore + qty;
+        if (!Number.isSafeInteger(stockAfter)) throw new Error(`Stok ${menu.name} melebihi batas angka yang aman.`);
+        const movementRef = movementRefs[i];
+        cancelMovementIds.push(movementRef.id);
+        tx.update(menuRefs[i], { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
+        tx.set(movementRef, {
+          type: "sale_cancel", qty, menuId: menuItem.menuId, menuName: menu.name || menuItem.name || "Menu",
+          partnerId: menu.partnerId || menuItem.partnerId || null, partnerName: menu.partnerName || menuItem.partnerName || "—",
+          stockBefore, stockAfter, transactionId, transactionCode: sale.transactionCode || transactionId,
+          actorUid, actorName, note: "Pengembalian stok akibat pembatalan transaksi", createdAt
+        });
+      }
+
+      tx.update(saleRef, {
+        status: "cancelled", cancelledAt: createdAt, cancelledBy: actorUid,
+        cancelledByName: actorName, cancelBusinessDate: businessDate,
+        cancelReason: String(payload.reason || "Dibatalkan melalui riwayat transaksi."),
+        cancelMovementIds
+      });
+      cashflowRefs.forEach((ref, index) => {
+        if (cashflowSnaps[index]?.exists()) tx.update(ref, {
+          status: "cancelled", cancelledAt: createdAt, cancelledBy: actorUid, cancelledByName: actorName
+        });
+      });
+      partnerSaleRefs.forEach((ref, index) => {
+        if (partnerSnaps[index]?.exists()) tx.update(ref, {
+          status: "cancelled", cancelledAt: createdAt, cancelledBy: actorUid, cancelledByName: actorName
+        });
+      });
+      return { transactionId, transactionCode: sale.transactionCode || transactionId, restoredItems: menuItems.length };
+    });
   }
 
   if (name === "receiveStock") {
@@ -1982,8 +2149,8 @@ function panelHeader(title, subtitle, action = "") {
   return `<div class="panel-header"><div><h3 class="panel-title">${title}</h3><div class="panel-subtitle">${subtitle}</div></div>${action}</div>`;
 }
 function selectedMonthControl() { return `<input type="month" id="month-select" value="${monthKey}" aria-label="Pilih bulan">`; }
-function getMonthTransactions() { return store.transactions.filter(item => dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
-function getPartnerMonthSales() { return store.partnerSales.filter(item => dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
+function getMonthTransactions() { return store.transactions.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
+function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
 function sortNewest(rows, field = "createdAt") { return rows.slice().sort((a,b) => (asDate(b[field])?.getTime() || 0) - (asDate(a[field])?.getTime() || 0)); }
 function sumBy(list, key) { return list.reduce((sum, item) => sum + Number(item[key] || 0), 0); }
 function sumTransactionItems(transactions, key) { return transactions.reduce((sum, sale) => sum + (sale.items || []).reduce((inner, item) => inner + Number(item[key] || 0), 0), 0); }
@@ -1998,17 +2165,17 @@ function getDashboardKeys() {
   return keys;
 }
 function renderSuperadminDashboard() {
-  const txs = store.dashboardTransactions;
+  const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled");
   const revenue = sumBy(txs, "total");
-  const cashIn = store.dashboardCashflows.filter(row => row.type === "income").reduce((sum,row)=>sum+Number(row.amount||0),0);
-  const cashOut = store.dashboardCashflows.filter(row => row.type === "expense").reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const cashIn = store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "income").reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const cashOut = store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "expense").reduce((sum,row)=>sum+Number(row.amount||0),0);
   const historySales = sortNewest(txs).slice(0, 5);
   return `${pageHeading("Dashboard", "Pilih rentang tanggal untuk melihat kinerja KALAP.", dashboardRangeControls())}
     <section class="stats-grid">
       ${statCard("Total penjualan", money(revenue), "↗", `${integer(txs.length)} transaksi pada periode terpilih`)}
       ${statCard("Pemasukan pelanggan", money(cashIn), "＋", "Uang yang benar-benar diterima KALAP")}
       ${statCard("Pengeluaran", money(cashOut), "−", "Termasuk transaksi yang ditanggung KALAP")}
-      ${statCard("Total mitra / menu", `${integer(store.partners.filter(partner => partner.active !== false).length)} / ${integer(store.menus.length)}`, "▤", "Data katalog saat ini")}
+      ${statCard("Total mitra / menu", `${integer(store.partners.filter(partner => partner.active !== false).length)} / ${integer(store.menus.filter(menu=>menu.deleted!==true).length)}`, "▤", "Data katalog saat ini")}
     </section>
     <section class="content-grid">
       <article class="panel">${panelHeader("Grafik penjualan", `${dashboardFrom} sampai ${dashboardTo}`, `<span class="status neutral">REALTIME</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik titik atau batang grafik untuk membuka detail penjualan pada tanggal tersebut.</div></article>
@@ -2017,12 +2184,12 @@ function renderSuperadminDashboard() {
     <section class="panel">${panelHeader("Transaksi terbaru", "Lima transaksi terbaru pada rentang tanggal terpilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(historySales, true)}</section>`;
 }
 function renderSpvDashboard() {
-  const txs = store.dashboardTransactions;
+  const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled");
   const moves = store.dashboardMovements;
-  const sold = moves.filter(item=>item.type==="sale").reduce((sum,item)=>sum+Number(item.qty||0),0);
+  const sold = txs.reduce((sum, tx) => sum + (tx.items || []).reduce((qty, item) => qty + Number(item.qty || 0), 0), 0);
   const received = moves.filter(item=>item.type==="in").reduce((sum,item)=>sum+Number(item.qty||0),0);
   const total = sumBy(txs,"total");
-  const expenses = store.dashboardCashflows.filter(row=>row.type==="expense").reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const expenses = store.dashboardCashflows.filter(row=>row.status!=="cancelled" && row.type==="expense").reduce((sum,row)=>sum+Number(row.amount||0),0);
   const recent = sortNewest(txs).slice(0,6);
   return `${pageHeading("Dashboard SPV", "Pantau aktivitas, stok, penjualan, dan arus kas berdasarkan rentang tanggal.", dashboardRangeControls())}
     <section class="stats-grid">
@@ -2041,8 +2208,8 @@ function mountDashboardCharts() {
   if (!salesCanvas || typeof Chart === "undefined") return;
   let keys=[]; try { keys=getDashboardKeys(); } catch(error) { toast(error.message,"error"); return; }
   const dailySales=new Map(), dailyIn=new Map(), dailyOut=new Map();
-  for(const tx of store.dashboardTransactions){const key=dayKeyFromTimestamp(tx.createdAt);dailySales.set(key,(dailySales.get(key)||0)+Number(tx.total||0));}
-  for(const row of store.dashboardCashflows){const key=dayKeyFromTimestamp(row.createdAt);const map=row.type==="expense"?dailyOut:dailyIn;map.set(key,(map.get(key)||0)+Number(row.amount||0));}
+  for(const tx of store.dashboardTransactions.filter(row=>row.status!=="cancelled")){const key=dayKeyFromTimestamp(tx.createdAt);dailySales.set(key,(dailySales.get(key)||0)+Number(tx.total||0));}
+  for(const row of store.dashboardCashflows.filter(item=>item.status!=="cancelled")){const key=dayKeyFromTimestamp(row.createdAt);const map=row.type==="expense"?dailyOut:dailyIn;map.set(key,(map.get(key)||0)+Number(row.amount||0));}
   const labels=keys.map(key=>formatDate(dateFromKey(key),{day:"2-digit",month:"short"}));
   const dateTitle=items=>keys[items[0]?.dataIndex] ? formatDate(dateFromKey(keys[items[0].dataIndex]),{day:"numeric",month:"long",year:"numeric"}) : "";
   const onChartClick=(_,elements)=>{const item=elements?.[0];if(item && keys[item.index]) openDashboardDayDetail(keys[item.index]);};
@@ -2061,9 +2228,9 @@ async function openDashboardDayDetail(dateKey) {
   root.innerHTML=`<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h2>Detail penjualan harian</h2><p>${formatDate(dateFromKey(dateKey),{day:"numeric",month:"long",year:"numeric"})}</p></div><button class="modal-close" data-dashboard-detail-close>×</button></div><div class="muted">Memuat ringkasan stok historis…</div></section></div>`;
   const close=()=>{root.innerHTML="";};root.querySelectorAll("[data-dashboard-detail-close],.modal-backdrop").forEach(el=>el.addEventListener("click",e=>{if(e.target===el||el.matches("[data-dashboard-detail-close]"))close();}));
   try {
-    const txs=store.dashboardTransactions.filter(row=>dayKeyFromTimestamp(row.createdAt)===dateKey);
+    const txs=store.dashboardTransactions.filter(row=>row.status!=="cancelled"&&dayKeyFromTimestamp(row.createdAt)===dateKey);
     const movements=store.dashboardMovements.filter(row=>dayKeyFromTimestamp(row.createdAt)===dateKey);
-    const expenses=store.dashboardCashflows.filter(row=>row.type==="expense"&&dayKeyFromTimestamp(row.createdAt)===dateKey);
+    const expenses=store.dashboardCashflows.filter(row=>row.status!=="cancelled"&&row.type==="expense"&&dayKeyFromTimestamp(row.createdAt)===dateKey);
     const start=dateFromKey(dateKey), end=new Date(start.getTime()+86400000);
     // Read latest stock state at or before selected day; single-field query, no composite index.
     const historicalSnap=await getDocs(query(collection(db,"stockMovements"),where("createdAt","<",Timestamp.fromDate(end)),orderBy("createdAt","desc"),limit(12000)));
@@ -2072,15 +2239,16 @@ async function openDashboardDayDetail(dateKey) {
     const menuRows=store.menus.filter(menu=>!menu.createdAt||asDate(menu.createdAt)<=end).map(menu=>{
       const dayRows=movements.filter(row=>row.menuId===menu.id);
       const incoming=dayRows.filter(row=>row.type==="in").reduce((sum,row)=>sum+Number(row.qty||0),0);
-      const sold=dayRows.filter(row=>row.type==="sale").reduce((sum,row)=>sum+Number(row.qty||0),0);
+      const sold=txs.reduce((sum, tx)=>sum+(tx.items||[]).filter(item=>item.menuId===menu.id).reduce((qty,item)=>qty+Number(item.qty||0),0),0);
+      const returned=dayRows.filter(row=>row.type==="sale_cancel").reduce((sum,row)=>sum+Number(row.qty||0),0);
       const last=latestByMenu.get(menu.id);
-      return {name:menu.name,partner:menu.partnerName||"—",incoming,sold,remaining:last?Number(last.stockAfter||0):0};
-    }).filter(row=>row.incoming||row.sold||row.remaining>0).sort((a,b)=>a.name.localeCompare(b.name));
+      return {name:menu.name,partner:menu.partnerName||"—",incoming,sold,returned,remaining:last?Number(last.stockAfter||0):0};
+    }).filter(row=>row.incoming||row.sold||row.returned||row.remaining>0).sort((a,b)=>a.name.localeCompare(b.name));
     const salesTotal=sumBy(txs,"total"), expenseTotal=sumBy(expenses,"amount");
     const operationalItems=new Map();
     for(const tx of txs.filter(row=>row.paymentMethod==="kalap_operational"))for(const item of tx.items||[]){const key=item.menuId||item.name;const val=operationalItems.get(key)||{name:item.name,qty:0,total:0};val.qty+=Number(item.qty||0);val.total+=Number(item.subtotal||0);operationalItems.set(key,val);}
-    const content=`<div class="dashboard-detail-grid"><div class="stat-card"><div class="stat-top">Barang masuk</div><div class="stat-value">${integer(movements.filter(row=>row.type==="in").reduce((sum,row)=>sum+Number(row.qty||0),0))}</div></div><div class="stat-card"><div class="stat-top">Terjual</div><div class="stat-value">${integer(movements.filter(row=>row.type==="sale").reduce((sum,row)=>sum+Number(row.qty||0),0))}</div></div><div class="stat-card"><div class="stat-top">Sisa stok</div><div class="stat-value">${integer(menuRows.reduce((sum,row)=>sum+row.remaining,0))}</div></div><div class="stat-card"><div class="stat-top">Transaksi</div><div class="stat-value">${integer(txs.length)}</div></div><div class="stat-card"><div class="stat-top">Total penjualan</div><div class="stat-value">${money(salesTotal)}</div></div><div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div></div>
-      <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Detail stok per menu</h3><div class="table-wrap date-detail-list"><table><thead><tr><th>Menu / mitra</th><th>Masuk</th><th>Terjual</th><th>Sisa stok</th></tr></thead><tbody>${menuRows.map(row=>`<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partner)}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td><strong>${integer(row.remaining)}</strong></td></tr>`).join("")||`<tr><td colspan="4" class="table-empty">Tidak ada catatan stok pada tanggal ini.</td></tr>`}</tbody></table></div></div>
+    const content=`<div class="dashboard-detail-grid"><div class="stat-card"><div class="stat-top">Barang masuk</div><div class="stat-value">${integer(movements.filter(row=>row.type==="in").reduce((sum,row)=>sum+Number(row.qty||0),0))}</div></div><div class="stat-card"><div class="stat-top">Terjual</div><div class="stat-value">${integer(txs.reduce((sum,tx)=>sum+(tx.items||[]).reduce((qty,item)=>qty+Number(item.qty||0),0),0))}</div></div><div class="stat-card"><div class="stat-top">Sisa stok</div><div class="stat-value">${integer(menuRows.reduce((sum,row)=>sum+row.remaining,0))}</div></div><div class="stat-card"><div class="stat-top">Transaksi</div><div class="stat-value">${integer(txs.length)}</div></div><div class="stat-card"><div class="stat-top">Total penjualan</div><div class="stat-value">${money(salesTotal)}</div></div><div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div></div>
+      <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Detail stok per menu</h3><div class="table-wrap date-detail-list"><table><thead><tr><th>Menu / mitra</th><th>Masuk</th><th>Terjual</th><th>Stok kembali</th><th>Sisa stok</th></tr></thead><tbody>${menuRows.map(row=>`<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partner)}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td>${integer(row.returned)}</td><td><strong>${integer(row.remaining)}</strong></td></tr>`).join("")||`<tr><td colspan="5" class="table-empty">Tidak ada catatan stok pada tanggal ini.</td></tr>`}</tbody></table></div></div>
       <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row=>`<div class="operational-item-row"><span>${escapeHtml(row.category||"Pengeluaran")} · ${escapeHtml(row.note||row.transactionCode||"")}</span><strong>${money(row.amount)}</strong></div>`).join("")||`<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size?`<div class="operational-items-list"><h4>Menu yang ditanggung KALAP</h4>${[...operationalItems.values()].map(row=>`<div class="operational-item-row"><span>${escapeHtml(row.name)} (${integer(row.qty)} unit)</span><strong>${money(row.total)}</strong></div>`).join("")}</div>`:""}</div>
       <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-light" data-dashboard-detail-close>Tutup</button></div>`;
     const modal=root.querySelector(".modal");if(!modal)return;
@@ -2091,47 +2259,58 @@ async function openDashboardDayDetail(dateKey) {
 
 function renderTransactionTable(items, showAction = true) {
   if (!items.length) return `<div class="table-wrap"><table><tbody><tr><td class="table-empty">Belum ada transaksi pada periode ini.</td></tr></tbody></table></div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Kode transaksi</th><th>Waktu</th><th>Kasir</th><th>Item</th><th>Total</th><th>Detail</th></tr></thead><tbody>${items.map(tx => `<tr><td><strong>${escapeHtml(tx.transactionCode || tx.id.slice(0, 8).toUpperCase())}</strong></td><td>${formatDate(tx.createdAt)} · ${formatTime(tx.createdAt)}</td><td>${escapeHtml(tx.cashierName || "Kasir")}</td><td>${integer((tx.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0))} unit</td><td><strong>${money(tx.total)}</strong></td><td><button class="action-link" data-detail-tx="${tx.id}">Lihat detail</button></td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Kode transaksi</th><th>Waktu</th><th>Kasir</th><th>Item</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${items.map(tx => {
+    const canCancel = showAction && tx.status === "completed" && (['superadmin','spv'].includes(profile?.role) || (profile?.role === 'cashier' && tx.cashierUid === profile.uid && Boolean(tx.cashflowId) && Array.isArray(tx.partnerSaleIds)));
+    return `<tr class="${tx.status === 'cancelled' ? 'transaction-cancelled-row' : ''}"><td><strong>${escapeHtml(tx.transactionCode || tx.id.slice(0, 8).toUpperCase())}</strong></td><td>${formatDate(tx.createdAt)} · ${formatTime(tx.createdAt)}</td><td>${escapeHtml(tx.cashierName || "Kasir")}</td><td>${integer((tx.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0))} unit</td><td><strong>${money(tx.total)}</strong></td><td><span class="status ${tx.status === 'cancelled' ? 'inactive' : 'success'}">${tx.status === 'cancelled' ? 'Dibatalkan' : 'Selesai'}</span></td><td><button class="action-link" data-detail-tx="${tx.id}">Detail</button>${canCancel ? ` <button class="action-link danger-link" data-cancel-tx="${tx.id}">Batalkan</button>` : ''}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
 }
 function renderDailyMovementTable(movements) {
   const grouped = new Map();
   for (const movement of movements) {
     const key = movement.menuId;
-    if (!grouped.has(key)) grouped.set(key, { name: movement.menuName, partner: movement.partnerName || "—", incoming: 0, sold: 0, last: movement });
+    if (!grouped.has(key)) grouped.set(key, { name: movement.menuName, partner: movement.partnerName || "—", incoming: 0, sold: 0, returned: 0, last: movement });
     const row = grouped.get(key);
     if (movement.type === "in") row.incoming += Number(movement.qty || 0);
-    if (movement.type === "sale") row.sold += Number(movement.qty || 0);
+    if (movement.type === "sale_cancel") row.returned += Number(movement.qty || 0);
     if (asDate(movement.createdAt) > asDate(row.last.createdAt)) row.last = movement;
   }
   const rows = [...grouped.values()].sort((a,b)=>a.name.localeCompare(b.name));
-  return `<div class="table-wrap"><table><thead><tr><th>Menu</th><th>Mitra</th><th>Barang masuk</th><th>Terjual</th><th>Sisa setelah catatan terakhir</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${escapeHtml(row.name)}</strong></td><td>${escapeHtml(row.partner)}</td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td><strong>${integer(row.last.stockAfter)}</strong></td></tr>`).join("")||`<tr><td colspan="5" class="table-empty">Belum ada pergerakan stok hari ini.</td></tr>`}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Menu</th><th>Mitra</th><th>Barang masuk</th><th>Terjual</th><th>Stok kembali</th><th>Sisa setelah catatan terakhir</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${escapeHtml(row.name)}</strong></td><td>${escapeHtml(row.partner)}</td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td>${integer(row.returned)}</td><td><strong>${integer(row.last.stockAfter)}</strong></td></tr>`).join("")||`<tr><td colspan="6" class="table-empty">Belum ada pergerakan stok hari ini.</td></tr>`}</tbody></table></div>`;
 }
 function renderHistoryPage() {
-  const selectedTx = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === historyDate);
+  const historyTx = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === historyDate);
+  const selectedTx = historyTx.filter(tx => tx.status !== "cancelled");
   const movements = store.movements.filter(item => dayKeyFromTimestamp(item.createdAt) === historyDate);
   const grouped = new Map();
   for (const movement of movements) {
     const key = movement.menuId;
-    if (!grouped.has(key)) grouped.set(key, { menuName: movement.menuName, partnerName: movement.partnerName || "—", incoming: 0, sold: 0, last: movement });
+    if (!grouped.has(key)) grouped.set(key, { menuName: movement.menuName, partnerName: movement.partnerName || "—", incoming: 0, sold: 0, returned: 0, last: movement });
     const group = grouped.get(key);
     if (movement.type === "in") group.incoming += Number(movement.qty || 0);
-    if (movement.type === "sale") group.sold += Number(movement.qty || 0);
+    if (movement.type === "sale_cancel") group.returned += Number(movement.qty || 0);
     if (asDate(movement.createdAt) > asDate(group.last.createdAt)) group.last = movement;
   }
-  const stockRows = [...grouped.values()].sort((a, b) => a.menuName.localeCompare(b.menuName)).map(row => `<tr><td><strong>${escapeHtml(row.menuName)}</strong><div class="muted">${escapeHtml(row.partnerName)}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td><strong>${integer(row.last.stockAfter)}</strong></td><td>${formatTime(row.last.createdAt)}</td></tr>`).join("");
+  for (const transaction of selectedTx) {
+    for (const item of transaction.items || []) {
+      const group = grouped.get(item.menuId);
+      if (group) group.sold += Number(item.qty || 0);
+    }
+  }
+  const stockRows = [...grouped.values()].sort((a, b) => a.menuName.localeCompare(b.menuName)).map(row => `<tr><td><strong>${escapeHtml(row.menuName)}</strong><div class="muted">${escapeHtml(row.partnerName)}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td>${integer(row.returned)}</td><td><strong>${integer(row.last.stockAfter)}</strong></td><td>${formatTime(row.last.createdAt)}</td></tr>`).join("");
   const revenue = sumBy(selectedTx, "total");
   return `${pageHeading("Riwayat & stok harian", "Telusuri transaksi, barang masuk, barang terjual, dan catatan stok per tanggal.", `<input type="date" id="history-date" value="${historyDate}" aria-label="Pilih tanggal">`)}
-    <section class="stats-grid">${statCard("Penjualan tanggal ini", money(revenue), "↗", `${integer(selectedTx.length)} transaksi`)}${statCard("Unit barang masuk", integer(movements.filter(m => m.type === "in").reduce((s,m)=>s+Number(m.qty||0),0)), "＋", "Berdasarkan catatan stok")}${statCard("Unit terjual", integer(movements.filter(m => m.type === "sale").reduce((s,m)=>s+Number(m.qty||0),0)), "▣", "Berdasarkan transaksi kasir")}${statCard("Menu dengan aktivitas", integer(grouped.size), "▤", "Menu yang bergerak pada tanggal ini")}</section>
-    <section class="panel" style="margin-bottom:15px">${panelHeader("Detail pergerakan stok", `Pergerakan yang tercatat pada ${formatDate(dateFromKey(historyDate), { day: "numeric", month: "long", year: "numeric" })}`, `<span class="status neutral">STOCK LOG</span>`)}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Barang masuk</th><th>Terjual</th><th>Sisa setelah pergerakan terakhir</th><th>Waktu catat</th></tr></thead><tbody>${stockRows || `<tr><td colspan="5" class="table-empty">Belum ada pergerakan stok pada tanggal ini.</td></tr>`}</tbody></table></div><div class="helper-text">Kolom sisa menunjukkan stok sesaat setelah pergerakan terakhir yang tercatat pada tanggal tersebut, bukan stok aktual saat ini.</div></section>
-    <section class="panel">${panelHeader("Transaksi pada tanggal ini", `${integer(selectedTx.length)} transaksi tersimpan`)}${renderTransactionTable(selectedTx, true)}${selectedTx.length ? `<div style="margin-top:13px;display:flex;justify-content:flex-end"><strong>Total penjualan: ${money(revenue)}</strong></div>` : ""}</section>`;
+    <section class="stats-grid">${statCard("Penjualan tanggal ini", money(revenue), "↗", `${integer(selectedTx.length)} transaksi`)}${statCard("Unit barang masuk", integer(movements.filter(m => m.type === "in").reduce((s,m)=>s+Number(m.qty||0),0)), "＋", "Berdasarkan catatan stok")}${statCard("Unit terjual", integer(selectedTx.reduce((sum, tx) => sum + (tx.items || []).reduce((qty, item) => qty + Number(item.qty || 0), 0), 0)), "▣", "Setelah dikurangi transaksi batal")}${statCard("Menu dengan aktivitas", integer(grouped.size), "▤", "Menu yang bergerak pada tanggal ini")}</section>
+    <section class="panel" style="margin-bottom:15px">${panelHeader("Detail pergerakan stok", `Pergerakan yang tercatat pada ${formatDate(dateFromKey(historyDate), { day: "numeric", month: "long", year: "numeric" })}`, `<span class="status neutral">STOCK LOG</span>`)}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Barang masuk</th><th>Terjual</th><th>Stok kembali</th><th>Sisa setelah pergerakan terakhir</th><th>Waktu catat</th></tr></thead><tbody>${stockRows || `<tr><td colspan="6" class="table-empty">Belum ada pergerakan stok pada tanggal ini.</td></tr>`}</tbody></table></div><div class="helper-text">Kolom sisa menunjukkan stok sesaat setelah pergerakan terakhir yang tercatat pada tanggal tersebut, bukan stok aktual saat ini.</div></section>
+    <section class="panel">${panelHeader("Transaksi pada tanggal ini", `${integer(historyTx.length)} transaksi tersimpan · ${integer(selectedTx.length)} selesai`)}${renderTransactionTable(historyTx, true)}${selectedTx.length ? `<div style="margin-top:13px;display:flex;justify-content:flex-end"><strong>Total penjualan: ${money(revenue)}</strong></div>` : ""}</section>`;
 }
 function renderCashierHistoryPage() {
-  const filtered = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === historyDate);
-  return `${pageHeading("Riwayat transaksi", "Cari transaksi kasir berdasarkan tanggal.", `<input type="date" id="history-date" value="${historyDate}">`)}<section class="stats-grid">${statCard("Total transaksi", integer(filtered.length), "▣", formatDate(dateFromKey(historyDate)))}${statCard("Total penjualan", money(sumBy(filtered,"total")), "↗", "Nilai transaksi pada tanggal terpilih")}</section><section class="panel">${panelHeader("Daftar transaksi", `Transaksi tanggal ${formatDate(dateFromKey(historyDate))}`)}${renderTransactionTable(filtered, true)}<div class="helper-text">Untuk koreksi transaksi yang sudah selesai, hubungi Admin. Riwayat transaksi tidak bisa dihapus melalui akun kasir.</div></section>`;
+  const filteredAll = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === historyDate);
+  const filtered = filteredAll.filter(tx => tx.status !== "cancelled");
+  return `${pageHeading("Riwayat transaksi", "Cari transaksi kasir berdasarkan tanggal.", `<input type="date" id="history-date" value="${historyDate}">`)}<section class="stats-grid">${statCard("Total transaksi", integer(filtered.length), "▣", formatDate(dateFromKey(historyDate)))}${statCard("Total penjualan", money(sumBy(filtered,"total")), "↗", "Nilai transaksi pada tanggal terpilih")}</section><section class="panel">${panelHeader("Daftar transaksi", `Transaksi tanggal ${formatDate(dateFromKey(historyDate))}`)}${renderTransactionTable(filteredAll, true)}<div class="helper-text">Transaksi yang dibatalkan tetap terlihat di riwayat. Stok item otomatis dikembalikan ke POS dan penjualan yang batal tidak dihitung dalam total penjualan. Riwayat transaksi tidak dapat dihapus melalui akun kasir.</div></section>`;
 }
 
 function renderPosPage() {
-  const availableMenus = store.menus.filter(menu => menu.active !== false);
+  const availableMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const cartItems = [...cart.values()];
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
   return `${pageHeading("Kasir / POS", "Cari nama menu atau scan kode QR, lalu masukkan ke keranjang.", `<span class="status success">● Sistem siap</span>`)}
@@ -2145,7 +2324,7 @@ function renderPosPage() {
 
 function filteredPosMenus() {
   const queryText = posSearchQuery.trim().toLowerCase();
-  return store.menus.filter(menu => menu.active !== false).filter(menu => !queryText ||
+  return store.menus.filter(menu => menu.active !== false && menu.deleted !== true).filter(menu => !queryText ||
     [menu.name, menu.partnerName, menuBarcode(menu)].some(value => String(value || "").toLowerCase().includes(queryText)));
 }
 
@@ -2159,10 +2338,13 @@ function drawPosMenuResults() {
   const start = (posCurrentPage - 1) * posPageSize;
   const current = filtered.slice(start, start + posPageSize);
   resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>Produk</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau kode QR." : "Belum ada menu aktif. Hubungi Admin untuk menambahkan menu."}</div>`;
-  pageRoot.innerHTML = `<span class="muted">${filtered.length ? `Menampilkan ${start + 1}–${Math.min(start + posPageSize, filtered.length)} dari ${filtered.length} menu` : "0 menu ditemukan"} · Halaman ${posCurrentPage}/${totalPages}</span><div class="page-buttons"><button type="button" data-pos-page="prev" ${posCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-pos-page="next" ${posCurrentPage >= totalPages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div>`;
+  const pageNumbers = totalPages <= 7 ? Array.from({length: totalPages}, (_, i) => i + 1) : [...new Set([1, Math.max(2,posCurrentPage-1), posCurrentPage, Math.min(totalPages-1,posCurrentPage+1), totalPages])].sort((a,b)=>a-b);
+  const numberedButtons = pageNumbers.map((page,index)=>`${index && page-pageNumbers[index-1]>1?'<span class="page-ellipsis">…</span>':''}<button type="button" class="${page===posCurrentPage?'active-page':''}" data-pos-page-number="${page}" aria-current="${page===posCurrentPage?'page':'false'}">${page}</button>`).join("");
+  pageRoot.innerHTML = `<span class="muted">${filtered.length ? `Menampilkan ${start + 1}–${Math.min(start + posPageSize, filtered.length)} dari ${filtered.length} menu` : "0 menu ditemukan"}</span><div class="page-buttons"><button type="button" data-pos-page="prev" ${posCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-pos-page="next" ${posCurrentPage >= totalPages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div>`;
   $$('[data-add-menu]', resultRoot).forEach(button => button.addEventListener("click", () => addToCart(button.dataset.addMenu)));
   pageRoot.querySelector('[data-pos-page="prev"]')?.addEventListener("click", () => { posCurrentPage -= 1; drawPosMenuResults(); });
   pageRoot.querySelector('[data-pos-page="next"]')?.addEventListener("click", () => { posCurrentPage += 1; drawPosMenuResults(); });
+  $$('[data-pos-page-number]', pageRoot).forEach(button => button.addEventListener("click", () => { posCurrentPage = Number(button.dataset.posPageNumber); drawPosMenuResults(); }));
 }
 
 function initPosMenuSearch() {
@@ -2176,7 +2358,7 @@ function initPosMenuSearch() {
     event.preventDefault();
     const value = input.value.trim().toLowerCase();
     if (!value) return;
-    const active = store.menus.filter(menu => menu.active !== false);
+    const active = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
     const exact = active.find(menu => menuBarcode(menu).toLowerCase() === value || String(menu.barcode || "").toLowerCase() === value);
     const matches = exact ? [exact] : filteredPosMenus();
     if (matches.length === 1) {
@@ -2218,14 +2400,14 @@ function renderNewMenuPage() {
           <datalist id="new-menu-partner-options">${partners.map(partner => `<option value="${escapeHtml(partner.name)}"></option>`).join("")}</datalist>
         </div>
         <div class="form-field"><label>Nama menu</label><input name="name" required maxlength="80" placeholder="Contoh: Nasi ayam sambal"></div>
-        <div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" step="1" required placeholder="15000"></div>
+        <div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="text" inputmode="numeric" data-money-input required placeholder="15.000"></div>
         <div class="form-actions"><button type="submit" class="btn btn-primary">Simpan</button></div>
       </form>` : `<div class="table-empty">Belum ada mitra aktif. Tambahkan mitra terlebih dahulu melalui menu Manajemen Mitra.</div>`}
     </section>`;
 }
 
 function renderStockPage() {
-  const allMenus = store.menus.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  const allMenus = store.menus.filter(menu => menu.deleted !== true).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   const activeMenus = allMenus.filter(menu => menu.active !== false);
   const q = menuListSearchQuery.trim().toLowerCase();
   const filteredMenus = allMenus.filter(menu => {
@@ -2245,7 +2427,7 @@ function renderStockPage() {
     <section class="panel">
       ${panelHeader("Semua menu KALAP", `${integer(filteredMenus.length)} dari ${integer(allMenus.length)} menu`, `<button class="btn btn-light" data-export-menus>Ekspor daftar CSV</button>`)}
       <div class="table-toolbar"><input id="menu-search" type="search" value="${escapeHtml(menuListSearchQuery)}" placeholder="Cari nama menu, mitra, atau kode QR..."><select id="menu-status-filter"><option value="all" ${menuStatusFilter === "all" ? "selected" : ""}>Semua status</option><option value="active" ${menuStatusFilter === "active" ? "selected" : ""}>Aktif</option><option value="inactive" ${menuStatusFilter === "inactive" ? "selected" : ""}>Nonaktif</option></select></div>
-      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>Kode QR</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><button class="action-link" data-edit-menu="${menu.id}">Edit</button></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role === "superadmin" ? 7 : 6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
+      <div class="table-wrap"><table id="all-menu-table"><thead><tr><th>Nama menu</th><th>Mitra</th><th>Harga jual</th><th>Stok</th><th>Kode QR</th><th>Status</th>${profile.role === "superadmin" ? "<th>Aksi</th>" : ""}</tr></thead><tbody>${visibleMenus.length ? visibleMenus.map(menu => `<tr data-menu-row><td><strong>${escapeHtml(menu.name)}</strong></td><td>${escapeHtml(menu.partnerName || "—")}</td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><code>${escapeHtml(menuBarcode(menu))}</code></td><td><span class="status ${menu.active !== false ? "success" : "inactive"}">${menu.active !== false ? "Aktif" : "Nonaktif"}</span></td>${profile.role === "superadmin" ? `<td><div class="account-actions"><button class="action-link" data-edit-menu="${menu.id}">Edit</button><button class="action-link danger-link" data-delete-menu="${menu.id}">Hapus</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${profile.role === "superadmin" ? 7 : 6}" class="table-empty">Tidak ada menu yang cocok dengan pencarian.</td></tr>`}</tbody></table></div>
       <div class="pagination-row"><span class="helper-text">Halaman ${menuListCurrentPage} dari ${pages} · ${integer(filteredMenus.length)} menu</span><div class="page-buttons"><button type="button" data-menu-list-page="prev" ${menuListCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-menu-list-page="next" ${menuListCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
     </section>`;
 }
@@ -2262,7 +2444,7 @@ function renderPartnersPage() {
     <div class="info-banner"><span>ⓘ</span><div><strong>Data mitra dibuat sederhana</strong><br>Data utama mitra hanya nama. Nomor HP dan catatan kontak tidak diperlukan. Hubungkan akun Mitra pada halaman Akun Pengguna.</div></div>
     <section class="panel">${panelHeader("Daftar mitra", `${integer(filtered.length)} dari ${integer(activePartners.length)} mitra aktif`)}
       <div class="table-toolbar"><input id="partner-directory-search" type="search" value="${escapeHtml(partnerListSearchQuery)}" placeholder="Cari nama mitra..."></div>
-      <div class="product-card-grid">${visible.length ? visible.map(partner=>`<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="transfer-bank">${escapeHtml(partner.bankName||"Bank belum diisi")} · ${escapeHtml(partner.accountNumber||"—")}<br>${escapeHtml(partner.accountHolder||"")}</div><div class="product-quantity">${integer(store.menus.filter(menu=>menu.partnerId===partner.id).reduce((sum,menu)=>sum+Number(menu.stock||0),0))}</div><div class="product-meta">Total stok produk · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div><div class="account-actions" style="margin-top:10px"><button type="button" class="action-link" data-edit-partner="${partner.id}">Edit rekening</button></div></article>`).join("") : `<div class="table-empty">Tidak ada mitra yang cocok dengan pencarian.</div>`}</div>
+      <div class="product-card-grid">${visible.length ? visible.map(partner=>`<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="transfer-bank">${escapeHtml(partner.bankName||"Bank belum diisi")} · ${escapeHtml(partner.accountNumber||"—")}<br>${escapeHtml(partner.accountHolder||"")}</div><div class="product-quantity">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).reduce((sum,menu)=>sum+Number(menu.stock||0),0))}</div><div class="product-meta">Total stok produk · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div><div class="account-actions" style="margin-top:10px"><button type="button" class="action-link" data-edit-partner="${partner.id}">Edit rekening</button></div></article>`).join("") : `<div class="table-empty">Tidak ada mitra yang cocok dengan pencarian.</div>`}</div>
       <div class="pagination-row"><span class="helper-text">Halaman ${partnerListCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-partner-list-page="prev" ${partnerListCurrentPage<=1?"disabled":""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-partner-list-page="next" ${partnerListCurrentPage>=pages?"disabled":""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
     </section>`;
 }
@@ -2299,13 +2481,13 @@ function renderProfilePage() {
 }
 
 function renderFinancePage() {
-  const totalIn = store.cashflows.filter(row => row.type === "income").reduce((s,row)=>s+Number(row.amount||0),0);
-  const totalOut = store.cashflows.filter(row => row.type === "expense").reduce((s,row)=>s+Number(row.amount||0),0);
+  const totalIn = store.cashflows.filter(row => row.status !== "cancelled" && row.type === "income").reduce((s,row)=>s+Number(row.amount||0),0);
+  const totalOut = store.cashflows.filter(row => row.status !== "cancelled" && row.type === "expense").reduce((s,row)=>s+Number(row.amount||0),0);
   return `${pageHeading("Keuangan", "Catat pemasukan dan pengeluaran di luar transaksi penjualan.", selectedMonthControl())}
     <section class="stats-grid">${statCard("Total pemasukan", money(totalIn), "＋", "Pembayaran pelanggan + pemasukan lain")}${statCard("Total pengeluaran", money(totalOut), "−", "Termasuk transaksi yang ditanggung KALAP")}${statCard("Saldo arus kas", money(totalIn-totalOut), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Catatan keuangan", integer(store.cashflows.length), "▤", "Termasuk pencatatan otomatis penjualan")}</section>
-    <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="number" name="amount" min="1" step="1" required placeholder="Contoh: 150000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
-    <section class="panel">${panelHeader("Ringkasan arus kas", `Bulan ${monthKey}`)}<div class="summary-list"><div class="summary-row"><span>Penjualan otomatis</span><strong>${money(sumBy(store.transactions,"total"))}</strong></div><div class="summary-row"><span>Pemasukan lain</span><strong>${money(store.cashflows.filter(r=>r.type==="income"&&r.source!=="sale").reduce((s,r)=>s+Number(r.amount||0),0))}</strong></div><div class="summary-row"><span>Pengeluaran</span><strong>${money(totalOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo tercatat</span><strong>${money(totalIn-totalOut)}</strong></div></div><div class="helper-text">Semua transaksi POS masuk ke total penjualan. Pembayaran pelanggan masuk sebagai pemasukan, sedangkan pilihan Beban operasional KALAP masuk sebagai pengeluaran agar tidak dianggap uang yang diterima dari pelanggan.</div></section></div>
-    <section class="panel">${panelHeader("Riwayat keuangan", `${integer(store.cashflows.length)} catatan bulan ini`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${store.cashflows.slice().sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt)).map(row => `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><span class="status ${row.type === "income" ? "success" : "inactive"}">${row.type === "income" ? "Pemasukan" : "Pengeluaran"}</span></td><td>${escapeHtml(row.category || (row.source === "sale" ? "Penjualan" : "—"))}</td><td>${escapeHtml(row.note || (row.source === "sale" ? `Penjualan ${row.transactionCode || ""}` : "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada catatan keuangan.</td></tr>`}</tbody></table></div></section>`;
+    <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="text" name="amount" inputmode="numeric" data-money-input required placeholder="Contoh: 150.000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
+    <section class="panel">${panelHeader("Ringkasan arus kas", `Bulan ${monthKey}`)}<div class="summary-list"><div class="summary-row"><span>Penjualan otomatis</span><strong>${money(sumBy(store.transactions.filter(row=>row.status!=="cancelled"),"total"))}</strong></div><div class="summary-row"><span>Pemasukan lain</span><strong>${money(store.cashflows.filter(r=>r.status!=="cancelled"&&r.type==="income"&&r.source!=="sale").reduce((s,r)=>s+Number(r.amount||0),0))}</strong></div><div class="summary-row"><span>Pengeluaran</span><strong>${money(totalOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo tercatat</span><strong>${money(totalIn-totalOut)}</strong></div></div><div class="helper-text">Semua transaksi POS masuk ke total penjualan. Pembayaran pelanggan masuk sebagai pemasukan, sedangkan pilihan Beban operasional KALAP masuk sebagai pengeluaran agar tidak dianggap uang yang diterima dari pelanggan.</div></section></div>
+    <section class="panel">${panelHeader("Riwayat keuangan", `${integer(store.cashflows.length)} catatan bulan ini`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${store.cashflows.filter(row=>row.status!=="cancelled").slice().sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt)).map(row => `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><span class="status ${row.type === "income" ? "success" : "inactive"}">${row.type === "income" ? "Pemasukan" : "Pengeluaran"}</span></td><td>${escapeHtml(row.category || (row.source === "sale" ? "Penjualan" : "—"))}</td><td>${escapeHtml(row.note || (row.source === "sale" ? `Penjualan ${row.transactionCode || ""}` : "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada catatan keuangan.</td></tr>`}</tbody></table></div></section>`;
 }
 
 function renderClosingPage() {
@@ -2393,7 +2575,7 @@ function renderRequestsPage() {
 
 function renderPartnerTransfersPage() {
   const grouped=new Map();
-  for(const sale of store.transferSales){const id=sale.partnerId;if(!id)continue;const row=grouped.get(id)||{partnerId:id,partnerName:sale.partnerName||"Mitra",gross:0,qty:0,transactions:0};row.gross+=Number(sale.total||0);row.qty+=Number(sale.qty||0);row.transactions+=1;grouped.set(id,row);}
+  for(const sale of store.transferSales.filter(row=>row.status!=="cancelled")){const id=sale.partnerId;if(!id)continue;const row=grouped.get(id)||{partnerId:id,partnerName:sale.partnerName||"Mitra",gross:0,qty:0,transactions:0};row.gross+=Number(sale.total||0);row.qty+=Number(sale.qty||0);row.transactions+=1;grouped.set(id,row);}
   const paidMap=new Map(store.partnerPayouts.map(row=>[row.partnerId,row]));
   const rows=[...grouped.values()].map(row=>{const partner=store.partners.find(item=>item.id===row.partnerId)||{};const commission=Math.round(row.gross*.20);return {...row,partner,commission,transfer:row.gross-commission,payout:paidMap.get(row.partnerId)||null};}).sort((a,b)=>a.partnerName.localeCompare(b.partnerName));
   const gross=rows.reduce((sum,row)=>sum+row.gross,0),commission=rows.reduce((sum,row)=>sum+row.commission,0),transfer=rows.reduce((sum,row)=>sum+row.transfer,0);
@@ -2409,7 +2591,7 @@ async function markPartnerPayoutPaid(partnerId,button) {
   requireRole("superadmin");
   const existingPayout=store.partnerPayouts.find(row=>row.partnerId===partnerId && row.dateKey===partnerTransferDate);
   if(existingPayout?.status==="paid") return toast("Transfer mitra ini sudah ditandai lunas.","info");
-  const sales=store.transferSales.filter(row=>row.partnerId===partnerId);
+  const sales=store.transferSales.filter(row=>row.status!=="cancelled"&&row.partnerId===partnerId);
   const gross=sales.reduce((sum,row)=>sum+Number(row.total||0),0);
   if(!gross)return toast("Belum ada penjualan untuk mitra ini pada tanggal tersebut.","error");
   const partner=store.partners.find(row=>row.id===partnerId);if(!partner)return toast("Data mitra tidak ditemukan.","error");
@@ -2425,7 +2607,7 @@ function renderPartnerHome() {
   const sales = getPartnerMonthSales();
   const totalSales = sumBy(sales, "total");
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
-  const activeMenus = store.menus.filter(menu => menu.active !== false);
+  const activeMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const stock = activeMenus.reduce((sum,menu)=>sum+Number(menu.stock||0),0);
   const liveSales = sales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
   const closing = store.partnerDailySummary;
@@ -2448,26 +2630,25 @@ function renderPartnerHome() {
     </article></section>`;
 }
 function renderLabelsPage() {
-  const menus = store.menus.filter(menu => menu.active !== false).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
-  const partners = store.partners.filter(partner => partner.active !== false).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
-  const firstMenu = menus[0] || null;
-  return `${pageHeading("Cetak label", "Cari menu atau mitra, tentukan jumlah, lalu cetak label kode QR ukuran 4 × 3 cm.", `<span class="status neutral">40 × 30 mm</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>Label otomatis dari data menu</strong><br>Nama menu dicetak di atas, kode QR di tengah, dan harga jual di bawah. Jumlah label mengikuti angka yang kamu masukkan.</div></div>
+  const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+  const partners = store.partners.filter(partner => partner.active !== false);
+  const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
+  const selectedLabel = selected ? `${selected.name} — ${selected.partnerName || "Mitra"}` : "";
+  return `${pageHeading("Cetak label", "Cari nama menu, mitra, atau scan kode QR dari satu kolom pencarian. Label dicetak pada ukuran 4 × 3 cm.", `<span class="status neutral">40 × 30 mm</span>`)}
+    <div class="info-banner"><span>▥</span><div><strong>Label QR otomatis dari katalog menu</strong><br>Ketikan nama menu/mitra atau arahkan scanner QR ke kolom pencarian, lalu pilih menu yang cocok.</div></div>
     <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
-        <div class="form-field"><label for="label-menu-search">Cari nama menu</label><input id="label-menu-search" type="search" placeholder="Ketik nama menu..." value="${escapeHtml(labelMenuSearchQuery)}"></div>
-        <div class="form-field"><label for="label-menu-select">Nama menu</label><select id="label-menu-select" name="menuId" required><option value="">Pilih nama menu</option>${menus.map(menu=>`<option value="${menu.id}" ${menu.id===firstMenu?.id?"selected":""}>${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("")}</select></div>
-        <div class="form-field"><label for="label-partner-search">Cari nama mitra</label><input id="label-partner-search" type="search" placeholder="Ketik nama mitra..." value="${escapeHtml(labelPartnerSearchQuery)}"></div>
-        <div class="form-field"><label for="label-partner-select">Mitra</label><select id="label-partner-select" name="partnerId"><option value="">Semua mitra</option>${partners.map(partner=>`<option value="${partner.id}" ${firstMenu?.partnerId===partner.id?"selected":""}>${escapeHtml(partner.name)}</option>`).join("")}</select></div>
+        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan kode QR..." value="${escapeHtml(selectedLabel || labelSearchQuery)}"><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
         <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
-        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${firstMenu?`<strong>${escapeHtml(firstMenu.name)}</strong> · ${escapeHtml(firstMenu.partnerName||"—")} · ${money(firstMenu.price)}<br><small>Kode QR: ${escapeHtml(menuBarcode(firstMenu))}</small>`:"Pilih mitra dan menu untuk menampilkan ringkasan label."}</div>
-        <div class="label-print-actions"><span class="helper-text">Setiap label dicetak pada halaman 40 × 30 mm. Di dialog cetak pilih media 40 × 30 mm, skala 100%, dan matikan header/footer.</span><button class="btn btn-primary" type="submit">▤&nbsp; Cetak</button></div>
-      </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak. Tambahkan atau setujui produk terlebih dahulu.</div>`}
+        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>Kode QR: ${escapeHtml(menuBarcode(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan kode QR terlebih dahulu."}</div>
+        <div class="label-print-actions"><span class="helper-text">Ukuran 40 × 30 mm · skala 100% / Actual Size · margin 0.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
+      </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
 }
+
 function renderPartnerMenu() {
   return `${pageHeading("Menu saya", "Daftar produk milik Anda yang dijual melalui KALAP.")}
-    <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock)>0?"success":"inactive"}">${Number(menu.stock)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
+    <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.filter(menu=>menu.deleted!==true).length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.filter(menu=>menu.deleted!==true).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock)>0?"success":"inactive"}">${Number(menu.stock)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
 }
 function renderPartnerSales() {
   const monthSales = getPartnerMonthSales();
@@ -2489,10 +2670,26 @@ async function newMenuPageSubmit(event) {
   setBusy(button, true, "Menyimpan...");
   try {
     const result = await callApi("createMenu", {
-      name: String(data.name || "").trim(), partnerId: matchedPartner.id, price: Number(data.price)
+      name: String(data.name || "").trim(), partnerId: matchedPartner.id, price: parseMoneyInput(data.price)
     });
     form.reset();
     toast(`Menu ${result.name} berhasil didaftarkan. Kode QR ${result.qrCode} dibuat otomatis. Stok awal tetap 0.`, "success");
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
+}
+
+async function financeSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
+  const button = form.querySelector('[type="submit"]');
+  const amount = parseMoneyInput(data.amount);
+  if (!Number.isSafeInteger(amount) || amount < 1) return toast("Nominal harus lebih besar dari Rp0.", "error");
+  setBusy(button, true, "Menyimpan...");
+  try {
+    await callApi("createFinanceEntry", { ...data, amount });
+    form.reset();
+    toast("Catatan keuangan berhasil disimpan.", "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -2526,6 +2723,7 @@ function attachPageEvents() {
   $("#profile-form")?.addEventListener("submit", saveOwnProfileSubmit);
   $("#create-partner-form")?.addEventListener("submit", createPartnerSubmit);
   $("#finance-form")?.addEventListener("submit", financeSubmit);
+  initMoneyInputs();
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
@@ -2556,18 +2754,22 @@ function attachPageEvents() {
   $$('[data-cart-dec]').forEach(button => button.addEventListener("click", () => changeCart(button.dataset.cartDec, -1)));
   $$('[data-open-modal]').forEach(button => button.addEventListener("click", () => openManagementModal(button.dataset.openModal)));
   $$('[data-edit-menu]').forEach(button => button.addEventListener("click", () => editMenu(button.dataset.editMenu)));
+  $$('[data-delete-menu]').forEach(button => button.addEventListener("click", () => deleteMenu(button.dataset.deleteMenu, button)));
   $$('[data-accept-request]').forEach(button => button.addEventListener("click", () => acceptStockRequest(button.dataset.acceptRequest, button)));
   $$('[data-revise-request]').forEach(button => button.addEventListener("click", () => openReviseStockRequestModal(button.dataset.reviseRequest)));
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
-  $("#label-partner-select")?.addEventListener("change", refreshLabelMenuOptions);
-  $("#label-menu-select")?.addEventListener("change", syncLabelPartnerFromMenu);
-  $("#label-menu-search")?.addEventListener("input", event => { labelMenuSearchQuery = event.target.value; refreshLabelMenuOptions(); });
-  $("#label-partner-search")?.addEventListener("input", event => { labelPartnerSearchQuery = event.target.value; refreshLabelMenuOptions(); });
-  refreshLabelMenuOptions();
+  $("#label-unified-search")?.addEventListener("input", () => {
+    labelSelectedMenuId = "";
+    const hidden = $("#label-menu-select"); if (hidden) hidden.value = "";
+    updateLabelSelectionSummary(); refreshUnifiedLabelSearch();
+  });
+  $("#label-unified-search")?.addEventListener("keydown", handleLabelSearchKeydown);
+  refreshUnifiedLabelSearch();
   $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
+  $$('[data-cancel-tx]').forEach(button => button.addEventListener("click", () => cancelTransactionFromHistory(button.dataset.cancelTx, button)));
   $$('[data-edit-user-name]').forEach(button => button.addEventListener("click", () => editManagedUserName(button.dataset.editUserName)));
   $$('[data-edit-partner]').forEach(button => button.addEventListener("click", () => editPartnerBank(button.dataset.editPartner)));
   $("#new-user-role")?.addEventListener("change", event => $("#partner-bank-fields")?.classList.toggle("hidden", event.target.value !== "partner"));
@@ -2602,15 +2804,17 @@ function openPaymentModal() {
   const cartItems=[...cart.values()];
   const total=cartItems.reduce((sum,row)=>sum+row.price*row.qty,0);
   const root=$("#modal-root");
-  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">💵</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">▦</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">🏦</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">🏷️</span><span>Operasional KALAP</span><small>Produk tetap tercatat sebagai penjualan, biaya ditanggung KALAP.</small></button></div><div id="cash-tender-step"></div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
+  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">${PAYMENT_ICONS.cash}</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">${PAYMENT_ICONS.qris}</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">${PAYMENT_ICONS.transfer}</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">${PAYMENT_ICONS.kalap_operational}</span><span>Operasional KALAP</span></button></div><div id="cash-tender-step"></div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
   root.querySelectorAll('[data-pay-method]').forEach(button=>button.addEventListener('click',()=>{
     const method=button.dataset.payMethod;
     if(method!=='cash'){checkout(method);return;}
     const box=root.querySelector('#cash-tender-step');
-    box.innerHTML=`<div class="cash-tender-box"><div class="form-field"><label for="cash-amount-received">Uang diterima dari pelanggan (Rp)</label><input id="cash-amount-received" type="number" min="${total}" step="1" inputmode="numeric" placeholder="Minimal ${integer(total)}" required></div><div class="summary-row"><span>Total belanja</span><strong>${money(total)}</strong></div><div class="summary-row"><span>Kembalian</span><strong id="cash-change-value">${money(0)}</strong></div><div class="cash-change-value" id="cash-change-big">${money(0)}</div><button type="button" class="btn btn-primary btn-wide" id="confirm-cash-payment" disabled>Konfirmasi & bayar</button></div>`;
-    const input=box.querySelector('#cash-amount-received'), change=box.querySelector('#cash-change-value'), big=box.querySelector('#cash-change-big'), confirmBtn=box.querySelector('#confirm-cash-payment');
-    input.addEventListener('input',()=>{const received=Number(input.value);const valid=Number.isSafeInteger(received)&&received>=total;const result=valid?received-total:0;change.textContent=money(result);big.textContent=money(result);confirmBtn.disabled=!valid;});
-    confirmBtn.addEventListener('click',()=>checkout('cash',Number(input.value),confirmBtn));
+    box.innerHTML=`<div class="cash-tender-box"><div class="cash-payment-total"><span>Total belanja</span><strong>${money(total)}</strong></div><div class="form-field"><label for="cash-amount-received">Uang diterima (Rp)</label><input id="cash-amount-received" type="text" inputmode="numeric" data-money-input placeholder="Masukkan nominal uang" required></div><div class="cash-change-panel"><span>Kembalian</span><strong id="cash-change-value">${money(0)}</strong></div><button type="button" class="btn btn-primary btn-wide" id="confirm-cash-payment" disabled>Konfirmasi & bayar</button></div>`;
+    const input=box.querySelector('#cash-amount-received'), change=box.querySelector('#cash-change-value'), confirmBtn=box.querySelector('#confirm-cash-payment');
+    initMoneyInputs(box);
+    const updateCashChange=()=>{const received=parseMoneyInput(input.value);const valid=Number.isSafeInteger(received)&&received>=total;const result=valid?received-total:0;change.textContent=money(result);confirmBtn.disabled=!valid;};
+    input.addEventListener('input',updateCashChange);
+    confirmBtn.addEventListener('click',()=>checkout('cash',parseMoneyInput(input.value),confirmBtn));
     input.focus();
   }));
   root.querySelectorAll('[data-payment-cancel]').forEach(item=>item.addEventListener('click',()=>root.innerHTML=""));
@@ -2622,6 +2826,7 @@ async function checkout(paymentMethod, amountReceived = null, button = null) {
   const root=$("#modal-root"); const buttonToBusy=button||root.querySelector(`[data-pay-method="${paymentMethod}"]`);
   if(paymentMethod==='cash'){
     const total=[...cart.values()].reduce((sum,row)=>sum+row.price*row.qty,0);
+    amountReceived = parseMoneyInput(amountReceived);
     if(!Number.isSafeInteger(Number(amountReceived))||Number(amountReceived)<total) return toast("Uang diterima belum mencukupi total belanja.","error");
   }
   busy=true;if(buttonToBusy)setBusy(buttonToBusy,true,"Menyimpan...");
@@ -2659,11 +2864,28 @@ function showReceipt(result) {
   modal.querySelector("#receipt-back").addEventListener("click",()=>{modal.innerHTML="";showPage("pos");});
 }
 
+async function cancelTransactionFromHistory(transactionId, button) {
+  const transaction = store.transactions.find(item => item.id === transactionId);
+  if (!transaction || transaction.status !== "completed") return toast("Transaksi ini sudah diproses atau tidak dapat dibatalkan.", "error");
+  const itemSummary = (transaction.items || []).map(item => `${item.name} (${integer(item.qty)} unit)`).join(", ");
+  const message = `Batalkan transaksi ${transaction.transactionCode || transactionId}?\n\n${itemSummary}\nTotal ${money(transaction.total)}\n\nStok akan dikembalikan ke POS dan catatan penjualan terkait ditandai batal.`;
+  if (!await kalapConfirm(message, { title: "Batalkan transaksi", confirmText: "Ya, batalkan", danger: true })) return;
+  setBusy(button, true, "Membatalkan...");
+  try {
+    const result = await callApi("cancelSale", { transactionId, reason: "Dibatalkan melalui riwayat transaksi." });
+    $("#modal-root").innerHTML = "";
+    toast(`Transaksi ${result.transactionCode} dibatalkan. Stok berhasil dikembalikan.`, "success");
+    renderPage();
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
+}
+
 function showTransactionDetail(transactionId) {
   const tx = store.transactions.find(item => item.id === transactionId);
   if (!tx) return toast("Detail transaksi tidak ditemukan pada periode ini.", "error");
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-detail-backdrop><section class="modal"><div class="modal-head"><div><h2>Detail transaksi</h2><p>${escapeHtml(tx.transactionCode || tx.id)} · ${formatDate(tx.createdAt)} ${formatTime(tx.createdAt)}</p></div><button class="modal-close" data-detail-close>×</button></div><div class="receipt-box"><div class="receipt-line"><span>Kasir</span><strong>${escapeHtml(tx.cashierName || "—")}</strong></div><div class="receipt-line"><span>${tx.paymentMethod === "kalap_operational" ? "Penanggung biaya" : "Pembayaran"}</span><strong>${escapeHtml(paymentMethodLabel(tx.paymentMethod))}</strong></div>${(tx.items || []).map(item=>`<div class="receipt-line" style="align-items:flex-start"><span><strong>${escapeHtml(item.name)}</strong><br>${integer(item.qty)} × ${money(item.price)}<br><small>Stok: ${integer(item.stockBefore)} → ${integer(item.stockAfter)}</small></span><strong>${money(item.subtotal)}</strong></div>`).join("")}<div class="receipt-line receipt-total"><span>Total</span><strong>${money(tx.total)}</strong></div></div><div class="form-actions"><button class="btn btn-primary" data-detail-close>Tutup</button></div></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop" data-detail-backdrop><section class="modal"><div class="modal-head"><div><h2>Detail transaksi</h2><p>${escapeHtml(tx.transactionCode || tx.id)} · ${formatDate(tx.createdAt)} ${formatTime(tx.createdAt)}</p></div><button class="modal-close" data-detail-close>×</button></div><div class="receipt-box"><div class="receipt-line"><span>Kasir</span><strong>${escapeHtml(tx.cashierName || "—")}</strong></div><div class="receipt-line"><span>${tx.paymentMethod === "kalap_operational" ? "Penanggung biaya" : "Pembayaran"}</span><strong>${escapeHtml(paymentMethodLabel(tx.paymentMethod))}</strong></div>${(tx.items || []).map(item=>`<div class="receipt-line" style="align-items:flex-start"><span><strong>${escapeHtml(item.name)}</strong><br>${integer(item.qty)} × ${money(item.price)}<br><small>Stok: ${integer(item.stockBefore)} → ${integer(item.stockAfter)}</small></span><strong>${money(item.subtotal)}</strong></div>`).join("")}<div class="receipt-line receipt-total"><span>Total</span><strong>${money(tx.total)}</strong></div></div>${tx.status === "cancelled" ? `<div class="transaction-cancel-note">Transaksi dibatalkan oleh ${escapeHtml(tx.cancelledByName || "tim KALAP")}. Stok telah dikembalikan ke POS.</div>` : ""}<div class="form-actions">${tx.status === "completed" && (['superadmin','spv'].includes(profile?.role) || (profile?.role === 'cashier' && tx.cashierUid === profile.uid && Boolean(tx.cashflowId) && Array.isArray(tx.partnerSaleIds))) ? `<button class="btn btn-danger" data-cancel-tx="${tx.id}">Batalkan transaksi</button>` : ""}<button class="btn btn-primary" data-detail-close>Tutup</button></div></section></div>`;
+  root.querySelector('[data-cancel-tx]')?.addEventListener("click", event => cancelTransactionFromHistory(tx.id, event.currentTarget));
   root.querySelectorAll("[data-detail-close], [data-detail-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-detail-close]"))root.innerHTML="";}));
 }
 
@@ -2676,14 +2898,30 @@ function openManagementModal(type) {
   }
   root.querySelectorAll("[data-modal-close], [data-modal-backdrop]").forEach(item=>item.addEventListener("click", event=>{ if(event.target===item || item.matches("[data-modal-close]")) root.innerHTML=""; }));
 }
+async function deleteMenu(menuId, button) {
+  if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat menghapus menu.", "error");
+  const menu = store.menus.find(item => item.id === menuId);
+  if (!menu) return toast("Menu tidak ditemukan.", "error");
+  const message = `Hapus menu ${menu.name}? Menu akan disembunyikan dari POS, katalog, dan cetak label. Stok saat ini (${integer(menu.stock)} unit) serta riwayat transaksi akan tetap disimpan untuk audit.`;
+  if (!await kalapConfirm(message, { title: "Hapus menu", confirmText: "Hapus menu", danger: true })) return;
+  setBusy(button, true, "Menghapus...");
+  try {
+    await callApi("deleteMenu", { menuId });
+    toast(`Menu ${menu.name} berhasil dihapus dari katalog aktif.`, "success");
+    renderPage();
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
+}
+
 function editMenu(menuId) {
   const menu = store.menus.find(item=>item.id===menuId);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Edit menu</h2><p>Perubahan harga dan status berlaku setelah disimpan.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="edit-menu-form"><div class="form-field"><label>Nama menu</label><input name="name" value="${escapeHtml(menu.name)}" maxlength="80" required></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="number" min="1" value="${Number(menu.price)}" required></div><div class="form-field"><label>Status</label><select name="active"><option value="true" ${menu.active!==false?"selected":""}>Aktif</option><option value="false" ${menu.active===false?"selected":""}>Nonaktif</option></select></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan perubahan</button></div></form></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Edit menu</h2><p>Perubahan harga dan status berlaku setelah disimpan.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="edit-menu-form"><div class="form-field"><label>Nama menu</label><input name="name" value="${escapeHtml(menu.name)}" maxlength="80" required></div><div class="form-field"><label>Harga jual (Rp)</label><input name="price" type="text" inputmode="numeric" data-money-input value="${formatMoneyInput(menu.price)}" required></div><div class="form-field"><label>Status</label><select name="active"><option value="true" ${menu.active!==false?"selected":""}>Aktif</option><option value="false" ${menu.active===false?"selected":""}>Nonaktif</option></select></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan perubahan</button></div></form></section></div>`;
+  initMoneyInputs(root);
   root.querySelector("#edit-menu-form").addEventListener("submit", async event=>{
     event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); setBusy(button,true);
-    try { const data=Object.fromEntries(new FormData(form)); await callApi("updateMenu", { menuId, name:data.name, category:menu.category || "", price:Number(data.price), active:data.active==="true" }); root.innerHTML=""; toast("Menu berhasil diperbarui.","success"); }
+    try { const data=Object.fromEntries(new FormData(form)); await callApi("updateMenu", { menuId, name:data.name, category:menu.category || "", price:parseMoneyInput(data.price), active:data.active==="true" }); root.innerHTML=""; toast("Menu berhasil diperbarui.","success"); }
     catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
   });
   root.querySelectorAll("[data-modal-close], [data-modal-backdrop]").forEach(item=>item.addEventListener("click",event=>{if(event.target===item||item.matches("[data-modal-close]"))root.innerHTML="";}));
@@ -2763,7 +3001,7 @@ async function closeBusinessDay(button) {
       getDocs(query(collection(db, "stockMovements"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs)))
     ]);
     const menus = menusSnap.docs.map(item => ({ id: item.id, ...item.data() }));
-    const transactions = txSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+    const transactions = txSnap.docs.map(item => ({ id: item.id, ...item.data() })).filter(item => item.status !== "cancelled");
     const movements = movementsSnap.docs.map(item => item.data());
     const grouped = new Map(partnersSnap.docs.map(item => [item.id, {
       partnerId: item.id, partnerName: item.data().name || "Mitra", items: [], totalRemaining: 0
@@ -2773,7 +3011,7 @@ async function closeBusinessDay(button) {
       if (!grouped.has(menu.partnerId)) grouped.set(menu.partnerId, { partnerId: menu.partnerId, partnerName: menu.partnerName || "Mitra", items: [], totalRemaining: 0 });
       const group = grouped.get(menu.partnerId);
       const menuMovements = movements.filter(row => row.menuId === menu.id);
-      const soldQty = menuMovements.filter(row => row.type === "sale").reduce((sum,row)=>sum+Number(row.qty||0),0);
+      const soldQty = menuMovements.filter(row => row.type === "sale").reduce((sum,row)=>sum+Number(row.qty||0),0) - menuMovements.filter(row => row.type === "sale_cancel").reduce((sum,row)=>sum+Number(row.qty||0),0);
       const receivedQty = menuMovements.filter(row => row.type === "in").reduce((sum,row)=>sum+Number(row.qty||0),0);
       const remainingStock = Math.max(0, Number(menu.stock || 0));
       group.totalRemaining += remainingStock;
@@ -2794,7 +3032,7 @@ async function closeBusinessDay(button) {
       }
     }
     const operationalItems = [...operationalItemsMap.values()];
-    const soldQty = movements.filter(row=>row.type==="sale").reduce((sum,row)=>sum+Number(row.qty||0),0);
+    const soldQty = movements.filter(row=>row.type==="sale").reduce((sum,row)=>sum+Number(row.qty||0),0) - movements.filter(row=>row.type==="sale_cancel").reduce((sum,row)=>sum+Number(row.qty||0),0);
     const receivedQty = movements.filter(row=>row.type==="in").reduce((sum,row)=>sum+Number(row.qty||0),0);
     const totalRemaining = groups.reduce((sum,row)=>sum+row.totalRemaining,0);
     const batch = writeBatch(db);
@@ -3031,57 +3269,62 @@ function filterMenuRows() {
 
 function exportMenusCsv() {
   if(!["superadmin","spv"].includes(profile?.role)) return;
-  const rows=[["Nama menu","Mitra","Harga jual","Stok","Kode QR","Status"],...store.menus.map(menu=>[menu.name,menu.partnerName||"",menu.price,menu.stock,menuBarcode(menu),menu.active===false?"Nonaktif":"Aktif"])];
+  const rows=[["Nama menu","Mitra","Harga jual","Stok","Kode QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>[menu.name,menu.partnerName||"",menu.price,menu.stock,menuBarcode(menu),menu.active===false?"Nonaktif":"Aktif"])];
   const csv=rows.map(row=>row.map(value=>`"${String(value??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
 }
 
 
-function refreshLabelMenuOptions() {
-  const partnerSelect = $("#label-partner-select");
-  const menuSelect = $("#label-menu-select");
-  if (!partnerSelect || !menuSelect) return;
-  const partnerQuery = String($("#label-partner-search")?.value || "").trim().toLowerCase();
-  const menuQuery = String($("#label-menu-search")?.value || "").trim().toLowerCase();
-  const currentPartnerId = partnerSelect.value;
-  const currentMenuId = menuSelect.value;
-  const partners = store.partners.filter(partner => partner.active !== false
-    && (!partnerQuery || String(partner.name || "").toLowerCase().includes(partnerQuery)))
-    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
-  partnerSelect.innerHTML = `<option value="">Semua mitra</option>${partners.map(partner=>`<option value="${partner.id}">${escapeHtml(partner.name)}</option>`).join("")}`;
-  if (partners.some(partner => partner.id === currentPartnerId)) partnerSelect.value = currentPartnerId;
-  const partnerId = partnerSelect.value;
-  const available = store.menus.filter(menu => menu.active !== false
-    && (!partnerId || menu.partnerId === partnerId)
-    && (!menuQuery || String(menu.name || "").toLowerCase().includes(menuQuery)))
-    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
-  menuSelect.innerHTML = `<option value="">Pilih nama menu</option>${available.map(menu=>`<option value="${menu.id}">${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("")}`;
-  if (available.some(menu => menu.id === currentMenuId)) menuSelect.value = currentMenuId;
-  else if (available.length) menuSelect.value = available[0].id;
+function selectLabelMenu(menuId) {
+  const menu = store.menus.find(row => row.id === menuId && row.active !== false && row.deleted !== true);
+  if (!menu) return false;
+  labelSelectedMenuId = menu.id;
+  labelSearchQuery = `${menu.name} — ${menu.partnerName || "Mitra"}`;
+  const input = $("#label-unified-search"), hidden = $("#label-menu-select");
+  if (input) input.value = labelSearchQuery;
+  if (hidden) hidden.value = menu.id;
   updateLabelSelectionSummary();
+  refreshUnifiedLabelSearch();
+  return true;
 }
-function syncLabelPartnerFromMenu() {
-  const menu = store.menus.find(item => item.id === $("#label-menu-select")?.value);
-  const partnerSelect = $("#label-partner-select");
-  if (menu && partnerSelect) {
-    const partnerSearch = $("#label-partner-search");
-    labelPartnerSearchQuery = "";
-    if (partnerSearch) partnerSearch.value = "";
-    partnerSelect.value = menu.partnerId || "";
-    // Setelah menu dipilih, sinkronkan daftar ke mitranya tanpa kehilangan menu aktif.
-    refreshLabelMenuOptions();
-  } else updateLabelSelectionSummary();
+
+function refreshUnifiedLabelSearch() {
+  const input = $("#label-unified-search"), results = $("#label-search-results");
+  if (!input || !results) return;
+  const queryText = String(input.value || "").trim().toLowerCase();
+  labelSearchQuery = input.value;
+  const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true && (!queryText ||
+    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText))))
+    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||""))).slice(0, 12);
+  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · ${escapeHtml(menuBarcode(menu))}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
+  $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
 }
 
 function updateLabelSelectionSummary() {
   const target = $("#label-selection-summary");
   if (!target) return;
-  const menu = store.menus.find(item => item.id === $("#label-menu-select")?.value);
-  if (!menu) {
-    target.textContent = "Belum ada menu untuk pilihan mitra ini. Pilih mitra lain atau tambahkan menu terlebih dahulu.";
-    return;
-  }
+  const menu = store.menus.find(item => item.id === labelSelectedMenuId && item.deleted !== true);
+  if (!menu) { target.textContent = "Belum ada menu dipilih. Cari atau scan kode QR terlebih dahulu."; return; }
   target.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · ${escapeHtml(menu.partnerName||"—")} · ${money(menu.price)}<br><small>Kode QR: ${escapeHtml(menuBarcode(menu))}</small>`;
+}
+
+function handleLabelSearchKeydown(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const rawQuery = String(event.currentTarget.value || "").trim();
+  const queryText = rawQuery.toLowerCase();
+  const normalizedQuery = queryText.replace(/[\s-]/g, "");
+  if (!queryText) return;
+  const active = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
+  const exact = active.find(menu => [menuBarcode(menu), menu.barcode].some(value => {
+    const candidate = String(value || "").trim().toLowerCase();
+    return candidate === queryText || candidate.replace(/[\s-]/g, "") === normalizedQuery;
+  }));
+  if (exact) { selectLabelMenu(exact.id); return; }
+  const matches = active.filter(menu => String(menu.name || "").trim().toLowerCase() === queryText || String(menu.partnerName || "").trim().toLowerCase() === queryText);
+  if (matches.length === 1) selectLabelMenu(matches[0].id);
+  else if (matches.length > 1) toast(`Ada ${matches.length} menu milik mitra/nama tersebut. Pilih menu yang benar dari daftar di bawah.`, "info");
+  else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan QR menu KALAP.", "error");
 }
 
 function handleBulkLabelPrint(event) {
@@ -3089,10 +3332,9 @@ function handleBulkLabelPrint(event) {
   const form = event.currentTarget;
   const button = form.querySelector('[type="submit"]');
   const data = Object.fromEntries(new FormData(form));
-  const menu = store.menus.find(item => item.id === String(data.menuId||""));
+  const menu = store.menus.find(item => item.id === String(data.menuId||"") && item.deleted !== true);
   const copies = Number(data.copies);
-  if (!menu || menu.active === false) return toast("Pilih menu aktif yang akan dicetak.", "error");
-  if (data.partnerId && menu.partnerId !== data.partnerId) return toast("Menu tidak sesuai dengan mitra yang dipilih. Pilih ulang menu.", "error");
+  if (!menu || menu.active === false) return toast("Cari lalu pilih satu menu aktif sebelum mencetak.", "error");
   if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah label harus antara 1 sampai 500.", "error");
   if (!window.QRCode) return toast("Pustaka QR belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
   setBusy(button, true, "Menyiapkan label...");
@@ -3366,7 +3608,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.7.0", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=1.8.0", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -3381,11 +3623,9 @@ $("#login-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!isFirebaseConfigured) return;
   const button=$("#login-submit");
-  const remember = $("#remember-me")?.checked === true;
   setBusy(button,true,"Menghubungkan...");
   try {
-    // Remember me uses local persistence; otherwise the login stays in memory only and is cleared when the page is reloaded or closed.
-    await setPersistence(auth, remember ? browserLocalPersistence : inMemoryPersistence);
+    await setPersistence(auth, browserLocalPersistence);
     await signInWithEmailAndPassword(auth, $("#login-email").value.trim(), $("#login-password").value);
     $("#login-password").value="";
   }

@@ -47,7 +47,11 @@ service cloud.firestore {
         && ((getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'sale' && isPOSUser()
               && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == resource.data.stock - request.resource.data.stock)
           || (getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'in' && isStaff()
-              && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock - resource.data.stock));
+              && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock - resource.data.stock)
+          || (getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.type == 'sale_cancel' && isPOSUser()
+              && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.qty == request.resource.data.stock - resource.data.stock
+              && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.transactionId)).data.status == 'cancelled'
+              && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.transactionId)).data.cancelMovementIds.hasAny([request.resource.data.lastMovementId])));
     }
 
     function validNewMenu(menuId) {
@@ -125,6 +129,15 @@ service cloud.firestore {
       allow create: if validNewMenu(menuId);
       allow update: if (isSuperadmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'price', 'active', 'updatedAt', 'updatedBy']))
+        || (isSuperadmin()
+          && resource.data.deleted != true
+          && request.resource.data.deleted == true
+          && request.resource.data.active == false
+          && request.resource.data.deletedAt == request.time
+          && request.resource.data.deletedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted','deletedAt','deletedBy','active','updatedAt','updatedBy']))
         || ((isPOSUser() || isStaff())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId'])
           && request.resource.data.stock is int
@@ -156,7 +169,21 @@ service cloud.firestore {
           : request.resource.data.amountReceived == null && request.resource.data.changeAmount == 0)
         && businessDateIsOpen(request.resource.data.businessDate)
         && request.resource.data.createdAt == request.time;
-      allow update, delete: if false;
+      allow update: if isPOSUser()
+        && resource.data.status == 'completed'
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledAt == request.time
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.cancelBusinessDate is string
+        && (resource.data.keys().hasAny(['businessDate'])
+          ? request.resource.data.cancelBusinessDate == resource.data.businessDate
+          : isStaff())
+        && businessDateIsOpen(request.resource.data.cancelBusinessDate)
+        && request.resource.data.cancelMovementIds is list
+        && request.resource.data.cancelMovementIds.size() == resource.data.items.size()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','cancelledAt','cancelledBy','cancelledByName','cancelBusinessDate','cancelReason','cancelMovementIds'])
+        && (isStaff() || resource.data.cashierUid == request.auth.uid);
+      allow delete: if false;
     }
 
     match /stockMovements/{movementId} {
@@ -180,14 +207,24 @@ service cloud.firestore {
               && request.resource.data.stockAfter - request.resource.data.stockBefore == request.resource.data.qty
               && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter)
+          || (request.resource.data.type == 'sale_cancel' && isPOSUser()
+              && request.resource.data.stockAfter - request.resource.data.stockBefore == request.resource.data.qty
+              && request.resource.data.transactionId is string
+              && existsAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId))
+              && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.status == 'cancelled'
+              && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.cancelMovementIds.hasAny([movementId])
+              && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
+              && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter));
       allow update, delete: if false;
     }
 
 
     match /cashflows/{cashflowId} {
-      // Superadmin dapat membaca semua arus kas. SPV hanya dapat membaca catatan operasional.
-      allow read: if isStaff();
+      // Staf membaca semua catatan; kasir hanya boleh membaca catatan transaksi miliknya.
+      allow read: if isStaff() || (isCashier() && resource.data.transactionId is string
+        && get(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
       allow create: if (isStaff()
           && request.resource.data.source == 'operational'
           && request.resource.data.createdBy == request.auth.uid
@@ -226,11 +263,22 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.paymentMethod == 'kalap_operational'
           && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.payerType == 'kalap'
           && request.resource.data.createdAt == request.time);
-      allow update, delete: if false;
+      allow update: if isPOSUser()
+        && resource.data.transactionId is string
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledAt == request.time
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','cancelledAt','cancelledBy','cancelledByName'])
+        && existsAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId))
+        && getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.status == 'cancelled'
+        && (isStaff() || getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
+      allow delete: if false;
     }
 
     match /partnerSales/{partnerSaleId} {
-      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+      allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId)
+        || (isCashier() && resource.data.transactionId is string
+          && get(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
       allow create: if isPOSUser()
         && request.resource.data.partnerId is string
         && request.resource.data.total is int
@@ -238,7 +286,16 @@ service cloud.firestore {
         && request.resource.data.transactionId is string
         && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.transactionId)).data.cashierUid == request.auth.uid
         && request.resource.data.createdAt == request.time;
-      allow update, delete: if false;
+      allow update: if isPOSUser()
+        && resource.data.transactionId is string
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledAt == request.time
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','cancelledAt','cancelledBy','cancelledByName'])
+        && existsAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId))
+        && getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.status == 'cancelled'
+        && (isStaff() || getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
+      allow delete: if false;
     }
 
     match /stockRequests/{requestId} {
