@@ -1243,6 +1243,8 @@ let accountsSearchQuery = "";
 let accountsCurrentPage = 1;
 const accountsPageSize = 7;
 let labelSearchQuery = "";
+let labelSearchCurrentPage = 1;
+const labelSearchPageSize = 12;
 let labelSelectedMenuId = "";
 let lastDataErrorKey = "";
 let lastDataErrorAt = 0;
@@ -3367,6 +3369,7 @@ function attachPageEvents() {
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
   $("#label-unified-search")?.addEventListener("input", () => {
     labelSelectedMenuId = "";
+    labelSearchCurrentPage = 1;
     const hidden = $("#label-menu-select"); if (hidden) hidden.value = "";
     updateLabelSelectionSummary(); refreshUnifiedLabelSearch();
   });
@@ -3948,6 +3951,7 @@ function selectLabelMenu(menuId) {
   if (!menu) return false;
   labelSelectedMenuId = menu.id;
   labelSearchQuery = "";
+  labelSearchCurrentPage = 1;
   const input = $("#label-unified-search"), hidden = $("#label-menu-select");
   if (input) input.value = "";
   if (hidden) hidden.value = menu.id;
@@ -3961,14 +3965,53 @@ function refreshUnifiedLabelSearch() {
   if (!input || !results) return;
   const queryText = String(input.value || "").trim().toLowerCase();
   labelSearchQuery = input.value;
-  if (!queryText) { results.innerHTML = ""; return; }
-  const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true &&
-    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => String(value || "").toLowerCase().includes(queryText)))
-    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||""))).slice(0, 12);
-  results.innerHTML = menus.length ? menus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)}</span></button>`).join("") : `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
-  $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
-}
+  if (!queryText) {
+    labelSearchCurrentPage = 1;
+    results.innerHTML = "";
+    return;
+  }
 
+  // Do not truncate the complete match list: paginate it so every menu
+  // belonging to a searched partner can be reached and selected.
+  const allMatches = store.menus.filter(menu => menu.active !== false && menu.deleted !== true &&
+    [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode]
+      .some(value => String(value || "").toLowerCase().includes(queryText)))
+    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+
+  const totalPages = Math.max(1, Math.ceil(allMatches.length / labelSearchPageSize));
+  labelSearchCurrentPage = Math.min(Math.max(1, labelSearchCurrentPage), totalPages);
+  const start = (labelSearchCurrentPage - 1) * labelSearchPageSize;
+  const visibleMenus = allMatches.slice(start, start + labelSearchPageSize);
+
+  if (!allMatches.length) {
+    results.innerHTML = `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
+    return;
+  }
+
+  const pageNumbers = totalPages <= 7
+    ? Array.from({ length: totalPages }, (_, index) => index + 1)
+    : [...new Set([1, Math.max(2, labelSearchCurrentPage - 1), labelSearchCurrentPage, Math.min(totalPages - 1, labelSearchCurrentPage + 1), totalPages])].sort((a,b) => a - b);
+  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === labelSearchCurrentPage ? "active-page" : ""}" data-label-search-page-number="${page}" aria-current="${page === labelSearchCurrentPage ? "page" : "false"}">${page}</button>`).join("");
+  const listHtml = visibleMenus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)}</span></button>`).join("");
+  const firstItem = start + 1;
+  const lastItem = Math.min(start + labelSearchPageSize, allMatches.length);
+  const paginationHtml = `<div class="pagination-row label-search-pagination"><span class="helper-text">Menampilkan ${firstItem}–${lastItem} dari ${integer(allMatches.length)} menu · Halaman ${labelSearchCurrentPage} dari ${totalPages}</span><div class="page-buttons"><button type="button" data-label-search-page="prev" ${labelSearchCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-label-search-page="next" ${labelSearchCurrentPage >= totalPages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div>`;
+  results.innerHTML = listHtml + paginationHtml;
+
+  $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
+  results.querySelector('[data-label-search-page="prev"]')?.addEventListener("click", () => {
+    labelSearchCurrentPage = Math.max(1, labelSearchCurrentPage - 1);
+    refreshUnifiedLabelSearch();
+  });
+  results.querySelector('[data-label-search-page="next"]')?.addEventListener("click", () => {
+    labelSearchCurrentPage = Math.min(totalPages, labelSearchCurrentPage + 1);
+    refreshUnifiedLabelSearch();
+  });
+  $$('[data-label-search-page-number]', results).forEach(button => button.addEventListener("click", () => {
+    labelSearchCurrentPage = Number(button.dataset.labelSearchPageNumber);
+    refreshUnifiedLabelSearch();
+  }));
+}
 function updateLabelSelectionSummary() {
   const target = $("#label-selection-summary");
   if (!target) return;
