@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.0.7">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.1.0">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.0.7</title>
+  <title>KALAP Management System v2.1.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -211,6 +211,8 @@ td strong { color: #333d35; font-size: 10px; }
 .info-banner { display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px; border-radius: 10px; background: #f4f7ed; color: #687d4b; font-size: 10px; line-height: 1.6; margin-bottom: 14px; }
 .info-banner strong { color: #536b31; }
 .action-link { border: 0; background: none; color: #73963a; padding: 4px; font-size: 10px; font-weight: 800; }
+.btn-compact { padding: 7px 10px; font-size: 11px; border-radius: 8px; }
+.daily-stock-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .action-link.danger { color: #c2635c; }
 
 /* Toast and modal */
@@ -936,7 +938,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.0.7: stock-request navigation badge */
+/* KALAP v2.1.0: daily reset, stock editing, and multi-label printing */
 .nav-badge {
   margin-left: auto;
   min-width: 21px;
@@ -1126,7 +1128,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.0.7</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.1.0</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1245,7 +1247,7 @@ const accountsPageSize = 7;
 let labelSearchQuery = "";
 let labelSearchCurrentPage = 1;
 const labelSearchPageSize = 12;
-let labelSelectedMenuId = "";
+let labelSelections = [];
 let lastDataErrorKey = "";
 let lastDataErrorAt = 0;
 const directoryPageSize = 12;
@@ -1490,30 +1492,44 @@ async function callApi(name, payload = {}) {
     const secondaryAuth = getAuth(secondaryApp);
     let createdUser = null;
     let partnerCreated = false;
+    let userProfileCreated = false;
+    let partnerLinked = false;
+    const bankFields = { bankName:String(payload.bankName||"").trim(), accountNumber:String(payload.accountNumber||"").trim(), accountHolder:String(payload.accountHolder||"").trim() };
     try {
       const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       createdUser = credential.user;
-      if (partnerRef) {
-        const bankFields = { bankName:String(payload.bankName||"").trim(), accountNumber:String(payload.accountNumber||"").trim(), accountHolder:String(payload.accountHolder||"").trim() };
-        if (existingPartner) {
-          await updateDoc(partnerRef, { ...bankFields, linkedUserUid: createdUser.uid, updatedAt: serverTimestamp() });
-        } else {
-          await setDoc(partnerRef, { name: partnerName, ...bankFields, active: true, linkedUserUid: createdUser.uid,
-            createdAt: serverTimestamp(), createdBy: actorUid });
-          partnerCreated = true;
-        }
+
+      // Pastikan dokumen mitra sudah ada sebelum membuat profil akun. Namun jangan
+      // menautkan UID sampai dokumen users selesai dibuat agar rekonsiliasi realtime
+      // tidak mengira akun baru sebagai relasi yatim di antara dua penulisan.
+      if (partnerRef && !existingPartner) {
+        await setDoc(partnerRef, { name: partnerName, ...bankFields, active: true,
+          createdAt: serverTimestamp(), createdBy: actorUid });
+        partnerCreated = true;
       }
+
       await setDoc(doc(db, "users", createdUser.uid), {
         uid: createdUser.uid, displayName, email, role, partnerId, partnerName,
         active: true, createdAt: serverTimestamp(), createdBy: actorUid
       });
+      userProfileCreated = true;
+
+      if (partnerRef) {
+        await updateDoc(partnerRef, { ...bankFields, linkedUserUid: createdUser.uid, updatedAt: serverTimestamp() });
+        partnerLinked = true;
+      }
       return { uid: createdUser.uid, email, displayName, role, partnerName };
     } catch (error) {
-      if (createdUser) {
-        try { await deleteUser(createdUser); } catch (_) { /* Jika gagal, hapus akun dari Authentication Console. */ }
+      if (userProfileCreated && createdUser) {
+        try { await deleteDoc(doc(db, "users", createdUser.uid)); } catch (_) { /* Profil yatim dapat direkonsiliasi pada snapshot berikutnya. */ }
       }
       if (partnerCreated && partnerRef) {
         try { await deleteDoc(partnerRef); } catch (_) { /* Catatan mitra dapat dibersihkan manual. */ }
+      } else if (partnerLinked && existingPartner) {
+        try { await updateDoc(partnerRef, { linkedUserUid: null, updatedAt: serverTimestamp() }); } catch (_) {}
+      }
+      if (createdUser) {
+        try { await deleteUser(createdUser); } catch (_) { /* Identitas Authentication mungkin perlu dibersihkan oleh Admin SDK. */ }
       }
       throw error;
     } finally {
@@ -1581,14 +1597,16 @@ async function callApi(name, payload = {}) {
       throw new Error(`Menu belum bisa dihapus karena pengajuan stok ${statusText}. Selesaikan atau tolak pengajuan tersebut terlebih dahulu.`);
     }
 
-    // Bersihkan lock yatim/lock lama yang tertinggal dari pengajuan terminal.
-    // Penghapusan lock dan soft-delete menu dilakukan dalam satu transaksi agar
-    // tidak ada jendela waktu yang memungkinkan pengajuan baru masuk bersamaan.
+    // Arsipkan snapshot lengkap, lalu hapus dokumen menu operasional dari koleksi menus.
+    // Riwayat transaksi tetap utuh karena salinan katalog disimpan di menuArchives/{menuId}.
     let deletedMenuName = "Menu";
     await runTransaction(db, async transaction => {
       const menuSnap = await transaction.get(menuRef);
-      if (!menuSnap.exists() || menuSnap.data().deleted === true) throw new Error("Menu sudah tidak tersedia.");
-      deletedMenuName = String(menuSnap.data().name || "Menu");
+      if (!menuSnap.exists()) throw new Error("Menu sudah tidak tersedia.");
+      const archiveRef = doc(db, "menuArchives", menuId);
+      const archiveSnap = await transaction.get(archiveRef);
+      const menuData = menuSnap.data();
+      deletedMenuName = String(menuData.name || "Menu");
 
       const lockSnap = await transaction.get(lockRef);
       if (lockSnap.exists()) {
@@ -1601,22 +1619,19 @@ async function callApi(name, payload = {}) {
             if (["pending", "revised"].includes(requestStatus)) {
               throw new Error("Menu masih memiliki pengajuan stok aktif. Selesaikan atau tolak pengajuan tersebut terlebih dahulu.");
             }
-            if (!["received", "rejected"].includes(requestStatus)) {
+            if (!["received", "rejected", "voided"].includes(requestStatus)) {
               throw new Error("Pengunci stok memiliki status yang belum dikenali. Periksa pengajuan stok menu ini terlebih dahulu.");
             }
           }
         }
         transaction.delete(lockRef);
       }
-
-      transaction.update(menuRef, {
-        deleted: true,
-        active: false,
-        deletedAt: serverTimestamp(),
-        deletedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        updatedBy: actorUid
+      if (!archiveSnap.exists()) transaction.set(archiveRef, {
+        ...menuData, originalMenuId: menuId, deleted: true, active: false,
+        archivedAt: serverTimestamp(), archivedBy: actorUid,
+        archiveReason: "Menu dihapus dari katalog KALAP."
       });
+      transaction.delete(menuRef);
     });
     return { menuId, name: deletedMenuName };
   }
@@ -1761,6 +1776,7 @@ async function callApi(name, payload = {}) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) throw new Error("Tanggal transaksi tidak valid. Hubungi Admin untuk pemeriksaan manual.");
 
     const menuRefs = menuItems.map(item => doc(db, "menus", String(item.menuId || "")));
+    const archiveRefs = menuItems.map(item => doc(db, "menuArchives", String(item.menuId || "")));
     const movementRefs = menuItems.map(() => doc(collection(db, "stockMovements")));
     const cashflowRefs = hasCashflowLink ? [doc(db, "cashflows", firstSale.cashflowId)] : [];
     const partnerSaleRefs = hasPartnerSaleLinks
@@ -1787,10 +1803,13 @@ async function callApi(name, payload = {}) {
       if (profile.role === "cashier" && sale.cashierUid !== actorUid) throw new Error("Kasir hanya dapat membatalkan transaksi miliknya sendiri.");
       if (closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status)) throw new Error("Tanggal transaksi sudah masuk proses atau selesai closing. Transaksi tidak dapat dibatalkan dari tanggal yang telah ditutup.");
 
-      const refsToRead = [...menuRefs, ...cashflowRefs, ...partnerSaleRefs];
+      const refsToRead = [...menuRefs, ...archiveRefs, ...cashflowRefs, ...partnerSaleRefs];
       const reads = await Promise.all(refsToRead.map(ref => tx.get(ref)));
       let cursor = 0;
-      const menuSnaps = reads.slice(cursor, cursor += menuRefs.length);
+      const liveMenuSnaps = reads.slice(cursor, cursor += menuRefs.length);
+      const archiveMenuSnaps = reads.slice(cursor, cursor += archiveRefs.length);
+      const menuSnaps = liveMenuSnaps.map((snap, index) => snap.exists() ? snap : archiveMenuSnaps[index]);
+      const menuWriteRefs = liveMenuSnaps.map((snap, index) => snap.exists() ? menuRefs[index] : archiveRefs[index]);
       const cashflowSnaps = reads.slice(cursor, cursor += cashflowRefs.length);
       const partnerSnaps = reads.slice(cursor, cursor + partnerSaleRefs.length);
       const createdAt = serverTimestamp();
@@ -1807,7 +1826,7 @@ async function callApi(name, payload = {}) {
         if (!Number.isSafeInteger(stockAfter)) throw new Error(`Stok ${menu.name} melebihi batas angka yang aman.`);
         const movementRef = movementRefs[i];
         cancelMovementIds.push(movementRef.id);
-        tx.update(menuRefs[i], { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
+        tx.update(menuWriteRefs[i], { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
         tx.set(movementRef, {
           type: "sale_cancel", qty, menuId: menuItem.menuId, menuName: menu.name || menuItem.name || "Menu",
           partnerId: menu.partnerId || menuItem.partnerId || null, partnerName: menu.partnerName || menuItem.partnerName || "—",
@@ -2117,50 +2136,376 @@ async function callApi(name, payload = {}) {
     return { requestId };
   }
 
-  if (name === "deleteDailyStockMovement") {
-    requireRole("superadmin");
+  if (name === "editDailyStockMovement") {
+    requireRole("superadmin", "spv");
     const movementId = String(payload.movementId || "").trim();
-    if (!movementId) throw new Error("Catatan stok harian tidak valid.");
-    const movementBeforeDelete = await getDoc(doc(db, "stockMovements", movementId));
-    if (!movementBeforeDelete.exists()) throw new Error("Catatan stok harian sudah tidak tersedia.");
-    const relatedRequestId = String(movementBeforeDelete.data().requestId || "").trim();
-    if (relatedRequestId) {
-      const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", relatedRequestId), limit(1)));
-      if (!adjustmentHistory.empty) throw new Error("Catatan ini memiliki riwayat koreksi. Riwayat batch dipertahankan agar jejak koreksi tidak terputus.");
+    const nextQty = Number(payload.qty);
+    const note = String(payload.note || "").trim().slice(0, 160);
+    if (!movementId || !Number.isInteger(nextQty) || nextQty < 1 || nextQty > 100000) throw new Error("Jumlah stok tidak valid.");
+    const movementRef = doc(db, "stockMovements", movementId);
+    const adjustmentRef = doc(collection(db, "stockMovements"));
+    const firstSnap = await getDoc(movementRef);
+    if (!firstSnap.exists()) throw new Error("Batch stok tidak ditemukan.");
+    const firstData = firstSnap.data();
+    if (firstData.requestId) {
+      const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
+      if (!adjustmentHistory.empty) throw new Error("Batch ini sudah memiliki riwayat koreksi mitra. Gunakan alur koreksi pada pengajuan mitra agar jejak batch tetap utuh.");
     }
-    await runTransaction(db, async tx => {
-      const movementRef = doc(db, "stockMovements", movementId);
+    return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
-      if (!movementSnap.exists()) throw new Error("Catatan stok harian sudah tidak tersedia.");
+      if (!movementSnap.exists()) throw new Error("Batch stok tidak ditemukan.");
       const movement = movementSnap.data();
-      if (movement.type !== "in") throw new Error("Hanya catatan stok masuk yang dapat dihapus dari riwayat harian. Riwayat koreksi tetap dipertahankan.");
-      if (movement.hiddenFromDaily === true) throw new Error("Catatan stok ini sudah dihapus dari riwayat.");
-
-      let requestRef = null;
-      let requestSnap = null;
-      const requestId = String(movement.requestId || "").trim();
-      if (requestId) {
-        requestRef = doc(db, "stockRequests", requestId);
+      if (movement.type !== "in" || movement.voided || movement.hiddenFromDaily === true) throw new Error("Hanya batch stok masuk yang masih aktif yang dapat diedit.");
+      const menuRef = doc(db, "menus", String(movement.menuId || ""));
+      const menuSnap = await tx.get(menuRef);
+      if (!menuSnap.exists()) throw new Error("Menu sudah tidak aktif di katalog. Batch ini tidak dapat diedit.");
+      const menu = menuSnap.data();
+      const lockRef = doc(db, "stockRequestLocks", String(movement.menuId || ""));
+      const lockSnap = await tx.get(lockRef);
+      if (lockSnap.exists()) throw new Error("Menu sedang memiliki pengajuan stok yang menunggu keputusan. Selesaikan pengajuan tersebut sebelum mengedit batch.");
+      let requestRef = null, requestSnap = null;
+      if (movement.requestId) {
+        requestRef = doc(db, "stockRequests", movement.requestId);
         requestSnap = await tx.get(requestRef);
-        if (requestSnap.exists()) {
-          const requestData = requestSnap.data();
-          if (requestData.status !== "received" || requestData.movementId !== movementId) {
-            throw new Error("Pengajuan yang terkait dengan catatan stok ini tidak cocok atau belum diterima.");
-          }
-          if (requestData.latestAdjustmentRequestId) {
-            throw new Error("Catatan ini memiliki riwayat koreksi. Riwayat batch dipertahankan agar jejak koreksi tidak terputus.");
-          }
-          const lockSnap = await tx.get(doc(db, "stockRequestLocks", String(requestData.menuId || "")));
-          if (lockSnap.exists()) throw new Error("Catatan tidak dapat dihapus saat menu memiliki pengajuan lain yang menunggu keputusan.");
+        if (!requestSnap.exists() || requestSnap.data().status !== "received" || requestSnap.data().movementId !== movementId) {
+          throw new Error("Data pengajuan yang terhubung dengan batch ini tidak cocok.");
         }
+        if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi dan tidak dapat diedit langsung.");
+      }
+      const oldQty = Number(movement.editedQty || movement.qty || 0);
+      const delta = nextQty - oldQty;
+      const stockBefore = Number(menu.stock || 0);
+      const stockAfter = stockBefore + delta;
+      if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
+        throw new Error(`Stok yang tersedia hanya ${integer(stockBefore)} unit. Jumlah baru tidak dapat diterapkan karena akan membuat saldo stok negatif.`);
+      }
+      const now = serverTimestamp();
+      if (delta !== 0) {
+        tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: adjustmentRef.id });
+        tx.set(adjustmentRef, {
+          type: "adjustment", qty: Math.abs(delta), adjustmentDelta: delta,
+          changeType: delta > 0 ? "ditambah" : "dikurang",
+          menuId: movement.menuId, menuName: movement.menuName || menu.name,
+          partnerId: movement.partnerId || menu.partnerId || null,
+          partnerName: movement.partnerName || menu.partnerName || "—",
+          stockBefore, stockAfter, note: note || `Edit jumlah batch stok ${oldQty} menjadi ${nextQty} unit`,
+          source: "stock_daily_edit", sourceMovementId: movementId,
+          requestId: movement.requestId || null, actorUid, actorName, createdAt: now
+        });
+      }
+      tx.update(movementRef, {
+        editedQty: nextQty, editedFromQty: Number(movement.editedQty || movement.qty || 0),
+        editedAt: now, editedBy: actorUid, editedByName: actorName,
+        editNote: note || "Jumlah batch stok diperbarui."
+      });
+      if (requestSnap?.exists()) {
+        tx.update(requestRef, {
+          qty: nextQty, previousQty: Number(requestSnap.data().qty || oldQty), receivedQty: nextQty,
+          editedAt: now, editedBy: actorUid, editedByName: actorName,
+          editNote: note || "Jumlah batch stok diperbarui."
+        });
+      }
+      return { movementId, oldQty, nextQty, delta, stockAfter };
+    });
+  }
+
+  if (name === "deleteDailyStockMovement") {
+    requireRole("superadmin", "spv");
+    const movementId = String(payload.movementId || "").trim();
+    if (!movementId) throw new Error("Batch stok harian tidak valid.");
+    const movementRef = doc(db, "stockMovements", movementId);
+    const reversalRef = doc(collection(db, "stockMovements"));
+    const firstSnap = await getDoc(movementRef);
+    if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
+    const firstData = firstSnap.data();
+    if (firstData.requestId) {
+      const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
+      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Penghapusan langsung tidak tersedia agar riwayat koreksi tidak terputus.");
+    }
+    return await runTransaction(db, async tx => {
+      const movementSnap = await tx.get(movementRef);
+      if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
+      const movement = movementSnap.data();
+      if (movement.type !== "in" || movement.voided || movement.hiddenFromDaily === true) throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dihapus.");
+      const menuRef = doc(db, "menus", String(movement.menuId || ""));
+      const menuSnap = await tx.get(menuRef);
+      if (!menuSnap.exists()) throw new Error("Menu sudah tidak ditemukan dalam katalog aktif.");
+      const menu = menuSnap.data();
+      const lockRef = doc(db, "stockRequestLocks", String(movement.menuId || ""));
+      const lockSnap = await tx.get(lockRef);
+      if (lockSnap.exists()) throw new Error("Batch tidak dapat dihapus saat menu memiliki pengajuan lain yang menunggu keputusan.");
+      let requestRef = null, requestSnap = null;
+      if (movement.requestId) {
+        requestRef = doc(db, "stockRequests", movement.requestId);
+        requestSnap = await tx.get(requestRef);
+        if (!requestSnap.exists() || requestSnap.data().status !== "received" || requestSnap.data().movementId !== movementId) {
+          throw new Error("Pengajuan yang terkait dengan batch stok ini tidak cocok atau belum diterima.");
+        }
+        if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi sehingga tidak dapat dihapus langsung.");
+      }
+      const qtyToReverse = Number(movement.editedQty || movement.qty || 0);
+      const stockBefore = Number(menu.stock || 0);
+      if (!Number.isInteger(qtyToReverse) || qtyToReverse < 1 || stockBefore < qtyToReverse) {
+        throw new Error(`Saldo stok saat ini ${integer(stockBefore)} unit, sedangkan batch berjumlah ${integer(qtyToReverse)} unit. Batch tidak dapat dihapus penuh karena sebagian stok kemungkinan sudah terjual atau telah digunakan.`);
+      }
+      const stockAfter = stockBefore - qtyToReverse;
+      const now = serverTimestamp();
+      tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: reversalRef.id });
+      tx.set(reversalRef, {
+        type: "adjustment", qty: qtyToReverse, adjustmentDelta: 0 - qtyToReverse,
+        changeType: "dikurang", menuId: movement.menuId,
+        menuName: movement.menuName || menu.name,
+        partnerId: movement.partnerId || menu.partnerId || null,
+        partnerName: movement.partnerName || menu.partnerName || "—",
+        stockBefore, stockAfter,
+        note: `Pembalikan batch stok ${qtyToReverse} unit yang dihapus dari stok jual`,
+        source: "stock_daily_delete", sourceMovementId: movementId,
+        requestId: movement.requestId || null, actorUid, actorName, createdAt: now
+      });
+      tx.update(movementRef, {
+        voided: true, voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
+        voidReason: "Batch dihapus dari stok jual melalui Stok Harian."
+      });
+      if (requestSnap?.exists()) tx.update(requestRef, {
+        status: "voided", voidedAt: now, voidedBy: actorUid,
+        voidedByName: actorName, voidReason: "Batch stok dihapus dari stok jual."
+      });
+      return { movementId, qty: qtyToReverse, stockAfter };
+    });
+  }
+
+  if (name === "resetDailyOperations") {
+    requireRole("superadmin", "spv");
+    const dateKey = String(payload.dateKey || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error("Tanggal reset tidak valid.");
+    const selectedDate = dateFromKey(dateKey);
+    if (Number.isNaN(selectedDate.getTime()) || jakartaDateKey(selectedDate) !== dateKey) throw new Error("Tanggal reset tidak valid.");
+    if (dateKey > jakartaDateKey(new Date())) throw new Error("Reset tidak dapat dilakukan untuk tanggal yang akan datang.");
+
+    const closingRef = doc(db, "dailyClosings", dateKey);
+    let closingLockMode = "none";
+    await runTransaction(db, async tx => {
+      const closingSnap = await tx.get(closingRef);
+      if (closingSnap.exists() && closingSnap.data().status === "closing") throw new Error("Tanggal ini sedang diproses oleh closing lain. Tunggu hingga proses tersebut selesai.");
+      if (closingSnap.exists() && closingSnap.data().status === "closed") { closingLockMode = "closed"; return; }
+      const now = serverTimestamp();
+      if (closingSnap.exists()) {
+        tx.update(closingRef, {
+          status: "closing", startedAt: now, startedByUid: actorUid,
+          startedByName: actorName, closedAt: null
+        });
+        closingLockMode = "locked-existing";
+      } else {
+        tx.set(closingRef, {
+          dateKey, status: "closing", startedAt: now, closedAt: null,
+          startedByUid: actorUid, startedByName: actorName, createdAt: now
+        });
+        closingLockMode = "locked-new";
+      }
+    });
+
+    let resetAuthorizationRef = null;
+    try {
+      const startDate = dateFromKey(dateKey);
+      const endDate = new Date(startDate.getTime() + 86400000);
+      const startTs = Timestamp.fromDate(startDate), endTs = Timestamp.fromDate(endDate);
+      const [movementByDateSnap, txByBusinessDateSnap, txByTimestampSnap, requestByDateSnap, payoutSnap, closingSummarySnap] = await Promise.all([
+        getDocs(query(collection(db, "stockMovements"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs))),
+        getDocs(query(collection(db, "transactions"), where("businessDate", "==", dateKey), limit(1000))),
+        getDocs(query(collection(db, "transactions"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), limit(1000))),
+        getDocs(query(collection(db, "stockRequests"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), limit(1000))),
+        getDocs(query(collection(db, "partnerPayouts"), where("dateKey", "==", dateKey), limit(1000))),
+        getDocs(collection(db, "dailyClosings", dateKey, "partnerSummaries"))
+      ]);
+      const uniqueDocs = docs => [...new Map(docs.map(snap => [snap.id, snap])).values()];
+      const transactions = uniqueDocs([...txByBusinessDateSnap.docs, ...txByTimestampSnap.docs])
+        .filter(snap => (snap.data().businessDate === dateKey || dayKeyFromTimestamp(snap.data().createdAt) === dateKey));
+      const transactionMap = new Map(transactions.map(snap => [snap.id, { id: snap.id, ...snap.data() }]));
+
+      const movementDocs = new Map();
+      movementByDateSnap.docs.forEach(snap => {
+        if (["in", "adjustment", "sale", "sale_cancel"].includes(String(snap.data().type || ""))) movementDocs.set(snap.id, snap);
+      });
+      const linkedMovementIds = new Set();
+      transactions.forEach(snap => {
+        const data = snap.data();
+        (Array.isArray(data.movementIds) ? data.movementIds : []).forEach(id => linkedMovementIds.add(String(id)));
+        (Array.isArray(data.cancelMovementIds) ? data.cancelMovementIds : []).forEach(id => linkedMovementIds.add(String(id)));
+      });
+      const missingLinkedIds = [...linkedMovementIds].filter(id => !movementDocs.has(id));
+      if (missingLinkedIds.length) {
+        const linkedSnaps = await Promise.all(missingLinkedIds.map(id => getDoc(doc(db, "stockMovements", id))));
+        linkedSnaps.forEach(snap => { if (snap.exists()) movementDocs.set(snap.id, snap); });
+      }
+      const movements = [];
+      for (const snap of movementDocs.values()) {
+        const data = snap.data();
+        const type = String(data.type || "");
+        if (!["in", "adjustment", "sale", "sale_cancel"].includes(type)) continue;
+        if (type === "sale_cancel") {
+          let linkedTx = transactionMap.get(String(data.transactionId || ""));
+          if (!linkedTx && data.transactionId) {
+            const linkedTxSnap = await getDoc(doc(db, "transactions", String(data.transactionId)));
+            if (linkedTxSnap.exists()) linkedTx = { id: linkedTxSnap.id, ...linkedTxSnap.data() };
+          }
+          const linkedDate = linkedTx?.businessDate || dayKeyFromTimestamp(linkedTx?.createdAt);
+          if (linkedDate && linkedDate !== dateKey) {
+            throw new Error(`Tanggal ${dateKey} memiliki pengembalian transaksi dari tanggal ${linkedDate}. Reset tanggal ini dibatalkan agar transaksi lintas tanggal tidak rusak.`);
+          }
+        }
+        if (dayKeyFromTimestamp(data.createdAt) === dateKey || linkedMovementIds.has(snap.id)) movements.push(snap);
       }
 
-      tx.update(movementRef, {
-        hiddenFromDaily: true, hiddenAt: serverTimestamp(), hiddenBy: actorUid, hiddenByName: actorName
+      const deltaByMenu = new Map();
+      const requestIds = new Set();
+      movements.forEach(snap => {
+        const data = snap.data();
+        const type = String(data.type || "");
+        const qty = Number(data.qty || 0);
+        let delta = 0;
+        if (type === "in") delta = qty;
+        else if (type === "adjustment") delta = Number(data.adjustmentDelta || 0);
+        else if (type === "sale") delta = 0 - qty;
+        else if (type === "sale_cancel") delta = qty;
+        if (!Number.isSafeInteger(delta)) throw new Error(`Pergerakan stok ${snap.id} memiliki jumlah yang tidak valid.`);
+        const menuId = String(data.menuId || "");
+        if (menuId) deltaByMenu.set(menuId, (deltaByMenu.get(menuId) || 0) + delta);
+        if (data.requestId) requestIds.add(String(data.requestId));
       });
-      if (requestSnap?.exists()) tx.delete(requestRef);
-    });
-    return { movementId };
+
+      const requestDocs = new Map(requestByDateSnap.docs.map(snap => [snap.id, snap]));
+      const extraRequestSnaps = await Promise.all([...requestIds].filter(id => !requestDocs.has(id)).map(id => getDoc(doc(db, "stockRequests", id))));
+      extraRequestSnaps.forEach(snap => { if (snap.exists()) requestDocs.set(snap.id, snap); });
+      const requestsToVoid = [...requestDocs.values()].filter(snap => ["pending", "revised", "received"].includes(String(snap.data().status || "")));
+      const requestLocks = [];
+      for (const requestSnap of requestsToVoid) {
+        const menuId = String(requestSnap.data().menuId || "");
+        if (!menuId) continue;
+        const lockSnap = await getDoc(doc(db, "stockRequestLocks", menuId));
+        if (lockSnap.exists() && lockSnap.data().requestId === requestSnap.id) requestLocks.push(lockSnap);
+      }
+
+      const menuPlans = [];
+      for (const [menuId, netDelta] of deltaByMenu.entries()) {
+        if (!netDelta) continue;
+        const menuRef = doc(db, "menus", menuId);
+        const menuSnap = await getDoc(menuRef);
+        if (!menuSnap.exists()) {
+          // Menu yang telah diarsipkan bukan barang yang dapat dijual lagi.
+          // Pergerakan historisnya tetap dibersihkan, sementara arsip katalog dipertahankan.
+          continue;
+        }
+        const menu = menuSnap.data();
+        const stockBefore = Number(menu.stock || 0);
+        const stockAfter = stockBefore - netDelta;
+        if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
+          throw new Error(`Reset dibatalkan: stok ${menu.name || menuId} saat ini ${integer(stockBefore)} unit, sedangkan pembalikan tanggal ini memerlukan ${integer(netDelta)} unit. Stok tanggal tersebut kemungkinan sudah digunakan pada tanggal berikutnya.`);
+        }
+        const movementRef = doc(collection(db, "stockMovements"));
+        menuPlans.push({ menuId, menuRef, menu, movementRef, stockBefore, stockAfter, delta: 0 - netDelta });
+      }
+
+      const transactionIds = transactions.map(snap => snap.id);
+      const cashflowRefsMap = new Map();
+      const partnerSaleRefsMap = new Map();
+      for (const txSnap of transactions) {
+        const data = txSnap.data();
+        if (data.cashflowId) cashflowRefsMap.set(String(data.cashflowId), doc(db, "cashflows", String(data.cashflowId)));
+        if (Array.isArray(data.partnerSaleIds)) data.partnerSaleIds.forEach(id => partnerSaleRefsMap.set(String(id), doc(db, "partnerSales", String(id))));
+      }
+      const legacyCashflows = await getDocs(query(collection(db, "cashflows"), where("transactionId", "in", transactionIds.slice(0, 30)), limit(1000))).catch(() => null);
+      if (legacyCashflows) legacyCashflows.docs.forEach(snap => { if (["sale", "operational_sale"].includes(snap.data().source)) cashflowRefsMap.set(snap.id, snap.ref); });
+      const legacyPartnerSales = await getDocs(query(collection(db, "partnerSales"), where("transactionId", "in", transactionIds.slice(0, 30)), limit(1000))).catch(() => null);
+      if (legacyPartnerSales) legacyPartnerSales.docs.forEach(snap => partnerSaleRefsMap.set(snap.id, snap.ref));
+      // Fallback untuk lebih dari 30 transaksi atau transaksi legacy tanpa array link.
+      if (transactionIds.length > 30) {
+        for (const txId of transactionIds.slice(30)) {
+          const [cashSnap, partnerSnap] = await Promise.all([
+            getDocs(query(collection(db, "cashflows"), where("transactionId", "==", txId), limit(10))),
+            getDocs(query(collection(db, "partnerSales"), where("transactionId", "==", txId), limit(50)))
+          ]);
+          cashSnap.docs.forEach(snap => { if (["sale", "operational_sale"].includes(snap.data().source)) cashflowRefsMap.set(snap.id, snap.ref); });
+          partnerSnap.docs.forEach(snap => partnerSaleRefsMap.set(snap.id, snap.ref));
+        }
+      }
+      const cashflowSnaps = await Promise.all([...cashflowRefsMap.values()].map(ref => getDoc(ref)));
+      const cashflowRefs = cashflowSnaps.filter(snap => snap.exists() && ["sale", "operational_sale"].includes(snap.data().source)).map(snap => snap.ref);
+      const partnerSaleSnaps = await Promise.all([...partnerSaleRefsMap.values()].map(ref => getDoc(ref)));
+      const partnerSaleRefs = partnerSaleSnaps.filter(snap => snap.exists()).map(snap => snap.ref);
+      const payoutRefs = payoutSnap.docs.map(snap => snap.ref);
+      const summaryRefs = closingSummarySnap.docs.map(snap => snap.ref);
+      const movementRefs = movements.map(snap => snap.ref);
+      const lockRefs = requestLocks.map(snap => snap.ref);
+      const closingSnap = await getDoc(closingRef);
+
+      const operationCount = menuPlans.length * 2 + transactionIds.length + movementRefs.length
+        + cashflowRefs.length + partnerSaleRefs.length + requestsToVoid.length + lockRefs.length
+        + payoutRefs.length + summaryRefs.length + (closingSnap.exists() ? 1 : 0) + 1;
+      if (operationCount > 450) throw new Error(`Reset memiliki ${integer(operationCount)} perubahan, melebihi batas aman satu proses. Hubungi pengelola sistem untuk penanganan tanggal ini tanpa memecah saldo stok.`);
+
+      const authRef = doc(db, "dailyResetAuthorizations", "active");
+      const previousAuthorization = await getDoc(authRef);
+      if (previousAuthorization.exists() && previousAuthorization.data().status === "running") {
+        throw new Error("Reset tanggal lain sedang berjalan. Tunggu hingga proses itu selesai sebelum memulai reset baru.");
+      }
+      resetAuthorizationRef = authRef;
+      await setDoc(authRef, {
+        dateKey, startAt: startTs, endAt: endTs,
+        status: "running", requestedBy: actorUid, requestedByName: actorName,
+        createdAt: serverTimestamp(), transactionIds,
+        stockMovementIds: movementRefs.map(ref => ref.id),
+        cashflowIds: cashflowRefs.map(ref => ref.id),
+        partnerSaleIds: partnerSaleRefs.map(ref => ref.id),
+        stockRequestLockIds: lockRefs.map(ref => ref.id),
+        payoutIds: payoutRefs.map(ref => ref.id),
+        closingSummaryIds: summaryRefs.map(ref => ref.id)
+      });
+
+      const batch = writeBatch(db);
+      const now = serverTimestamp();
+      menuPlans.forEach(plan => {
+        batch.update(plan.menuRef, { stock: plan.stockAfter, updatedAt: now, lastMovementId: plan.movementRef.id });
+        batch.set(plan.movementRef, {
+          type: "reset", qty: Math.abs(plan.delta), adjustmentDelta: plan.delta,
+          changeType: plan.delta > 0 ? "ditambah" : "dikurang",
+          menuId: plan.menuId, menuName: plan.menu.name || "Menu",
+          partnerId: plan.menu.partnerId || null, partnerName: plan.menu.partnerName || "—",
+          stockBefore: plan.stockBefore, stockAfter: plan.stockAfter,
+          note: `Pembalikan otomatis aktivitas tanggal ${dateKey}`,
+          source: "daily_reset", resetDateKey: dateKey,
+          actorUid, actorName, createdAt: now
+        });
+      });
+      transactionIds.forEach(id => batch.delete(doc(db, "transactions", id)));
+      movementRefs.forEach(ref => batch.delete(ref));
+      cashflowRefs.forEach(ref => batch.delete(ref));
+      partnerSaleRefs.forEach(ref => batch.delete(ref));
+      requestsToVoid.forEach(snap => batch.update(snap.ref, {
+        status: "voided", voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
+        voidReason: `Reset harian tanggal ${dateKey}.`
+      }));
+      lockRefs.forEach(ref => batch.delete(ref));
+      payoutRefs.forEach(ref => batch.delete(ref));
+      summaryRefs.forEach(ref => batch.delete(ref));
+      if (closingSnap.exists()) batch.delete(closingRef);
+      batch.update(authRef, {
+        status: "completed", completedAt: now,
+        transactionCount: transactionIds.length, stockMovementCount: movementRefs.length,
+        adjustedMenuCount: menuPlans.length
+      });
+      await batch.commit();
+      return { dateKey, transactionCount: transactionIds.length, stockMovementCount: movementRefs.length, adjustedMenuCount: menuPlans.length };
+    } catch (error) {
+      if (resetAuthorizationRef) {
+        await updateDoc(resetAuthorizationRef, { status: "failed", failedAt: serverTimestamp(), failureMessage: String(error?.message || error).slice(0, 300) }).catch(() => {});
+      }
+      if (closingLockMode === "locked-existing" || closingLockMode === "locked-new") {
+        await updateDoc(closingRef, {
+          status: "open", failedAt: serverTimestamp(), failureMessage: String(error?.message || error).slice(0, 300)
+        }).catch(() => {});
+      }
+      throw error;
+    }
   }
 
   throw new Error(`Aksi ${name} tidak dikenali.`);
@@ -2336,6 +2681,7 @@ function startSubscriptions() {
     store.menus = snap.docs.map(item => ({ id: item.id, ...item.data() }));
     if (cart.size) reconcileCart();
     if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "labels", "requests"].includes(activePage)) renderPage();
+    reconcileLegacyDeletedMenus(store.menus).catch(error => console.error("Rekonsiliasi menu lama gagal:", error));
   }, onDataError));
 
   if (["superadmin", "spv"].includes(role)) {
@@ -2364,6 +2710,7 @@ function startSubscriptions() {
     unsubscribers.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(2000)), snap => {
       store.users = snap.docs.map(item => ({ id: item.id, ...item.data() }));
       renderIfPage("accounts");
+      reconcileOrphanPartnerUsers(store.users).catch(error => console.error("Rekonsiliasi profil Mitra yatim gagal:", error));
     }, onDataError));
   }
 
@@ -2794,7 +3141,7 @@ function renderPosPage() {
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
   return `${pageHeading("Kasir / POS", "Cari nama menu atau scan barcode, lalu masukkan ke keranjang.", `<span class="status success">● Sistem siap</span>`)}
     <div class="pos-layout"><section class="panel">${panelHeader("Daftar menu", `${integer(availableMenus.length)} menu aktif`, `<span class="muted" style="font-size:10px">Klik menu untuk menambahkan</span>`)}
-      <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan QR/barcode..." autocomplete="off" aria-label="Cari atau scan menu"><button type="button" class="icon-clear-btn" id="clear-pos-search" aria-label="Bersihkan pencarian" title="Bersihkan pencarian">×</button></div>
+      <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan QR/barcode..." autocomplete="off" aria-label="Cari atau scan menu"></div>
       <p class="pos-search-hint">Scanner QR/barcode akan mengetikkan ID menu ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
       <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
     </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Bayar</button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
@@ -2855,7 +3202,6 @@ function initPosMenuSearch() {
       toast("Barcode atau nama menu tidak ditemukan.", "error");
     }
   });
-  $("#clear-pos-search")?.addEventListener("click", () => { posSearchQuery = ""; posCurrentPage = 1; input.value = ""; drawPosMenuResults(); input.focus(); });
 }
 
 function reconcileCart() {
@@ -2965,7 +3311,7 @@ function renderAccountsPage() {
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
     <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening mitra</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
     <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
-    <section class="panel">${panelHeader("Akun terdaftar", `${integer(filteredUsers.length)} dari ${integer(store.users.length)} akun`)}<div class="table-toolbar"><input id="accounts-search" type="search" value="${escapeHtml(accountsSearchQuery)}" placeholder="Cari nama, email, atau role akun..." aria-label="Cari akun pengguna"></div><div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">${q ? "Tidak ada akun yang cocok dengan pencarian." : "Belum ada akun lain."}</td></tr>`}</tbody></table></div><div class="pagination-row"><span class="helper-text">${showing} · Halaman ${accountsCurrentPage} dari ${pages} · 7 akun per halaman</span><div class="page-buttons"><button type="button" data-account-page="prev" ${accountsCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-account-page="next" ${accountsCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Password asli tidak dapat dibaca Admin. Gunakan reset sandi atau minta staf mengganti sandi melalui Profil Saya. Penghapusan akun menghapus profil akses dan identitas login Firebase melalui backend; riwayat transaksi tetap dipertahankan sebagai arsip keuangan.</div></section>`;
+    <section class="panel">${panelHeader("Akun terdaftar", `${integer(filteredUsers.length)} dari ${integer(store.users.length)} akun`)}<div class="table-toolbar"><input id="accounts-search" type="search" value="${escapeHtml(accountsSearchQuery)}" placeholder="Cari nama, email, atau role akun..." aria-label="Cari akun pengguna"></div><div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">${q ? "Tidak ada akun yang cocok dengan pencarian." : "Belum ada akun lain."}</td></tr>`}</tbody></table></div><div class="pagination-row"><span class="helper-text">${showing} · Halaman ${accountsCurrentPage} dari ${pages} · 7 akun per halaman</span><div class="page-buttons"><button type="button" data-account-page="prev" ${accountsCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-account-page="next" ${accountsCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Password asli tidak dapat dibaca Admin. Gunakan reset sandi atau minta staf mengganti sandi melalui Profil Saya. Penghapusan akun menghapus profil akses dari Firestore sehingga akun tidak dapat masuk ke aplikasi. Identitas Firebase Authentication terpisah hanya dapat dihapus melalui Admin SDK/server; riwayat transaksi tetap dipertahankan sebagai arsip keuangan.</div></section>`;
 }
 
 function renderProfilePage() {
@@ -3024,7 +3370,7 @@ function renderClosingPage() {
 }
 
 function stockRequestStatusLabel(status) {
-  return ({ pending: "Menunggu persetujuan", revised: "Jumlah direvisi", rejected: "Ditolak", received: "Diterima" })[status] || "Status tidak dikenal";
+  return ({ pending: "Menunggu persetujuan", revised: "Jumlah direvisi", rejected: "Ditolak", received: "Diterima", voided: "Dibatalkan" })[status] || "Status tidak dikenal";
 }
 
 function renderDailyStockLedger() {
@@ -3032,6 +3378,7 @@ function renderDailyStockLedger() {
   const allRows = store.dailyStockMovements.filter(row =>
     dayKeyFromTimestamp(row.createdAt) === selectedDate
     && !row.hiddenFromDaily
+    && !row.voided
     && ["in", "adjustment"].includes(row.type)
   );
   const q = stockDailySearchQuery.trim().toLowerCase();
@@ -3040,31 +3387,44 @@ function renderDailyStockLedger() {
   const pages = Math.max(1, Math.ceil(filtered.length / stockDailyPageSize));
   stockDailyCurrentPage = Math.min(Math.max(1, stockDailyCurrentPage), pages);
   const visible = filtered.slice((stockDailyCurrentPage - 1) * stockDailyPageSize, stockDailyCurrentPage * stockDailyPageSize);
-  const incomingQty = allRows.reduce((sum, row) => sum + (row.type === "in" ? Number(row.qty || 0) : Math.max(0, Number(row.adjustmentDelta || 0))), 0);
+  const incomingQty = allRows.reduce((sum, row) => sum + (row.type === "in" ? Number(row.editedQty || row.qty || 0) : Math.max(0, Number(row.adjustmentDelta || 0))), 0);
   const reducedQty = allRows.reduce((sum, row) => sum + (row.type === "adjustment" && Number(row.adjustmentDelta || 0) < 0 ? Math.abs(Number(row.adjustmentDelta)) : 0), 0);
   const rows = visible.map(row => {
     const adjustment = row.type === "adjustment";
     const delta = Number(row.adjustmentDelta || (adjustment ? 0 : row.qty || 0));
-    const amount = adjustment ? `${delta > 0 ? "+" : "−"}${integer(Math.abs(delta))} unit` : `+${integer(row.qty)} unit`;
-    const kind = adjustment ? (delta > 0 ? "Koreksi · Ditambah" : "Koreksi · Dikurangi") : "Stok masuk";
-    const source = row.source === "partner_request" ? "Pengajuan mitra · disetujui"
+    const amount = adjustment ? `${delta > 0 ? "+" : "−"}${integer(Math.abs(delta))} unit` : `+${integer(row.editedQty || row.qty)} unit`;
+    const kind = adjustment ? (delta > 0 ? "Koreksi · Ditambah" : "Koreksi · Dikurangi") : "Stok disetujui";
+    const source = row.source === "partner_request" ? "Pengajuan mitra · diterima"
       : row.source === "partner_stock_adjustment" ? "Koreksi pengajuan mitra"
-      : row.source === "manual" ? "Input manual Admin/SPV" : "Pencatatan stok";
+      : row.source === "manual" ? "Input manual Admin/SPV"
+      : row.source === "stock_daily_edit" ? "Penyesuaian edit stok"
+      : row.source === "stock_daily_delete" ? "Penghapusan batch stok"
+      : "Pencatatan stok";
     const relatedRequest = row.requestId ? store.stockRequests.find(request => request.id === row.requestId) : null;
-    const hasAdjustmentHistory = Boolean(relatedRequest?.latestAdjustmentRequestId)
-      || store.stockRequests.some(request => request.baseRequestId === row.requestId);
-    const deleteAction = profile.role === "superadmin" && row.type === "in" && !hasAdjustmentHistory
-      ? `<button type="button" class="action-link danger-link" data-delete-daily-stock="${row.id}">Hapus catatan</button>`
-      : adjustment || hasAdjustmentHistory ? `<span class="muted">Riwayat batch dipertahankan</span>` : "—";
-    return `<tr><td><strong>${escapeHtml(row.menuName || "Menu")}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td><span class="status ${adjustment ? (delta < 0 ? "inactive" : "pending") : "success"}">${kind}</span></td><td><strong>${amount}</strong><div class="muted">${source}</div></td><td>${integer(row.stockAfter)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}<div class="muted">${escapeHtml(row.actorName || "")}</div></td><td>${deleteAction}</td></tr>`;
+    const hasAdjustmentHistory = Boolean(row.requestId && (relatedRequest?.latestAdjustmentRequestId
+      || store.stockRequests.some(request => request.baseRequestId === row.requestId)));
+    const canEditBatch = ["superadmin", "spv"].includes(profile.role) && row.type === "in" && !hasAdjustmentHistory;
+    const actions = canEditBatch
+      ? `<div class="daily-stock-actions"><button type="button" class="btn btn-light btn-compact" data-edit-daily-stock="${row.id}">Edit</button><button type="button" class="btn btn-danger btn-compact" data-delete-daily-stock="${row.id}">Hapus</button></div>`
+      : adjustment ? `<span class="muted">Penyesuaian stok</span>` : "—";
+    const editedNote = Number.isInteger(Number(row.editedQty)) && Number(row.editedQty) > 0
+      ? `<div class="muted">Jumlah akhir batch: ${integer(row.editedQty)} unit</div>` : "";
+    return `<tr><td><strong>${escapeHtml(row.menuName || "Menu")}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td><span class="status ${adjustment ? (delta < 0 ? "inactive" : "pending") : "success"}">${kind}</span></td><td><strong>${amount}</strong><div class="muted">${source}</div>${editedNote}</td><td>${integer(row.stockAfter)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}<div class="muted">${escapeHtml(row.actorName || "")}</div></td><td>${actions}</td></tr>`;
   }).join("");
   const selectedText = formatDate(dateFromKey(selectedDate), { day: "numeric", month: "long", year: "numeric" });
-  return `<section class="panel" style="margin-top:16px">${panelHeader("Stok harian", `Catatan barang masuk dan koreksi pada ${selectedText}. Pilih tanggal untuk membuka riwayat hari sebelumnya.`, `<span class="status neutral">${integer(allRows.length)} catatan</span>`)}
+  const staff = ["superadmin", "spv"].includes(profile.role);
+  const pageNumbers = pages <= 7 ? Array.from({ length: pages }, (_, i) => i + 1)
+    : [...new Set([1, Math.max(2, stockDailyCurrentPage - 1), stockDailyCurrentPage, Math.min(pages - 1, stockDailyCurrentPage + 1), pages])].sort((a,b) => a-b);
+  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === stockDailyCurrentPage ? "active-page" : ""}" data-stock-daily-page-number="${page}" aria-current="${page === stockDailyCurrentPage ? "page" : "false"}">${page}</button>`).join("");
+  const headerAction = staff
+    ? `<div class="daily-stock-actions"><span class="status neutral">${integer(allRows.length)} item</span><button type="button" class="btn btn-danger btn-compact" id="reset-daily-operations">Reset harian</button></div>`
+    : `<span class="status neutral">${integer(allRows.length)} item</span>`;
+  return `<section class="panel" style="margin-top:16px">${panelHeader(staff ? "Stok masuk disetujui" : "Stok harian", staff ? `Daftar stok yang diterima dan penyesuaian stok pada ${selectedText}. Pilih tanggal untuk memeriksa tanggal lain.` : `Catatan stok masuk dan koreksi pada ${selectedText}.`, headerAction)}
     <div class="table-toolbar"><input type="date" id="stock-daily-date" value="${selectedDate}" aria-label="Pilih tanggal stok harian"><input id="stock-daily-search" type="search" value="${escapeHtml(stockDailySearchQuery)}" placeholder="Cari menu, mitra, sumber, atau catatan..." autocomplete="off"></div>
     <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 14px"><div class="stat-card"><div class="stat-top">Barang masuk / tambahan</div><div class="stat-value">${integer(incomingQty)} unit</div></div><div class="stat-card"><div class="stat-top">Koreksi pengurangan</div><div class="stat-value">${integer(reducedQty)} unit</div></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Jenis</th><th>Jumlah / sumber</th><th>Sisa setelah catatan</th><th>Catatan</th><th>Tanggal / petugas</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="table-empty">Belum ada stok masuk atau koreksi pada tanggal ini.</td></tr>`}</tbody></table></div>
-    <div class="pagination-row"><span class="helper-text">${integer(filtered.length)} catatan · halaman ${stockDailyCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-stock-daily-page="prev" ${stockDailyCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><span class="page-current">${stockDailyCurrentPage}/${pages}</span><button type="button" data-stock-daily-page="next" ${stockDailyCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
-    ${profile.role === "superadmin" ? `<div class="helper-text">Hapus catatan akan menyembunyikannya dari riwayat harian dan daftar pengajuan terkait. Batch yang memiliki riwayat koreksi tidak dapat dihapus agar jejak koreksi tetap utuh. Saldo stok aktual tidak berubah.</div>` : ""}
+    <div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Jenis</th><th>Jumlah / sumber</th><th>Sisa setelah catatan</th><th>Catatan</th><th>Tanggal / petugas</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="table-empty">Belum ada stok yang disetujui atau koreksi pada tanggal ini.</td></tr>`}</tbody></table></div>
+    <div class="pagination-row"><span class="helper-text">${integer(filtered.length)} item · halaman ${stockDailyCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-stock-daily-page="prev" ${stockDailyCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-stock-daily-page="next" ${stockDailyCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
+    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Sistem mencatat penyesuaian saldo dan menjaga jejak audit; penghapusan ditolak bila stok batch sudah tidak mencukupi untuk dibalik.</div>` : ""}
   </section>`;
 }
 
@@ -3114,15 +3474,11 @@ function renderRequestsPage() {
       : status === "revised" ? `<div class="muted request-extra">Direvisi oleh ${escapeHtml(row.revisedByName || "tim KALAP")}</div>` : "";
     let actions;
     if (canProcess) {
-      const acceptLabel = isAdjustment
-        ? `Setujui koreksi (${row.changeType === "dikurang" ? "−" : "+"}${integer(row.changeQty || Math.abs(row.deltaQty || 0))} unit)`
-        : `Terima ${integer(row.qty)} unit`;
-      actions = `<div class="request-actions"><button class="action-link" data-accept-request="${row.id}">${acceptLabel}</button><button class="action-link" data-revise-request="${row.id}">Revisi</button><button class="action-link danger-link" data-reject-request="${row.id}">Tolak</button></div>`;
+      actions = `<div class="request-actions"><button type="button" class="btn btn-primary btn-compact" data-accept-request="${row.id}">Terima</button><button type="button" class="btn btn-light btn-compact" data-revise-request="${row.id}">Revisi</button><button type="button" class="btn btn-danger btn-compact" data-reject-request="${row.id}">Tolak</button></div>`;
     } else {
       const hasCorrectionHistory = Boolean(row.latestAdjustmentRequestId)
         || allRequests.some(request => request.requestType === "adjustment" && request.baseRequestId === row.id);
-      const deleteAction = profile.role === "superadmin" && status === "received" && !isAdjustment && !hasCorrectionHistory
-        ? `<button class="action-link danger-link" data-delete-received-stock="${row.id}">Hapus riwayat</button>` : "";
+      const deleteAction = ""; // Penghapusan batch operasional tersedia di tabel Stok Harian.
       const hasPendingCorrection = allRequests.some(request => request.requestType === "adjustment"
         && request.baseRequestId === row.id && ["pending", "revised"].includes(request.status));
       const editAction = profile.role === "partner" && status === "received" && !row.latestAdjustmentRequestId && !hasPendingCorrection
@@ -3131,7 +3487,7 @@ function renderRequestsPage() {
         ? `<div class="muted request-extra">Batch ini sudah dikoreksi. Gunakan riwayat koreksi terbaru untuk perubahan berikutnya.</div>`
         : profile.role === "partner" && status === "received" && hasPendingCorrection
           ? `<div class="muted request-extra">Pengajuan edit untuk batch ini sedang menunggu persetujuan Admin/SPV.</div>` : "";
-      actions = `<span class="status ${status === "received" ? "success" : status === "rejected" ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${deleteAction}${editAction}`;
+      actions = `<span class="status ${status === "received" ? "success" : ["rejected", "voided"].includes(status) ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${deleteAction}${editAction}`;
     }
     return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${requestKind}${changeDetail}${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
   }).join("");
@@ -3202,15 +3558,13 @@ function renderPartnerHome() {
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
-  const selected = menus.find(menu => menu.id === labelSelectedMenuId) || null;
-  return `${pageHeading("Cetak label", "Semua label menggunakan ukuran tetap 30 × 40 mm (portrait).", `<span class="status neutral">QR Code · ECO80BT</span>`)}
+  return `${pageHeading("Cetak label", "Pilih beberapa menu sekaligus. Setiap menu dapat memiliki jumlah label yang berbeda.", `<span class="status neutral">QR Code · ECO80BT</span>`)}
     <div class="info-banner"><span>▥</span><div><strong>Ukuran label 30 × 40 mm</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
-    <section class="panel">${panelHeader("Pilih label yang akan dicetak", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
+    <section class="panel">${panelHeader("Pilih beberapa label", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
-        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Ketik nama menu, nama mitra, atau scan QR..." value=""><input type="hidden" id="label-menu-select" name="menuId" value="${escapeHtml(selected?.id || "")}"><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
-        <div class="form-field"><label for="label-copies">Jumlah label</label><input id="label-copies" type="number" name="copies" min="1" max="500" step="1" value="1" required></div>
-        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1">${selected?`<strong>${escapeHtml(selected.name)}</strong> · ${escapeHtml(selected.partnerName||"—")} · ${money(selected.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(selected))}</small>`:"Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."}</div>
-        <div class="label-print-actions"><span class="helper-text">Ukuran tetap 30 × 40 mm · Portrait · Skala cetak 100% / Actual Size.</span><button class="btn btn-primary" type="submit">Cetak</button></div>
+        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Cari menu A, tambahkan, lalu cari menu B..." value=""><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
+        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1"><div class="muted">Belum ada menu dipilih. Cari lalu tambahkan satu atau beberapa menu.</div></div>
+        <div class="label-print-actions"><span class="helper-text">Ukuran tetap 30 × 40 mm · Portrait · Skala cetak 100% / Actual Size. Maksimal 500 label per pekerjaan cetak.</span><button class="btn btn-primary" type="submit" ${labelSelections.length ? "" : "disabled"}>Cetak semua label</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
 }
@@ -3319,7 +3673,12 @@ function attachPageEvents() {
     stockDailyCurrentPage += button.dataset.stockDailyPage === "next" ? 1 : -1;
     renderPage();
   }));
+  $$('[data-stock-daily-page-number]').forEach(button => button.addEventListener("click", () => {
+    stockDailyCurrentPage = Number(button.dataset.stockDailyPageNumber); renderPage();
+  }));
+  $$('[data-edit-daily-stock]').forEach(button => button.addEventListener("click", () => openDailyStockEditModal(button.dataset.editDailyStock)));
   $$('[data-delete-daily-stock]').forEach(button => button.addEventListener("click", () => deleteDailyStockMovement(button.dataset.deleteDailyStock, button)));
+  $("#reset-daily-operations")?.addEventListener("click", event => resetDailyOperations(stockDailyDateKey, event.currentTarget));
   $("#closing-search")?.addEventListener("input", event => { closingSearchQuery = event.target.value; closingSummaryPage = 1; renderPage(); const input=$("#closing-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
   $$('[data-closing-history-page]').forEach(button => button.addEventListener("click", () => { closingHistoryPage += button.dataset.closingHistoryPage === "next" ? 1 : -1; renderPage(); }));
   $$('[data-closing-summary-page]').forEach(button => button.addEventListener("click", () => { closingSummaryPage += button.dataset.closingSummaryPage === "next" ? 1 : -1; renderPage(); }));
@@ -3364,16 +3723,14 @@ function attachPageEvents() {
   $$('[data-revise-request]').forEach(button => button.addEventListener("click", () => openReviseStockRequestModal(button.dataset.reviseRequest)));
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
   $$('[data-edit-received-stock]').forEach(button => button.addEventListener("click", () => openReceivedStockAdjustmentModal(button.dataset.editReceivedStock)));
-  $$('[data-delete-received-stock]').forEach(button => button.addEventListener("click", () => deleteReceivedStockRequest(button.dataset.deleteReceivedStock, button)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
   $("#label-unified-search")?.addEventListener("input", () => {
-    labelSelectedMenuId = "";
     labelSearchCurrentPage = 1;
-    const hidden = $("#label-menu-select"); if (hidden) hidden.value = "";
-    updateLabelSelectionSummary(); refreshUnifiedLabelSearch();
+    refreshUnifiedLabelSearch();
   });
   $("#label-unified-search")?.addEventListener("keydown", handleLabelSearchKeydown);
+  updateLabelSelectionSummary();
   refreshUnifiedLabelSearch();
   $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
@@ -3511,7 +3868,7 @@ async function deleteMenu(menuId, button) {
   if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat menghapus menu.", "error");
   const menu = store.menus.find(item => item.id === menuId);
   if (!menu) return toast("Menu tidak ditemukan.", "error");
-  const message = `Hapus menu ${menu.name}? Menu akan disembunyikan dari POS, katalog, dan cetak label. Stok saat ini (${integer(menu.stock)} unit) serta riwayat transaksi akan tetap disimpan untuk audit.`;
+  const message = `Hapus menu ${menu.name}? Dokumen menu akan dihapus dari koleksi aktif dan salinan lengkapnya dipindahkan ke arsip. Menu tidak lagi tampil di POS/katalog/cetak label. Riwayat penjualan dan pergerakan stok tetap dipertahankan untuk audit.`;
   if (!await kalapConfirm(message, { title: "Hapus menu", confirmText: "Hapus menu", danger: true })) return;
   setBusy(button, true, "Menghapus...");
   try {
@@ -3751,6 +4108,72 @@ async function toggleManagedUser(userId,nextActive,button) {
 }
 
 
+async function archiveAndDeleteMenuRecord(menuId, reason = "Menu dihapus dari katalog KALAP.") {
+  requireRole("superadmin");
+  const menuRef = doc(db, "menus", menuId);
+  const archiveRef = doc(db, "menuArchives", menuId);
+  await runTransaction(db, async tx => {
+    const menuSnap = await tx.get(menuRef);
+    const archiveSnap = await tx.get(archiveRef);
+    if (!menuSnap.exists()) return;
+    if (!archiveSnap.exists()) {
+      const data = menuSnap.data();
+      tx.set(archiveRef, {
+        ...data, originalMenuId: menuId, active: false, deleted: true,
+        archivedAt: serverTimestamp(), archivedBy: profile.uid, archiveReason: reason
+      });
+    }
+    tx.delete(menuRef);
+  });
+}
+
+async function archiveAndDeletePartnerRecords(partnerId, reason = "Mitra dihapus dari KALAP.") {
+  requireRole("superadmin");
+  const menusSnap = await getDocs(query(collection(db, "menus"), where("partnerId", "==", partnerId), limit(2000)));
+  for (const menuSnap of menusSnap.docs) {
+    await archiveAndDeleteMenuRecord(menuSnap.id, `Menu diarsipkan karena mitra ${partnerId} dihapus.`);
+  }
+  const partnerRef = doc(db, "partners", partnerId);
+  const archiveRef = doc(db, "partnerArchives", partnerId);
+  await runTransaction(db, async tx => {
+    const partnerSnap = await tx.get(partnerRef);
+    const archiveSnap = await tx.get(archiveRef);
+    if (!partnerSnap.exists()) return;
+    if (!archiveSnap.exists()) {
+      tx.set(archiveRef, {
+        ...partnerSnap.data(),
+        ...(store.partners.find(item => item.id === partnerId)?.linkedUserUid
+          ? { linkedUserUid: store.partners.find(item => item.id === partnerId).linkedUserUid }
+          : {}),
+        originalPartnerId: partnerId, active: false,
+        archivedAt: serverTimestamp(), archivedBy: profile.uid,
+        archiveReason: reason
+      });
+    }
+    tx.delete(partnerRef);
+  });
+}
+
+let legacyMenuReconcileRunning = false;
+async function reconcileLegacyDeletedMenus(menus) {
+  if (profile?.role !== "superadmin" || legacyMenuReconcileRunning) return;
+  const stale = menus.filter(menu => menu.deleted === true);
+  if (!stale.length) return;
+  legacyMenuReconcileRunning = true;
+  try {
+    for (const menu of stale) {
+      const requests = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menu.id), limit(500)));
+      if (requests.docs.some(snap => ["pending", "revised"].includes(snap.data().status))) continue;
+      const lockRef = doc(db, "stockRequestLocks", menu.id);
+      const lockSnap = await getDoc(lockRef);
+      if (lockSnap.exists()) await deleteDoc(lockRef).catch(() => {});
+      await archiveAndDeleteMenuRecord(menu.id, "Migrasi otomatis: menu lama berstatus dihapus.");
+    }
+  } finally {
+    legacyMenuReconcileRunning = false;
+  }
+}
+
 async function deactivatePartnerOperationalData(partnerId, reason = "Akun mitra dinonaktifkan.") {
   const [menusSnap, requestsSnap, locksSnap] = await Promise.all([
     getDocs(query(collection(db, "menus"), where("partnerId", "==", partnerId), limit(2000))),
@@ -3789,7 +4212,7 @@ async function deleteManagedPartner(partnerId, button) {
   const menuCount = store.menus.filter(item => item.partnerId === partnerId && item.deleted !== true).length;
   const requestCount = store.stockRequests.filter(item => item.partnerId === partnerId && ["pending", "revised"].includes(item.status)).length;
   if (!await kalapConfirm(
-    `Hapus mitra ${partner.name} dari daftar aktif? ${menuCount} menu akan dinonaktifkan dan ${requestCount} pengajuan yang belum diproses akan dibatalkan. Akun login Mitra yang terhubung juga akan dinonaktifkan. Riwayat transaksi, penjualan, stok, dan laporan lama tetap disimpan.`,
+    `Hapus mitra ${partner.name} dari daftar aktif? ${menuCount} menu akan dihapus dari koleksi aktif dan diarsipkan, sementara ${requestCount} pengajuan yang belum diproses akan dibatalkan. Akun login Mitra yang terhubung juga akan dinonaktifkan. Riwayat transaksi, penjualan, stok, dan laporan lama tetap disimpan.`,
     { title: "Hapus mitra", confirmText: "Hapus mitra", danger: true }
   )) return;
 
@@ -3832,8 +4255,9 @@ async function deleteManagedPartner(partnerId, button) {
       deletedAt: serverTimestamp(), deletedBy: profile.uid,
       updatedAt: serverTimestamp(), updatedBy: profile.uid
     });
+    await archiveAndDeletePartnerRecords(partnerId, "Mitra dihapus melalui halaman Pengelolaan Mitra.");
     partnerListCurrentPage = 1;
-    toast(`Mitra ${partner.name} berhasil dihapus dari daftar aktif. Menu dan akses loginnya dinonaktifkan; riwayat lama tetap tersimpan.`, "success");
+    toast(`Mitra ${partner.name} dan seluruh menu operasionalnya dihapus dari koleksi aktif. Salinan data disimpan sebagai arsip.`, "success");
     renderIfPage("partners", "accounts");
   } catch (error) {
     toast(`Penghapusan mitra belum selesai: ${friendlyError(error)}. Periksa koneksi lalu coba lagi.`, "error");
@@ -3842,25 +4266,51 @@ async function deleteManagedPartner(partnerId, button) {
   }
 }
 
+let legacyOrphanPartnerUsersRunning = false;
+async function reconcileOrphanPartnerUsers(users) {
+  if (profile?.role !== "superadmin" || legacyOrphanPartnerUsersRunning) return;
+  legacyOrphanPartnerUsersRunning = true;
+  try {
+    for (const user of users) {
+      if (user.role !== "partner" || !user.partnerId) continue;
+      const partnerSnap = await getDoc(doc(db, "partners", String(user.partnerId)));
+      if (partnerSnap.exists()) continue;
+      try {
+        await deleteDoc(doc(db, "users", user.id));
+        console.info(`Profil Mitra yatim ${user.id} dibersihkan karena data mitra ${user.partnerId} tidak ditemukan.`);
+      } catch (error) {
+        console.error(`Profil Mitra yatim ${user.id} belum dapat dibersihkan:`, error);
+      }
+    }
+  } finally {
+    legacyOrphanPartnerUsersRunning = false;
+  }
+}
+
 let legacyPartnerReconcileRunning = false;
 async function reconcileLegacyDeletedPartners(partners) {
   if (profile?.role !== "superadmin" || legacyPartnerReconcileRunning) return;
-  // Versi sebelumnya menyetel linkedUserUid:null saat akun mitra dihapus.
-  // Mitra manual yang belum pernah ditautkan tidak memiliki field linkedUserUid,
-  // sehingga tidak ikut dinonaktifkan oleh migrasi ini.
-  const stale = partners.filter(partner => Object.prototype.hasOwnProperty.call(partner, "linkedUserUid")
-    && !partner.linkedUserUid && partner.active !== false);
-  if (!stale.length) return;
   legacyPartnerReconcileRunning = true;
   try {
-    for (const partner of stale) {
-      // Nonaktifkan menu dan batalkan pengajuan lebih dahulu. Jika proses ini gagal,
-      // profil tetap aktif sehingga rekonsiliasi dapat dicoba ulang tanpa menyisakan menu aktif.
-      await deactivatePartnerOperationalData(partner.id, "Pengajuan dibatalkan karena akun mitra sudah dihapus.");
-      await updateDoc(doc(db, "partners", partner.id), {
-        active: false, accountDeletedAt: serverTimestamp(), accountDeletedBy: profile.uid,
-        updatedAt: serverTimestamp(), updatedBy: profile.uid
-      });
+    for (const partner of partners) {
+      // Partner manual yang tidak pernah ditautkan ke akun tidak ikut diproses.
+      if (!Object.prototype.hasOwnProperty.call(partner, "linkedUserUid")) continue;
+      let orphaned = !partner.linkedUserUid;
+      if (partner.linkedUserUid) {
+        const linkedUserSnap = await getDoc(doc(db, "users", String(partner.linkedUserUid)));
+        if (!linkedUserSnap.exists()) orphaned = true;
+        else {
+          const linkedUser = linkedUserSnap.data();
+          orphaned = linkedUser.role !== "partner" || linkedUser.partnerId !== partner.id;
+        }
+      }
+      if (!orphaned) continue;
+      try {
+        await deactivatePartnerOperationalData(partner.id, "Pengajuan dibatalkan karena akun mitra sudah tidak tersedia di sistem.");
+        await archiveAndDeletePartnerRecords(partner.id, "Rekonsiliasi otomatis: akun mitra sudah tidak ditemukan atau tidak lagi terhubung.");
+      } catch (error) {
+        console.error(`Rekonsiliasi mitra ${partner.id} belum selesai:`, error);
+      }
     }
   } finally {
     legacyPartnerReconcileRunning = false;
@@ -3872,7 +4322,7 @@ async function deleteManagedUser(userId,button) {
   const user=store.users.find(item=>item.id===userId);
   if(!user || user.role==="superadmin" || user.uid===profile.uid) return;
   const warning = user.role === "partner"
-    ? `Hapus akun Mitra ${user.displayName||user.email} beserta akses loginnya dari KALAP? Profil mitra akan dinonaktifkan, seluruh menunya disembunyikan dari POS, dan pengajuan yang belum diproses dibatalkan.`
+    ? `Hapus akun Mitra ${user.displayName||user.email} beserta akses loginnya dari KALAP? Profil mitra dan seluruh menu operasionalnya akan dihapus dari koleksi aktif (dengan salinan arsip), serta pengajuan yang belum diproses dibatalkan.`
     : `Hapus akun ${user.displayName||user.email} beserta akses loginnya dari KALAP?`;
   if(!await kalapConfirm(warning + "\n\nRiwayat transaksi dan penjualan lama tetap disimpan sebagai arsip keuangan KALAP.", {title:"Hapus akun secara permanen", confirmText:"Hapus akun", danger:true})) return;
   setBusy(button,true,"Menghapus...");
@@ -3912,7 +4362,8 @@ async function deleteManagedUser(userId,button) {
       }
       tx.delete(userRef);
     });
-    toast("Akun dihapus. Profil mitra dan menunya sudah dinonaktifkan; riwayat tetap tersimpan.","success");
+    if (partnerId) await archiveAndDeletePartnerRecords(partnerId, "Akun mitra dihapus dari halaman Akun Pengguna.");
+    toast("Profil akun dihapus dari Firestore. Data mitra dan menu operasional dihapus dari koleksi aktif, sementara salinan arsip tetap tersimpan.","success");
   } catch(error){toast(friendlyError(error),"error");}
   finally{setBusy(button,false);}
 }
@@ -3949,12 +4400,15 @@ function exportMenusCsv() {
 function selectLabelMenu(menuId) {
   const menu = store.menus.find(row => row.id === menuId && row.active !== false && row.deleted !== true);
   if (!menu) return false;
-  labelSelectedMenuId = menu.id;
+  if (labelSelections.some(item => item.menuId === menu.id)) {
+    toast(`${menu.name} sudah ada dalam daftar cetak.`, "info");
+    return false;
+  }
+  labelSelections.push({ menuId: menu.id, copies: 1 });
   labelSearchQuery = "";
   labelSearchCurrentPage = 1;
-  const input = $("#label-unified-search"), hidden = $("#label-menu-select");
-  if (input) input.value = "";
-  if (hidden) hidden.value = menu.id;
+  const input = $("#label-unified-search");
+  if (input) { input.value = ""; input.focus(); }
   updateLabelSelectionSummary();
   refreshUnifiedLabelSearch();
   return true;
@@ -3971,8 +4425,6 @@ function refreshUnifiedLabelSearch() {
     return;
   }
 
-  // Do not truncate the complete match list: paginate it so every menu
-  // belonging to a searched partner can be reached and selected.
   const allMatches = store.menus.filter(menu => menu.active !== false && menu.deleted !== true &&
     [menu.name, menu.partnerName, `${menu.name || ""} — ${menu.partnerName || "Mitra"}`, menuBarcode(menu), menuQrPayload(menu), menu.barcode]
       .some(value => String(value || "").toLowerCase().includes(queryText)))
@@ -3982,42 +4434,57 @@ function refreshUnifiedLabelSearch() {
   labelSearchCurrentPage = Math.min(Math.max(1, labelSearchCurrentPage), totalPages);
   const start = (labelSearchCurrentPage - 1) * labelSearchPageSize;
   const visibleMenus = allMatches.slice(start, start + labelSearchPageSize);
-
   if (!allMatches.length) {
     results.innerHTML = `<div class="label-search-empty">Tidak ada menu atau mitra yang cocok. Pastikan QR berasal dari label menu KALAP.</div>`;
     return;
   }
-
   const pageNumbers = totalPages <= 7
     ? Array.from({ length: totalPages }, (_, index) => index + 1)
     : [...new Set([1, Math.max(2, labelSearchCurrentPage - 1), labelSearchCurrentPage, Math.min(totalPages - 1, labelSearchCurrentPage + 1), totalPages])].sort((a,b) => a - b);
   const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === labelSearchCurrentPage ? "active-page" : ""}" data-label-search-page-number="${page}" aria-current="${page === labelSearchCurrentPage ? "page" : "false"}">${page}</button>`).join("");
-  const listHtml = visibleMenus.map(menu => `<button type="button" class="label-search-result ${menu.id===labelSelectedMenuId?"selected":""}" data-label-menu="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)}</span></button>`).join("");
+  const listHtml = visibleMenus.map(menu => {
+    const alreadyAdded = labelSelections.some(item => item.menuId === menu.id);
+    return `<button type="button" class="label-search-result ${alreadyAdded ? "selected" : ""}" data-label-menu="${menu.id}" ${alreadyAdded ? "disabled" : ""}><strong>${escapeHtml(menu.name)}</strong><span>${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · ${alreadyAdded ? "Sudah ditambahkan" : "＋ Tambahkan"}</span></button>`;
+  }).join("");
   const firstItem = start + 1;
   const lastItem = Math.min(start + labelSearchPageSize, allMatches.length);
   const paginationHtml = `<div class="pagination-row label-search-pagination"><span class="helper-text">Menampilkan ${firstItem}–${lastItem} dari ${integer(allMatches.length)} menu · Halaman ${labelSearchCurrentPage} dari ${totalPages}</span><div class="page-buttons"><button type="button" data-label-search-page="prev" ${labelSearchCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-label-search-page="next" ${labelSearchCurrentPage >= totalPages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div>`;
   results.innerHTML = listHtml + paginationHtml;
-
   $$('[data-label-menu]', results).forEach(button => button.addEventListener("click", () => selectLabelMenu(button.dataset.labelMenu)));
-  results.querySelector('[data-label-search-page="prev"]')?.addEventListener("click", () => {
-    labelSearchCurrentPage = Math.max(1, labelSearchCurrentPage - 1);
-    refreshUnifiedLabelSearch();
-  });
-  results.querySelector('[data-label-search-page="next"]')?.addEventListener("click", () => {
-    labelSearchCurrentPage = Math.min(totalPages, labelSearchCurrentPage + 1);
-    refreshUnifiedLabelSearch();
-  });
-  $$('[data-label-search-page-number]', results).forEach(button => button.addEventListener("click", () => {
-    labelSearchCurrentPage = Number(button.dataset.labelSearchPageNumber);
-    refreshUnifiedLabelSearch();
-  }));
+  results.querySelector('[data-label-search-page="prev"]')?.addEventListener("click", () => { labelSearchCurrentPage = Math.max(1, labelSearchCurrentPage - 1); refreshUnifiedLabelSearch(); });
+  results.querySelector('[data-label-search-page="next"]')?.addEventListener("click", () => { labelSearchCurrentPage = Math.min(totalPages, labelSearchCurrentPage + 1); refreshUnifiedLabelSearch(); });
+  $$('[data-label-search-page-number]', results).forEach(button => button.addEventListener("click", () => { labelSearchCurrentPage = Number(button.dataset.labelSearchPageNumber); refreshUnifiedLabelSearch(); }));
 }
+
 function updateLabelSelectionSummary() {
   const target = $("#label-selection-summary");
   if (!target) return;
-  const menu = store.menus.find(item => item.id === labelSelectedMenuId && item.deleted !== true);
-  if (!menu) { target.textContent = "Belum ada menu dipilih. Cari atau scan QR terlebih dahulu."; return; }
-  target.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · ${escapeHtml(menu.partnerName||"—")} · ${money(menu.price)}<br><small>QR ID: ${escapeHtml(menuQrPayload(menu))}</small>`;
+  const validSelections = labelSelections.filter(entry => store.menus.some(menu => menu.id === entry.menuId && menu.active !== false && menu.deleted !== true));
+  if (validSelections.length !== labelSelections.length) labelSelections = validSelections;
+  const totalCopies = labelSelections.reduce((sum, entry) => sum + Number(entry.copies || 0), 0);
+  const rows = labelSelections.map(entry => {
+    const menu = store.menus.find(item => item.id === entry.menuId);
+    if (!menu) return "";
+    return `<div class="summary-row" style="gap:12px;align-items:center"><span style="min-width:0;flex:1"><strong>${escapeHtml(menu.name)}</strong><small style="display:block;color:#8b958c">${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · QR ${escapeHtml(menuQrPayload(menu))}</small></span><label style="width:105px;flex:0 0 105px">Jumlah <input type="number" min="1" max="500" step="1" value="${integer(entry.copies || 1)}" data-label-copies="${entry.menuId}" aria-label="Jumlah label ${escapeHtml(menu.name)}" style="padding:8px;margin-top:4px"></label><button type="button" class="btn btn-danger btn-compact" data-label-remove="${entry.menuId}">Hapus</button></div>`;
+  }).join("");
+  target.innerHTML = labelSelections.length
+    ? `<div class="helper-text" style="margin-bottom:8px">${integer(labelSelections.length)} menu dipilih · ${integer(totalCopies)} label akan dicetak dalam satu pekerjaan.</div>${rows}`
+    : `<div class="muted">Belum ada menu dipilih. Cari lalu tambahkan satu atau beberapa menu.</div>`;
+  target.querySelectorAll("[data-label-copies]").forEach(input => input.addEventListener("change", () => {
+    const entry = labelSelections.find(item => item.menuId === input.dataset.labelCopies);
+    const copies = Number(input.value);
+    if (!entry) return;
+    if (!Number.isInteger(copies) || copies < 1 || copies > 500) { input.value = entry.copies; return toast("Jumlah label tiap menu harus antara 1 sampai 500.", "error"); }
+    entry.copies = copies;
+    updateLabelSelectionSummary();
+  }));
+  target.querySelectorAll("[data-label-remove]").forEach(button => button.addEventListener("click", () => {
+    labelSelections = labelSelections.filter(item => item.menuId !== button.dataset.labelRemove);
+    updateLabelSelectionSummary();
+    refreshUnifiedLabelSearch();
+  }));
+  const submit = $("#label-print-form")?.querySelector('[type="submit"]');
+  if (submit) submit.disabled = !labelSelections.length || totalCopies < 1 || totalCopies > 500;
 }
 
 function handleLabelSearchKeydown(event) {
@@ -4033,9 +4500,9 @@ function handleLabelSearchKeydown(event) {
     return candidate === queryText || candidate.replace(/[\s-]/g, "") === normalizedQuery;
   }));
   if (exact) { selectLabelMenu(exact.id); return; }
-  const matches = active.filter(menu => String(menu.name || "").trim().toLowerCase() === queryText || String(menu.partnerName || "").trim().toLowerCase() === queryText);
+  const matches = active.filter(menu => String(menu.name || "").trim().toLowerCase() === queryText);
   if (matches.length === 1) selectLabelMenu(matches[0].id);
-  else if (matches.length > 1) toast(`Ada ${matches.length} menu milik mitra/nama tersebut. Pilih menu yang benar dari daftar di bawah.`, "info");
+  else if (matches.length > 1) toast(`Ada ${matches.length} menu dengan nama tersebut. Pilih menu dan mitra yang benar dari daftar.`, "info");
   else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan QR menu KALAP.", "error");
 }
 
@@ -4043,19 +4510,21 @@ function handleBulkLabelPrint(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector('[type="submit"]');
-  const data = Object.fromEntries(new FormData(form));
-  const menu = store.menus.find(item => item.id === String(data.menuId || "") && item.deleted !== true);
-  const copies = Number(data.copies);
-  if (!menu || menu.active === false) return toast("Cari lalu pilih satu menu aktif sebelum mencetak.", "error");
-  if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah label harus antara 1 sampai 500.", "error");
+  const selections = labelSelections.map(entry => ({
+    menu: store.menus.find(item => item.id === entry.menuId && item.active !== false && item.deleted !== true),
+    copies: Number(entry.copies)
+  })).filter(entry => entry.menu);
+  const totalCopies = selections.reduce((sum, entry) => sum + entry.copies, 0);
+  if (!selections.length) return toast("Tambahkan minimal satu menu sebelum mencetak.", "error");
+  if (selections.some(entry => !Number.isInteger(entry.copies) || entry.copies < 1 || entry.copies > 500) || totalCopies > 500) return toast("Jumlah total label harus antara 1 sampai 500.", "error");
   if (typeof window.qrcode !== "function") return toast("Pustaka QR belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
   setBusy(button, true, "Menyiapkan QR...");
   try {
-    printMenuLabels(menu, copies);
-    toast(`${integer(copies)} label ${menu.name} disiapkan dalam satu pekerjaan cetak QR ukuran 30 × 40 mm.`, "success");
+    printMenuLabels(selections);
+    toast(`${integer(selections.length)} menu · ${integer(totalCopies)} label disiapkan dalam satu pekerjaan cetak QR ukuran 30 × 40 mm.`, "success");
   } catch (error) {
     console.error(error);
-    toast("QR gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
+    toast(error?.message || "QR gagal disiapkan. Periksa koneksi internet dan ulangi.", "error");
   } finally {
     setTimeout(() => setBusy(button, false), 700);
   }
@@ -4144,9 +4613,12 @@ function openLabelModal(menuId) {
   }));
 }
 
-function printMenuLabels(menu, copies = 1) {
+function printMenuLabels(menuOrItems, copies = 1) {
   if (typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
-  if (!Number.isInteger(copies) || copies < 1 || copies > 500) throw new Error("Jumlah label tidak valid.");
+  const items = Array.isArray(menuOrItems) ? menuOrItems : [{ menu: menuOrItems, copies }];
+  const normalizedItems = items.map(entry => ({ menu: entry.menu, copies: Number(entry.copies) }));
+  const totalCopies = normalizedItems.reduce((sum, entry) => sum + entry.copies, 0);
+  if (!normalizedItems.length || normalizedItems.some(entry => !entry.menu || !Number.isInteger(entry.copies) || entry.copies < 1 || entry.copies > 500) || totalCopies > 500) throw new Error("Jumlah label harus antara 1 sampai 500 untuk seluruh menu.");
   if (document.body.classList.contains("printing-labels")) throw new Error("Pekerjaan cetak label sebelumnya belum selesai.");
 
   // KALAP hanya mendukung label GAP ukuran 30 × 40 mm (portrait).
@@ -4156,13 +4628,15 @@ function printMenuLabels(menu, copies = 1) {
   root.innerHTML = "";
   root.dataset.size = "30x40";
 
-  // QR vector dibuat satu kali; seluruh salinan memakai SVG identik dalam satu spool job.
-  const template = document.createElement("div");
-  template.className = "print-label";
-  template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
-  drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu));
+  // Semua menu dan jumlah salinannya digabung ke satu dialog / spool job.
   const fragment = document.createDocumentFragment();
-  for (let index = 0; index < copies; index += 1) fragment.appendChild(template.cloneNode(true));
+  normalizedItems.forEach(({ menu, copies: itemCopies }) => {
+    const template = document.createElement("div");
+    template.className = "print-label";
+    template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
+    drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu));
+    for (let index = 0; index < itemCopies; index += 1) fragment.appendChild(template.cloneNode(true));
+  });
   root.appendChild(fragment);
 
   let printStyle = document.getElementById("kalap-label-print-dynamic-style");
@@ -4438,20 +4912,68 @@ async function openManualStockInputModal() {
   lookup.focus();
 }
 
-async function deleteDailyStockMovement(movementId, button) {
-  if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat menghapus catatan stok harian.", "error");
+function openDailyStockEditModal(movementId) {
+  if (!["superadmin", "spv"].includes(profile?.role)) return toast("Hanya SPV atau Superadmin yang dapat mengedit stok harian.", "error");
   const movement = store.dailyStockMovements.find(item => item.id === movementId);
-  if (!movement) return toast("Catatan stok tidak ditemukan. Muat ulang halaman lalu coba kembali.", "error");
+  if (!movement || movement.type !== "in" || movement.voided) return toast("Batch stok ini tidak dapat diedit.", "error");
+  const currentQty = Number(movement.editedQty || movement.qty || 0);
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="modal-backdrop" data-daily-stock-edit-backdrop><section class="modal"><div class="modal-head"><div><h2>Edit stok masuk</h2><p>${escapeHtml(movement.menuName || "Menu")} · ${escapeHtml(movement.partnerName || "—")}</p></div><button class="modal-close" data-daily-stock-edit-close>×</button></div><form id="daily-stock-edit-form"><div class="form-field"><label>Jumlah akhir batch</label><input name="qty" type="number" min="1" max="100000" step="1" value="${currentQty}" required></div><div class="form-field"><label>Catatan perubahan</label><input name="note" maxlength="160" placeholder="Contoh: koreksi jumlah input"></div><div class="form-actions"><button type="button" class="btn btn-light" data-daily-stock-edit-close>Batal</button><button type="submit" class="btn btn-primary">Simpan perubahan</button></div></form></section></div>`;
+  root.querySelector("#daily-stock-edit-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = event.currentTarget, button = form.querySelector('[type="submit"]');
+    const data = Object.fromEntries(new FormData(form));
+    const qty = Number(data.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100000) return toast("Jumlah stok harus antara 1 sampai 100.000.", "error");
+    setBusy(button, true, "Menyimpan...");
+    try {
+      await callApi("editDailyStockMovement", { movementId, qty, note: data.note });
+      root.innerHTML = "";
+      toast("Jumlah stok berhasil diperbarui dan selisihnya sudah disesuaikan ke saldo POS.", "success");
+    } catch (error) { toast(friendlyError(error), "error"); }
+    finally { setBusy(button, false); }
+  });
+  root.querySelectorAll("[data-daily-stock-edit-close], [data-daily-stock-edit-backdrop]").forEach(item => item.addEventListener("click", event => {
+    if (event.target === item || item.matches("[data-daily-stock-edit-close]")) root.innerHTML = "";
+  }));
+}
+
+async function deleteDailyStockMovement(movementId, button) {
+  if (!["superadmin", "spv"].includes(profile?.role)) return toast("Hanya SPV atau Superadmin yang dapat menghapus stok harian.", "error");
+  const movement = store.dailyStockMovements.find(item => item.id === movementId);
+  if (!movement || movement.type !== "in" || movement.voided) return toast("Batch stok tidak ditemukan atau sudah dihapus.", "error");
+  const effectiveQty = Number(movement.editedQty || movement.qty || 0);
   const dateLabel = formatDate(movement.createdAt, { day: "numeric", month: "long", year: "numeric" });
   const ok = await kalapConfirm(
-    `Sembunyikan catatan stok ${movement.menuName || "menu"} (${integer(movement.qty)} unit) tanggal ${dateLabel}? Catatan akan hilang dari riwayat harian. Saldo stok aktual tidak berubah.`,
-    { title: "Hapus catatan stok", confirmText: "Hapus catatan", danger: true }
+    `Hapus batch stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok jual akan dikurangi sebesar batch tersebut. Jika stok sudah terjual sehingga saldo tidak mencukupi, sistem akan menolak penghapusan.`,
+    { title: "Hapus stok masuk", confirmText: "Hapus stok", danger: true }
   );
   if (!ok) return;
   setBusy(button, true, "Menghapus...");
   try {
     await callApi("deleteDailyStockMovement", { movementId });
-    toast("Catatan stok berhasil dihapus dari riwayat harian.", "success");
+    toast("Batch stok dihapus dari stok yang dapat dijual.", "success");
+  } catch (error) { toast(friendlyError(error), "error"); }
+  finally { setBusy(button, false); }
+}
+
+async function resetDailyOperations(dateKey, button) {
+  if (!["superadmin", "spv"].includes(profile?.role)) return toast("Hanya SPV atau Superadmin yang dapat melakukan reset harian.", "error");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ""))) return toast("Tanggal reset tidak valid.", "error");
+  const selectedText = formatDate(dateFromKey(dateKey), { day: "numeric", month: "long", year: "numeric" });
+  const ok = await kalapConfirm(
+    `Reset seluruh aktivitas KALAP tanggal ${selectedText}? Stok masuk dan penyesuaian stok pada tanggal itu akan dibalik dari saldo, seluruh transaksi penjualan tanggal itu beserta arus kas dan penjualan mitra terkait akan dihapus, pengajuan terkait dibatalkan, dan data closing tanggal itu dibersihkan. Stok dan transaksi tanggal lain tidak dihapus. Tindakan ini tidak dapat dibatalkan.`,
+    { title: "Reset harian", confirmText: "Ya, reset tanggal ini", danger: true }
+  );
+  if (!ok) return;
+  setBusy(button, true, "Mereset...");
+  try {
+    const result = await callApi("resetDailyOperations", { dateKey });
+    toast(`Reset ${dateKey} selesai. ${integer(result.transactionCount)} transaksi dan ${integer(result.stockMovementCount)} pergerakan stok tanggal tersebut dibersihkan.`, "success");
+    stockDailyCurrentPage = 1;
+    subscribeStockDailyDate(dateKey);
+    if (activePage === "closing") subscribeClosingSummaries(dateKey);
+    renderPage();
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -4536,7 +5058,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.0.7", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.1.0", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
