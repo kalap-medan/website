@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.3">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.4">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.3">
-  <title>KALAP Management System v2.2.3</title>
+  <meta name="application-version" content="2.2.4">
+  <title>KALAP Management System v2.2.4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -385,7 +385,11 @@ td { border-top-color:#f5e8e6; }
 .stock-request-menu-results { display:grid;gap:6px;margin-top:7px; }
 .stock-request-menu-results button { width:100%;border:1px solid #efd9d9;background:#fff8f7;border-radius:9px;padding:9px 11px;text-align:left;color:#4b3334; }
 .stock-request-menu-results button:hover { border-color:var(--kalap-red,#c8202b); }
-#stock-request-form .form-field { min-width:0; }
+#stock-request-form .form-field { min-width:0; width:100%; }
+.stock-request-form { display:grid; grid-template-columns:minmax(0,1fr); gap:5px; align-items:stretch; }
+.stock-request-form > .btn { justify-self:start; margin-top:5px; }
+.sidebar-help-phone { display:block; width:fit-content; margin-top:4px; color:rgba(255,255,255,.82); font-size:9px; font-weight:700; text-decoration:none; }
+.sidebar-help-phone:hover { text-decoration:underline; }
 .manual-existing-banner { display:none;margin:8px 0;padding:10px;border-radius:9px;background:#eaf7ef;color:#276b4c;font-size:11px; }
 .manual-existing-banner.show { display:block; }
 @media (max-width:640px) { .payment-choice-grid{grid-template-columns:1fr;} .payment-choice{min-height:72px;grid-template-columns:36px 1fr;justify-items:start;text-align:left;padding:12px 16px;} .pos-searchbar{align-items:stretch;flex-direction:column;} .pos-pagination{align-items:flex-start;flex-direction:column;} .account-actions{min-width:0;} .receipt-paper{padding:16px 14px;} }
@@ -1184,8 +1188,8 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <div class="workspace-label">WORKSPACE</div>
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
-        <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.1</span></div>
+        <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.4</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -3043,7 +3047,8 @@ function statCard(label, value, icon, foot = "Data tersinkron realtime") {
   return `<article class="stat-card"><div class="stat-top"><span>${label}</span><span class="stat-icon">${icon}</span></div><div class="stat-value">${value}</div><div class="stat-foot">${foot}</div></article>`;
 }
 function panelHeader(title, subtitle, action = "") {
-  return `<div class="panel-header"><div><h3 class="panel-title">${title}</h3><div class="panel-subtitle">${subtitle}</div></div>${action}</div>`;
+  const description = String(subtitle || "").trim();
+  return `<div class="panel-header"><div><h3 class="panel-title">${title}</h3>${description ? `<div class="panel-subtitle">${description}</div>` : ""}</div>${action}</div>`;
 }
 function selectedMonthControl() { return `<input type="month" id="month-select" value="${monthKey}" aria-label="Pilih bulan">`; }
 function getMonthTransactions() { return store.transactions.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
@@ -3649,9 +3654,9 @@ function renderPartnerHome() {
   return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau menu terdaftar, stok, dan penjualan produk milik Anda saja.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
     ${closingPanel}
     <section class="stats-grid">${statCard("Pendapatan bersih bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
-    <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "Menu otomatis tampil ketika Admin/SPV menghubungkannya dengan akun mitra.", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
+    <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
       <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
-    </article><article class="panel">${panelHeader("Aktivitas terbaru", "Penjualan hanya untuk produk yang terhubung dengan akun Anda.", `<span class="status success">LIVE</span>`)}
+    </article><article class="panel">${panelHeader("Aktivitas terbaru", "", `<span class="status success">LIVE</span>`)}
       <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
 }
@@ -5189,8 +5194,8 @@ async function resetDailyOperations(dateKey, button) {
 
 function renderStockRequestForm() {
   const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
-  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Cari menu milik Anda. Jika menu yang sama masih menunggu persetujuan, jumlah baru akan digabung ke pengajuan tersebut.")}
-    <form id="stock-request-form" class="inline-form">
+  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "")}
+    <form id="stock-request-form" class="inline-form stock-request-form">
       <div class="form-field"><label for="stock-request-menu-search">Cari menu</label><input id="stock-request-menu-search" type="search" autocomplete="off" placeholder="Ketik nama menu..." ${ownMenus.length ? "" : "disabled"}><div id="stock-request-menu-results" class="stock-request-menu-results" aria-live="polite"></div><div id="stock-request-menu-selected" class="manual-existing-banner"></div><input type="hidden" name="menuId" required></div>
       <div class="form-field"><label>Jumlah tambahan</label><input name="qty" type="number" min="1" max="100000" step="1" required placeholder="Jumlah unit"></div>
       <div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Contoh: stok kiriman hari ini"></div>
@@ -5267,7 +5272,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.3", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.4", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});

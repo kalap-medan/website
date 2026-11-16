@@ -1,0 +1,7 @@
+KALAP v2.2.4 — Perapian akun Mitra
+
+1. Form Ajukan stok untuk akun Mitra menampilkan Cari menu, Jumlah tambahan, dan Catatan secara vertikal dengan lebar penuh agar placeholder mudah terlihat.
+2. Deskripsi pada panel Ajukan stok, Menu milik Anda, dan Aktivitas terbaru dihapus.
+3. Nomor Admin 087877297446 ditambahkan pada panel Butuh bantuan dan dapat diketuk untuk menelepon.
+4. Cache PWA dinaikkan ke kalap-shell-v2.2.4.
+5. Tidak ada perubahan Firestore Rules atau indeks Firestore. Persyaratan publikasi Rules v2.2.3 tetap berlaku.

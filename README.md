@@ -1,11 +1,11 @@
-# KALAP Management System v2.2.3
+# KALAP Management System v2.2.4
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
 - `firestore.rules`: Firebase Firestore Security Rules yang wajib dipublikasikan bersama pembaruan ini.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.3.
+- `service-worker.js`: cache shell versi 2.2.4.
 
 ## Perubahan v2.2.0 dan fitur sebelumnya
 
@@ -72,12 +72,19 @@
 - **Pengajuan baru Mitra:** setelah mengirim pengajuan saat sedang melihat tanggal historis, tampilan otomatis kembali ke tanggal hari ini agar pengajuan terbaru langsung terlihat.
 - **Cache PWA:** service worker memakai cache `kalap-shell-v2.2.3` agar browser dan aplikasi terpasang memuat file terbaru.
 
+### Perubahan v2.2.4 — perapian akun Mitra
+- **Form pengajuan stok:** kolom Cari menu, Jumlah tambahan, dan Catatan pada akun Mitra ditampilkan bertumpuk dari atas ke bawah dengan lebar penuh agar placeholder mudah dibaca.
+- **Deskripsi:** deskripsi di bawah Ajukan stok, Menu milik Anda, dan Aktivitas terbaru dihapus tanpa mengubah isi atau fungsi bagian tersebut.
+- **Bantuan Mitra:** nomor Admin `087877297446` ditampilkan pada panel Butuh bantuan dan dapat diketuk untuk melakukan panggilan.
+- **Cache PWA:** nama cache dinaikkan ke `kalap-shell-v2.2.4` agar pembaruan tampilan dimuat oleh browser dan aplikasi terpasang.
+- **Firestore:** tidak ada perubahan pada `firestore.rules` maupun `firestore.indexes.json` di versi ini. Persyaratan publikasi Rules dari v2.2.3 tetap berlaku.
+
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.3.
+2. Ekstrak ZIP v2.2.4.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.3 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.4 mengambil file terbaru.
 
 ## Firestore Rules
 Versi v2.2.3 **mengubah** `firestore.rules`. Publikasikan Rules v2.2.3 sebelum menggunakan fitur Reset Harian. Buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket ini, lalu klik **Publish**.
