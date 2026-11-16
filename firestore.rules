@@ -615,6 +615,17 @@ service cloud.firestore {
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.menuId == resource.data.menuId
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.voided == true)))
+          || (isStaff()
+            && resetAuthorizationContains('stockRequestParentIds', requestId)
+            && resource.data.status == 'received'
+            && resource.data.get('latestAdjustmentRequestId', null) is string
+            && resetAuthorizationContains('stockRequestIds', resource.data.latestAdjustmentRequestId)
+            && request.resource.data.get('latestAdjustmentRequestId', null) == null
+            && request.resource.data.get('adjustmentAcceptedAt', null) == null
+            && request.resource.data.get('adjustmentAcceptedBy', null) == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'latestAdjustmentRequestId', 'adjustmentAcceptedAt', 'adjustmentAcceptedBy'
+            ]))
           || (resource.data.status == 'received'
             && request.resource.data.status == 'received'
             && request.resource.data.qty is int
@@ -631,7 +642,9 @@ service cloud.firestore {
             ]))
         ));
       allow delete: if (resetAuthorizationContains('stockRequestIds', requestId)
+          && resource.data.status in ['pending', 'received', 'voided']
           && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
+            || resetTimestampInTargetDay(resource.data.get('voidedAt', null))
             || (resource.data.get('movementId', null) is string
               && resetAuthorizationContains('stockMovementIds', resource.data.movementId)
               && resetTransactionOrStockMovementBelongsToTargetDay(resource.data.movementId))))
@@ -793,6 +806,7 @@ service cloud.firestore {
         && request.resource.data.partnerSaleIds is list
         && request.resource.data.stockRequestLockIds is list
         && request.resource.data.stockRequestIds is list
+        && request.resource.data.stockRequestParentIds is list
         && request.resource.data.payoutIds is list
         && request.resource.data.closingSummaryIds is list;
       allow update: if isStaff() && authId == 'active' && (
@@ -811,12 +825,13 @@ service cloud.firestore {
           && request.resource.data.partnerSaleIds is list
           && request.resource.data.stockRequestLockIds is list
           && request.resource.data.stockRequestIds is list
+          && request.resource.data.stockRequestParentIds is list
           && request.resource.data.payoutIds is list
           && request.resource.data.closingSummaryIds is list
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'dateKey', 'startAt', 'endAt', 'status', 'requestedBy', 'requestedByName', 'createdAt',
             'transactionIds', 'stockMovementIds', 'cashflowIds', 'partnerSaleIds',
-            'stockRequestLockIds', 'stockRequestIds', 'payoutIds', 'closingSummaryIds',
+            'stockRequestLockIds', 'stockRequestIds', 'stockRequestParentIds', 'payoutIds', 'closingSummaryIds',
             'completedAt', 'failedAt', 'failureMessage',
             'transactionCount', 'stockMovementCount', 'stockRequestCount', 'adjustedMenuCount'
           ]))

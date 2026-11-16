@@ -1,11 +1,11 @@
-# KALAP Management System v2.2.2
+# KALAP Management System v2.2.3
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
 - `firestore.rules`: Firebase Firestore Security Rules yang wajib dipublikasikan bersama pembaruan ini.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.2.
+- `service-worker.js`: cache shell versi 2.2.3.
 
 ## Perubahan v2.2.0 dan fitur sebelumnya
 
@@ -64,21 +64,25 @@
 - **Struk:** tampilan memakai latar putih polos, teks hitam dengan ukuran lebih terbaca, satu area gulir vertikal untuk struk panjang, dan tombol kembali tetap tersedia di bawah struk.
 - **Cache PWA:** nama cache dinaikkan menjadi `kalap-shell-v2.2.2` agar berkas terbaru dimuat.
 
-Tidak ada perubahan Firestore Rules atau indeks database pada versi ini.
+### Perbaikan v2.2.3 — daftar pengajuan mengikuti tanggal dan reset menghapus sisa pembatalan lama
+- **Filter tanggal pengajuan:** daftar pengajuan di bagian atas dan stok masuk harian memakai satu pemilih tanggal. Secara default tanggal mengikuti hari ini di zona waktu Asia/Jakarta; ketika hari berganti, daftar otomatis berpindah ke tanggal baru dan kosong bila belum ada pengajuan. Memilih tanggal sebelumnya menampilkan pengajuan yang dibuat pada tanggal tersebut.
+- **Catatan Dibatalkan lama:** daftar tidak lagi menampilkan pengajuan berstatus `voided` (Dibatalkan) dari versi reset lama. Reset pada tanggal terpilih juga mencari dan menghapus catatan `voided` berdasarkan tanggal pengajuan maupun `voidedAt`, bukan hanya status `pending`.
+- **Reset permanen:** Firestore Rules mengizinkan penghapusan hanya untuk ID pengajuan yang telah dicantumkan dalam otorisasi reset aktif. Pengajuan `rejected` (Ditolak) dan `revised` (Direvisi) tetap dipertahankan dan terlihat oleh Mitra.
+- **Koreksi stok:** jika reset menghapus pengajuan koreksi yang sudah diterima, tautan koreksi pada batch induk dilepas agar batch induk tidak terkunci oleh referensi yang sudah dihapus.
+- **Pengajuan baru Mitra:** setelah mengirim pengajuan saat sedang melihat tanggal historis, tampilan otomatis kembali ke tanggal hari ini agar pengajuan terbaru langsung terlihat.
+- **Cache PWA:** service worker memakai cache `kalap-shell-v2.2.3` agar browser dan aplikasi terpasang memuat file terbaru.
 
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.2.
+2. Ekstrak ZIP v2.2.3.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.2 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.3 mengambil file terbaru.
 
 ## Firestore Rules
-Versi v2.2.2 **tidak mengubah** `firestore.rules` atau indeks database. Bila Firebase sudah menggunakan Rules dari v2.2.1, tidak perlu memublikasikan Rules ulang; cukup perbarui file aplikasi dan aset PWA.
+Versi v2.2.3 **mengubah** `firestore.rules`. Publikasikan Rules v2.2.3 sebelum menggunakan fitur Reset Harian. Buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket ini, lalu klik **Publish**.
 
-Bila Rules v2.2.1 belum pernah dipublikasikan, gunakan file `firestore.rules` yang disertakan dalam paket ini: buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya, lalu klik **Publish**. Rules tersebut tetap memuat izin untuk fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian dari pembaruan sebelumnya.
-
-Tidak ada indeks komposit tambahan yang diperlukan untuk v2.2.2.
+Rules v2.2.3 di dalam paket ini juga mempertahankan izin untuk fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian dari pembaruan sebelumnya. Tidak ada indeks komposit tambahan yang diperlukan.
 
 ## Catatan penting
 - Reset tanggal historis hanya bisa dilakukan jika pembalikan stok aman. Bila stok dari tanggal tersebut sudah terpakai pada tanggal berikutnya sehingga tidak cukup untuk membalikkan stok masuk, sistem akan membatalkan reset dan menampilkan alasannya; jangan menghapus dokumen secara manual.
