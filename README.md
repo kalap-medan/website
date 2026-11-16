@@ -1,17 +1,17 @@
-# KALAP Management System v2.2.0
+# KALAP Management System v2.2.1
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
 - `firestore.rules`: Firebase Firestore Security Rules yang wajib dipublikasikan bersama pembaruan ini.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.0.
+- `service-worker.js`: cache shell versi 2.2.1.
 
 ## Perubahan v2.2.0 dan fitur sebelumnya
 
 ### Reset harian berdasarkan tanggal
 - SPV dan Superadmin dapat memilih tanggal pada bagian Stok Harian lalu menekan **Reset harian**.
-- Reset membersihkan transaksi penjualan pada tanggal tersebut, cashflow dan penjualan mitra yang terkait, pergerakan stok hari tersebut, pengajuan stok yang terkait, payout serta ringkasan closing hari tersebut.
+- Reset membersihkan transaksi penjualan pada tanggal tersebut, cashflow dan penjualan mitra yang terkait, pergerakan stok hari tersebut, pengajuan yang masih menunggu pada tanggal tersebut, payout serta ringkasan closing hari tersebut. Pengajuan yang sudah Direvisi atau Ditolak tetap dipertahankan dan terlihat oleh Mitra.
 - Stok menu disesuaikan dengan membalik dampak stok masuk, koreksi, penjualan, dan pengembalian yang terjadi pada tanggal yang dipilih.
 - Reset tidak menghapus transaksi tanggal lain. Sistem menolak reset bila pembalikan akan membuat stok negatif atau bila mendeteksi pengembalian transaksi lintas tanggal yang tidak aman.
 - Ada konfirmasi sebelum proses dijalankan. Perubahan reset tidak dapat dibatalkan dari aplikasi.
@@ -21,7 +21,7 @@
 - Daftar stok harian memiliki pencarian, pemilih tanggal, pagination bernomor, serta aksi **Edit** dan **Hapus** untuk batch stok masuk biasa.
 - Edit batch memperbarui saldo stok dan membuat catatan penyesuaian. Penghapusan batch stok masuk yang memenuhi syarat mengurangi saldo lalu menghapus dokumen batch dan pengajuan terkait secara permanen; penghapusan ditolak bila saldo tidak mencukupi.
 - Tombol pengajuan **Terima**, **Revisi**, dan **Tolak** kini berupa tombol yang jelas. Terima langsung menyetujui jumlah pada pengajuan tanpa meminta input jumlah penerimaan lagi.
-- Status pengajuan yang dibatalkan saat reset ditampilkan sebagai **Dibatalkan**. Pengajuan yang dihapus bersama batch stok tidak lagi ditampilkan.
+- Pengajuan yang masih menunggu keputusan pada tanggal yang di-reset dihapus permanen dari Firestore tanpa diubah menjadi status **Dibatalkan** dan tanpa pemberitahuan kepada Mitra. Pengajuan yang sudah **Direvisi** atau **Ditolak** tetap tercatat dan terlihat oleh Mitra. Pengajuan stok diterima yang terkait dengan pergerakan stok tanggal itu ikut dihapus bersama pergerakannya.
 - Firestore Rules menambahkan izin penolakan untuk SPV/Superadmin, memperbaiki error permission pada tindakan Tolak, dan membatasi perubahan pengajuan/stok sesuai role serta status.
 
 ### Sinkronisasi penghapusan mitra dan menu
@@ -48,12 +48,19 @@
 
 **Penting:** v2.2.0 memperbarui `firestore.rules`. Publikasikan Rules terbaru sebelum menggunakan fitur hapus permanen stok.
 
+
+### Perubahan v2.2.1 — reset pengajuan dan formulir mitra
+- **Reset pengajuan mitra:** reset harian menghapus permanen pengajuan yang masih berstatus menunggu pada tanggal yang dipilih. Pengajuan tidak diubah menjadi Dibatalkan, sehingga hilang dari riwayat Mitra tanpa pemberitahuan. Pengajuan yang sudah Direvisi atau Ditolak tetap dipertahankan dan terlihat.
+- **Deskripsi Manajemen Mitra:** teks deskripsi halaman dan kalimat penjelas pada popup Tambah Mitra dihapus.
+- **Popup Tambah Mitra:** formulir hanya berisi Nama lengkap, Email login, Kata sandi, Bank, Norek, dan Nama pemilik. Formulir membuat akun login Mitra sekaligus profil/rekening yang terhubung.
+- **Cache PWA:** versi cache service worker dinaikkan ke `kalap-shell-v2.2.1` agar aplikasi mengambil berkas pembaruan.
+
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.0.
+2. Ekstrak ZIP v2.2.1.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.0 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.1 mengambil file terbaru.
 
 ## WAJIB — Publikasikan Firestore Rules
 Versi ini mengubah aturan keamanan Firestore. **Jangan hanya mengganti `index.html`** karena fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian akan ditolak oleh database bila Rules lama masih aktif.

@@ -630,14 +630,19 @@ service cloud.firestore {
               'qty', 'previousQty', 'receivedQty', 'editedAt', 'editedBy', 'editedByName', 'editNote'
             ]))
         ));
-      allow delete: if isStaff() && resource.data.status == 'received'
-        && resource.data.get('requestType', 'stock') != 'adjustment'
-        && resource.data.get('latestAdjustmentRequestId', null) == null
-        && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
-        && resource.data.get('movementId', null) is string
-        && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
-        && !existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
-        && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId;
+      allow delete: if (resetAuthorizationContains('stockRequestIds', requestId)
+          && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
+            || (resource.data.get('movementId', null) is string
+              && resetAuthorizationContains('stockMovementIds', resource.data.movementId)
+              && resetTransactionOrStockMovementBelongsToTargetDay(resource.data.movementId))))
+        || (isStaff() && resource.data.status == 'received'
+          && resource.data.get('requestType', 'stock') != 'adjustment'
+          && resource.data.get('latestAdjustmentRequestId', null) == null
+          && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+          && resource.data.get('movementId', null) is string
+          && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+          && !existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+          && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId);
     }
 
     match /stockRequestLocks/{menuId} {
@@ -787,6 +792,7 @@ service cloud.firestore {
         && request.resource.data.cashflowIds is list
         && request.resource.data.partnerSaleIds is list
         && request.resource.data.stockRequestLockIds is list
+        && request.resource.data.stockRequestIds is list
         && request.resource.data.payoutIds is list
         && request.resource.data.closingSummaryIds is list;
       allow update: if isStaff() && authId == 'active' && (
@@ -804,26 +810,28 @@ service cloud.firestore {
           && request.resource.data.cashflowIds is list
           && request.resource.data.partnerSaleIds is list
           && request.resource.data.stockRequestLockIds is list
+          && request.resource.data.stockRequestIds is list
           && request.resource.data.payoutIds is list
           && request.resource.data.closingSummaryIds is list
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'dateKey', 'startAt', 'endAt', 'status', 'requestedBy', 'requestedByName', 'createdAt',
             'transactionIds', 'stockMovementIds', 'cashflowIds', 'partnerSaleIds',
-            'stockRequestLockIds', 'payoutIds', 'closingSummaryIds',
+            'stockRequestLockIds', 'stockRequestIds', 'payoutIds', 'closingSummaryIds',
             'completedAt', 'failedAt', 'failureMessage',
-            'transactionCount', 'stockMovementCount', 'adjustedMenuCount'
+            'transactionCount', 'stockMovementCount', 'stockRequestCount', 'adjustedMenuCount'
           ]))
         || (resource.data.status == 'running'
           && resource.data.requestedBy == request.auth.uid
           && request.resource.data.status in ['completed', 'failed']
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'completedAt', 'failedAt', 'failureMessage',
-            'transactionCount', 'stockMovementCount', 'adjustedMenuCount'
+            'transactionCount', 'stockMovementCount', 'stockRequestCount', 'adjustedMenuCount'
           ])
           && (request.resource.data.status == 'completed'
             ? request.resource.data.completedAt == request.time
               && request.resource.data.transactionCount is int
               && request.resource.data.stockMovementCount is int
+              && request.resource.data.stockRequestCount is int
               && request.resource.data.adjustedMenuCount is int
             : request.resource.data.failedAt == request.time
               && request.resource.data.failureMessage is string))

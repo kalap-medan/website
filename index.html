@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.1">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.2.0</title>
+  <title>KALAP Management System v2.2.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -946,7 +946,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.2.0: daily reset fix, stock approvals, and permanent stock deletion */
+/* KALAP v2.2.1: daily reset fix, stock approvals, and permanent stock deletion */
 .nav-badge {
   margin-left: auto;
   min-width: 21px;
@@ -1083,6 +1083,54 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
   body.printing-labels .print-label { width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; }
 }
 
+
+/* KALAP v2.3.0 — clean, readable receipt sheet and compact label name */
+.receipt-stage {
+  position:fixed !important; inset:0 !important; z-index:110 !important;
+  display:grid !important; place-items:start center !important;
+  padding:10px !important; overflow:hidden !important;
+  background:#fff !important;
+}
+.receipt-view {
+  width:min(100%,540px) !important; height:100% !important;
+  max-height:calc(100dvh - 20px) !important; min-height:0 !important;
+  overflow-y:auto !important; overflow-x:hidden !important;
+  display:flex !important; flex-direction:column !important;
+  align-items:stretch !important; justify-content:flex-start !important;
+  gap:12px !important; padding:4px 2px 14px !important;
+  box-sizing:border-box !important; scrollbar-gutter:stable;
+}
+.receipt-paper {
+  width:100% !important; max-width:500px !important; margin:0 auto !important;
+  flex:0 0 auto !important; box-sizing:border-box !important;
+  padding:28px 26px !important; border:1px solid #e5e7eb !important;
+  border-radius:2px !important; background:#fff !important; color:#111 !important;
+  box-shadow:none !important; font:14px/1.6 Arial,Helvetica,sans-serif !important;
+}
+.receipt-brand { color:#111 !important; font-size:28px !important; margin-bottom:3px !important; }
+.receipt-subtitle { color:#333 !important; font-size:12px !important; letter-spacing:.08em; }
+.receipt-dash { border-top:1px dashed #8b8b8b !important; margin:13px 0 !important; }
+.receipt-meta { color:#292929 !important; font-size:13px !important; line-height:1.5 !important; padding:5px 0 !important; }
+.receipt-meta strong { color:#111 !important; font-size:13px !important; }
+.receipt-item { color:#111 !important; font-size:13px !important; line-height:1.5 !important; padding:8px 0 !important; }
+.receipt-item strong { color:#111 !important; font-size:13px !important; }
+.receipt-item small { color:#444 !important; font-size:12px !important; margin-top:3px !important; }
+.receipt-grand-total { color:#111 !important; font-size:19px !important; padding-top:10px !important; }
+.receipt-grand-total strong { font-size:20px !important; }
+.receipt-thanks { color:#111 !important; font-size:13px !important; margin-top:17px !important; }
+.receipt-thanks small { font-size:12px !important; font-weight:400 !important; }
+#receipt-back { width:min(100%,500px) !important; flex:0 0 auto !important; margin:0 auto !important; }
+.label-preview-name { font-size:6pt !important; }
+@media (max-width:600px) {
+  .receipt-stage { padding:6px !important; }
+  .receipt-view { max-height:calc(100dvh - 12px) !important; padding:2px 1px 12px !important; }
+  .receipt-paper { padding:22px 17px !important; font-size:13px !important; }
+  .receipt-brand { font-size:25px !important; }
+  .receipt-meta,.receipt-meta strong,.receipt-item,.receipt-item strong { font-size:12px !important; }
+  .receipt-item small { font-size:11px !important; }
+  .receipt-grand-total,.receipt-grand-total strong { font-size:17px !important; }
+}
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -1136,7 +1184,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.0</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.1</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -2368,12 +2416,22 @@ async function callApi(name, payload = {}) {
         if (data.requestId) requestIds.add(String(data.requestId));
       });
 
-      const requestDocs = new Map(requestByDateSnap.docs.map(snap => [snap.id, snap]));
+      // Reset menghapus pengajuan yang masih pending pada tanggal terpilih.
+      // Pengajuan yang sudah direvisi atau ditolak dipertahankan agar keputusan
+      // tersebut tetap terlihat oleh Mitra. Pengajuan received yang terhubung
+      // dengan pergerakan stok tanggal ini ikut dihapus bersama pergerakannya.
+      const requestDocs = new Map(requestByDateSnap.docs
+        .filter(snap => String(snap.data().status || "pending").toLowerCase() === "pending")
+        .map(snap => [snap.id, snap]));
       const extraRequestSnaps = await Promise.all([...requestIds].filter(id => !requestDocs.has(id)).map(id => getDoc(doc(db, "stockRequests", id))));
-      extraRequestSnaps.forEach(snap => { if (snap.exists()) requestDocs.set(snap.id, snap); });
-      const requestsToVoid = [...requestDocs.values()].filter(snap => ["pending", "revised", "received"].includes(String(snap.data().status || "")));
+      extraRequestSnaps.forEach(snap => {
+        if (snap.exists() && !["rejected", "revised"].includes(String(snap.data().status || "").toLowerCase())) {
+          requestDocs.set(snap.id, snap);
+        }
+      });
+      const requestsToDelete = [...requestDocs.values()];
       const requestLocks = [];
-      for (const requestSnap of requestsToVoid) {
+      for (const requestSnap of requestsToDelete) {
         const menuId = String(requestSnap.data().menuId || "");
         if (!menuId) continue;
         const lockSnap = await getDoc(doc(db, "stockRequestLocks", menuId));
@@ -2443,7 +2501,7 @@ async function callApi(name, payload = {}) {
       const closingSnap = await getDoc(closingRef);
 
       const operationCount = menuPlans.length * 2 + transactionIds.length + movementRefs.length
-        + cashflowRefs.length + partnerSaleRefs.length + requestsToVoid.length + lockRefs.length
+        + cashflowRefs.length + partnerSaleRefs.length + requestsToDelete.length + lockRefs.length
         + payoutRefs.length + summaryRefs.length + (closingSnap.exists() ? 1 : 0) + 1;
       if (operationCount > 450) throw new Error(`Reset memiliki ${integer(operationCount)} perubahan, melebihi batas aman satu proses. Hubungi pengelola sistem untuk penanganan tanggal ini tanpa memecah saldo stok.`);
 
@@ -2461,6 +2519,7 @@ async function callApi(name, payload = {}) {
         cashflowIds: cashflowRefs.map(ref => ref.id),
         partnerSaleIds: partnerSaleRefs.map(ref => ref.id),
         stockRequestLockIds: lockRefs.map(ref => ref.id),
+        stockRequestIds: requestsToDelete.map(snap => snap.id),
         payoutIds: payoutRefs.map(ref => ref.id),
         closingSummaryIds: summaryRefs.map(ref => ref.id)
       });
@@ -2484,10 +2543,7 @@ async function callApi(name, payload = {}) {
       movementRefs.forEach(ref => batch.delete(ref));
       cashflowRefs.forEach(ref => batch.delete(ref));
       partnerSaleRefs.forEach(ref => batch.delete(ref));
-      requestsToVoid.forEach(snap => batch.update(snap.ref, {
-        status: "voided", voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
-        voidReason: `Reset harian tanggal ${dateKey}.`
-      }));
+      requestsToDelete.forEach(snap => batch.delete(snap.ref));
       lockRefs.forEach(ref => batch.delete(ref));
       payoutRefs.forEach(ref => batch.delete(ref));
       summaryRefs.forEach(ref => batch.delete(ref));
@@ -2495,10 +2551,10 @@ async function callApi(name, payload = {}) {
       batch.update(authRef, {
         status: "completed", completedAt: now,
         transactionCount: transactionIds.length, stockMovementCount: movementRefs.length,
-        adjustedMenuCount: menuPlans.length
+        stockRequestCount: requestsToDelete.length, adjustedMenuCount: menuPlans.length
       });
       await batch.commit();
-      return { dateKey, transactionCount: transactionIds.length, stockMovementCount: movementRefs.length, adjustedMenuCount: menuPlans.length };
+      return { dateKey, transactionCount: transactionIds.length, stockMovementCount: movementRefs.length, stockRequestCount: requestsToDelete.length, adjustedMenuCount: menuPlans.length };
     } catch (error) {
       if (resetAuthorizationRef) {
         await updateDoc(resetAuthorizationRef, { status: "failed", failedAt: serverTimestamp(), failureMessage: String(error?.message || error).slice(0, 300) }).catch(() => {});
@@ -2958,7 +3014,8 @@ function showPage(page) {
   renderPage();
 }
 function pageHeading(title, subtitle, actions = "") {
-  return `<div class="page-heading"><div><span class="eyebrow">KALAP WORKSPACE</span><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${actions}</div></div>`;
+  const description = String(subtitle || "").trim();
+  return `<div class="page-heading"><div><span class="eyebrow">KALAP WORKSPACE</span><h1>${title}</h1>${description ? `<p>${description}</p>` : ""}</div><div class="heading-actions">${actions}</div></div>`;
 }
 function statCard(label, value, icon, foot = "Data tersinkron realtime") {
   return `<article class="stat-card"><div class="stat-top"><span>${label}</span><span class="stat-icon">${icon}</span></div><div class="stat-value">${value}</div><div class="stat-foot">${foot}</div></article>`;
@@ -3143,13 +3200,14 @@ function renderPosPage() {
   const availableMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const cartItems = [...cart.values()];
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
+  const todayKey = jakartaDateKey(new Date());
+  const todayTransactions = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === todayKey).slice(0, 5);
   return `${pageHeading("Kasir / POS", "Cari nama menu atau scan barcode, lalu masukkan ke keranjang.", `<span class="status success">● Sistem siap</span>`)}
     <div class="pos-layout"><section class="panel">${panelHeader("Daftar menu", `${integer(availableMenus.length)} menu aktif`, `<span class="muted" style="font-size:10px">Klik menu untuk menambahkan</span>`)}
       <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan QR/barcode..." autocomplete="off" aria-label="Cari atau scan menu"></div>
-      <p class="pos-search-hint">Scanner QR/barcode akan mengetikkan ID menu ke kolom ini. Arahkan kursor ke kolom, scan, lalu tekan Enter bila scanner tidak mengirim Enter otomatis.</p>
       <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
     </section><aside class="panel cart-panel">${panelHeader("Pesanan", `${cartItems.length} jenis menu dalam keranjang`)}<div class="cart-items">${cartItems.length ? cartItems.map(item => `<div class="cart-item"><div><div class="cart-item-name">${escapeHtml(item.name)}</div><div class="cart-item-price">${money(item.price)} / item</div></div><div class="qty-control"><button data-cart-dec="${item.menuId}" aria-label="Kurangi">−</button><strong>${item.qty}</strong><button data-cart-inc="${item.menuId}" aria-label="Tambah">＋</button></div></div>`).join("") : `<div class="cart-empty">Keranjang masih kosong.<br>Pilih menu di sebelah kiri.</div>`}</div><div class="cart-total"><span>Total pembayaran</span><strong>${money(total)}</strong></div><button class="btn btn-primary" id="checkout-btn" ${cartItems.length ? "" : "disabled"}>Bayar</button><button class="btn btn-light" id="clear-cart-btn" ${cartItems.length ? "" : "disabled"}>Kosongkan keranjang</button></aside></div>
-    <section class="panel" style="margin-top:15px">${panelHeader("Transaksi terbaru", "Aktivitas penjualan pada bulan yang dipilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(store.transactions.slice(0, 5), true)}</section>`;
+    <section class="panel" style="margin-top:15px">${panelHeader("Transaksi hari ini", `Aktivitas penjualan ${formatDate(dateFromKey(todayKey), { day: "numeric", month: "long", year: "numeric" })}`, `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(todayTransactions, true)}</section>`;
 }
 
 function filteredPosMenus() {
@@ -3270,8 +3328,7 @@ function renderPartnersPage() {
   const pages = Math.max(1, Math.ceil(filtered.length / directoryPageSize));
   partnerListCurrentPage = Math.min(partnerListCurrentPage, pages);
   const visible = filtered.slice((partnerListCurrentPage-1)*directoryPageSize, partnerListCurrentPage*directoryPageSize);
-  return `${pageHeading("Manajemen mitra", "Daftarkan mitra cukup dengan nama. Produk dan harga dikelola melalui menu baru.", `<button class="btn btn-primary" data-open-modal="partner">＋ Tambah mitra</button>`)}
-    <div class="info-banner"><span>ⓘ</span><div><strong>Data mitra dibuat sederhana</strong><br>Data utama mitra hanya nama. Nomor HP dan catatan kontak tidak diperlukan. Hubungkan akun Mitra pada halaman Akun Pengguna.</div></div>
+  return `${pageHeading("Manajemen mitra", "", `<button class="btn btn-primary" data-open-modal="partner">＋ Tambah mitra</button>`)}
     <section class="panel">${panelHeader("Daftar mitra", `${integer(filtered.length)} dari ${integer(activePartners.length)} mitra aktif`)}
       <div class="table-toolbar"><input id="partner-directory-search" type="search" value="${escapeHtml(partnerListSearchQuery)}" placeholder="Cari nama mitra..."></div>
       <div class="product-card-grid">${visible.length ? visible.map(partner=>`<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="transfer-bank">${escapeHtml(partner.bankName||"Bank belum diisi")} · ${escapeHtml(partner.accountNumber||"—")}<br>${escapeHtml(partner.accountHolder||"")}</div><div class="product-quantity">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).reduce((sum,menu)=>sum+Number(menu.stock||0),0))}</div><div class="product-meta">Total stok produk · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div><div class="account-actions" style="margin-top:10px"><button type="button" class="action-link" data-edit-partner="${partner.id}">Edit rekening</button><button type="button" class="action-link danger" data-delete-partner="${partner.id}">Hapus mitra</button></div></article>`).join("") : `<div class="table-empty">Tidak ada mitra yang cocok dengan pencarian.</div>`}</div>
@@ -3313,8 +3370,8 @@ function renderAccountsPage() {
     ? `Menampilkan ${start + 1}–${Math.min(start + accountsPageSize, filteredUsers.length)} dari ${integer(filteredUsers.length)} akun`
     : "0 akun ditemukan";
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
-    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option><option value="partner">Mitra</option></select></div><div id="partner-bank-fields" class="hidden"><div class="form-field"><label>Nama bank mitra</label><input name="bankName" placeholder="BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening mitra</label><input name="accountNumber" inputmode="numeric" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" placeholder="Sesuai rekening"></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
-    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-row"><span><strong>Mitra</strong></span><span>Menu dan penjualan miliknya</span></div><div class="summary-divider"></div><div class="helper-text">Saat role Mitra dipilih, sistem otomatis membuat data mitra menggunakan nama akun. Tidak perlu mengisi kolom mitra terkait.</div></div></section></div>
+    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option></select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
+    <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-divider"></div><div class="helper-text">Akun Mitra dibuat melalui menu Manajemen Mitra agar akun login dan rekening tersimpan dalam satu proses.</div></div></section></div>
     <section class="panel">${panelHeader("Akun terdaftar", `${integer(filteredUsers.length)} dari ${integer(store.users.length)} akun`)}<div class="table-toolbar"><input id="accounts-search" type="search" value="${escapeHtml(accountsSearchQuery)}" placeholder="Cari nama, email, atau role akun..." aria-label="Cari akun pengguna"></div><div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">${q ? "Tidak ada akun yang cocok dengan pencarian." : "Belum ada akun lain."}</td></tr>`}</tbody></table></div><div class="pagination-row"><span class="helper-text">${showing} · Halaman ${accountsCurrentPage} dari ${pages} · 7 akun per halaman</span><div class="page-buttons"><button type="button" data-account-page="prev" ${accountsCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-account-page="next" ${accountsCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Password asli tidak dapat dibaca Admin. Gunakan reset sandi atau minta staf mengganti sandi melalui Profil Saya. Penghapusan akun menghapus profil akses dari Firestore sehingga akun tidak dapat masuk ke aplikasi. Identitas Firebase Authentication terpisah hanya dapat dihapus melalui Admin SDK/server; riwayat transaksi tetap dipertahankan sebagai arsip keuangan.</div></section>`;
 }
 
@@ -3572,13 +3629,12 @@ function renderPartnerHome() {
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
-  return `${pageHeading("Cetak label", "Pilih beberapa menu sekaligus. Setiap menu dapat memiliki jumlah label yang berbeda.", `<span class="status neutral">QR Code · ECO80BT</span>`)}
-    <div class="info-banner"><span>▥</span><div><strong>Ukuran label 30 × 40 mm</strong><br>Label hanya memuat nama menu, QR Code, dan harga. ID QR tidak dicetak sebagai teks.</div></div>
+  return `${pageHeading("Cetak label", "Pilih menu yang akan dicetak.", `<span class="status neutral">Ukuran 30 × 40 mm</span>`)}
     <section class="panel">${panelHeader("Pilih beberapa label", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
-        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Cari menu A, tambahkan, lalu cari menu B..." value=""><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
-        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1"><div class="muted">Belum ada menu dipilih. Cari lalu tambahkan satu atau beberapa menu.</div></div>
-        <div class="label-print-actions"><span class="helper-text">Ukuran tetap 30 × 40 mm · Portrait · Skala cetak 100% / Actual Size. Maksimal 500 label per pekerjaan cetak.</span><button class="btn btn-primary" type="submit" ${labelSelections.length ? "" : "disabled"}>Cetak semua label</button></div>
+        <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Cari nama menu atau scan QR..." value=""><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
+        <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1" hidden></div>
+        <div class="label-print-actions"><button class="btn btn-primary" type="submit" ${labelSelections.length ? "" : "disabled"}>Cetak semua label</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
     </section>`;
 }
@@ -3845,7 +3901,6 @@ function showReceipt(result) {
       <div class="receipt-dash"></div><div class="receipt-thanks">TERIMA KASIH<br><small>Selamat menikmati pesanan Anda.</small></div>
     </div>
     <button type="button" class="btn btn-primary btn-wide" id="receipt-back">← Kembali ke POS</button>
-    <div class="helper-text" style="color:#fff;text-align:center">Resi ini hanya ditampilkan di layar agar pelanggan dapat melihat atau memotretnya.</div>
   </div></div>`;
   modal.querySelector("#receipt-back").addEventListener("click",()=>{modal.innerHTML="";showPage("pos");});
 }
@@ -3878,7 +3933,7 @@ function showTransactionDetail(transactionId) {
 function openManagementModal(type) {
   const root = $("#modal-root");
   if (type === "partner") {
-    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah mitra</h2><p>Isi nama dan rekening untuk mempermudah transfer hasil penjualan.</p></div><button class="modal-close" data-modal-close>×</button></div><form id="create-partner-form"><div class="form-field"><label>Nama mitra / usaha</label><input name="name" required maxlength="80" placeholder="Nama pemilik atau usaha"></div><div class="form-field"><label>Nama bank</label><input name="bankName" maxlength="50" placeholder="Contoh: BCA / BRI / Mandiri"></div><div class="form-field"><label>Nomor rekening</label><input name="accountNumber" inputmode="numeric" maxlength="40" placeholder="Nomor rekening mitra"></div><div class="form-field"><label>Nama pemilik rekening</label><input name="accountHolder" maxlength="80" placeholder="Nama sesuai rekening"></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan mitra</button></div></form></section></div>`;
+    root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Tambah mitra</h2></div><button class="modal-close" data-modal-close>×</button></div><form id="create-partner-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" required maxlength="80" autocomplete="name" placeholder="Nama lengkap mitra"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required autocomplete="username" placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi</label><input name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="Minimal 8 karakter"></div><div class="form-field"><label>Bank</label><input name="bankName" required maxlength="50" placeholder="Contoh: BCA / BRI / Mandiri"></div><div class="form-field"><label>Norek</label><input name="accountNumber" required inputmode="numeric" maxlength="40" placeholder="Nomor rekening"></div><div class="form-field"><label>Nama pemilik</label><input name="accountHolder" required maxlength="80" placeholder="Nama pemilik rekening"></div><div class="form-actions"><button type="button" class="btn btn-light" data-modal-close>Batal</button><button class="btn btn-primary" type="submit">Simpan mitra</button></div></form></section></div>`;
     root.querySelector("#create-partner-form").addEventListener("submit", createPartnerSubmit);
 
   }
@@ -3923,9 +3978,32 @@ function editPartnerBank(partnerId) {
 }
 
 async function createPartnerSubmit(event) {
-  event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); setBusy(button,true);
-  try { const data=Object.fromEntries(new FormData(form)); await callApi("createPartner", data); $("#modal-root").innerHTML=""; toast("Mitra berhasil ditambahkan.","success"); if(activePage!=="partners") showPage("partners"); }
-  catch(error){toast(friendlyError(error),"error");} finally{setBusy(button,false);}
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const data = Object.fromEntries(new FormData(form));
+  data.displayName = String(data.displayName || "").trim();
+  data.email = String(data.email || "").trim().toLowerCase();
+  data.password = String(data.password || "");
+  data.bankName = String(data.bankName || "").trim();
+  data.accountNumber = String(data.accountNumber || "").trim();
+  data.accountHolder = String(data.accountHolder || "").trim();
+  if (data.password.length < 8) return toast("Kata sandi minimal 8 karakter.", "error");
+  if (!data.displayName || !data.email || !data.bankName || !data.accountNumber || !data.accountHolder) {
+    return toast("Lengkapi seluruh data mitra terlebih dahulu.", "error");
+  }
+  setBusy(button, true, "Membuat akun...");
+  try {
+    await callApi("createManagedUser", { ...data, role: "partner" });
+    form.reset();
+    $("#modal-root").innerHTML = "";
+    toast("Akun login dan data Mitra berhasil dibuat.", "success");
+    if (activePage !== "partners") showPage("partners");
+  } catch (error) {
+    toast(friendlyError(error), "error");
+  } finally {
+    setBusy(button, false);
+  }
 }
 async function createUserSubmit(event) {
   event.preventDefault(); const form=event.currentTarget; const button=form.querySelector("button[type=submit]"); const data=Object.fromEntries(new FormData(form));
@@ -4487,9 +4565,10 @@ function updateLabelSelectionSummary() {
     if (!menu) return "";
     return `<div class="summary-row" style="gap:12px;align-items:center"><span style="min-width:0;flex:1"><strong>${escapeHtml(menu.name)}</strong><small style="display:block;color:#8b958c">${escapeHtml(menu.partnerName || "—")} · ${money(menu.price)} · QR ${escapeHtml(menuQrPayload(menu))}</small></span><label style="width:105px;flex:0 0 105px">Jumlah <input type="number" min="1" max="500" step="1" value="${integer(entry.copies || 1)}" data-label-copies="${entry.menuId}" aria-label="Jumlah label ${escapeHtml(menu.name)}" style="padding:8px;margin-top:4px"></label><button type="button" class="btn btn-danger btn-compact" data-label-remove="${entry.menuId}">Hapus</button></div>`;
   }).join("");
+  target.hidden = labelSelections.length === 0;
   target.innerHTML = labelSelections.length
-    ? `<div class="helper-text" style="margin-bottom:8px">${integer(labelSelections.length)} menu dipilih · ${integer(totalCopies)} label akan dicetak dalam satu pekerjaan.</div>${rows}`
-    : `<div class="muted">Belum ada menu dipilih. Cari lalu tambahkan satu atau beberapa menu.</div>`;
+    ? `<div class="helper-text" style="margin-bottom:8px">${integer(labelSelections.length)} menu dipilih · ${integer(totalCopies)} label akan dicetak.</div>${rows}`
+    : "";
   target.querySelectorAll("[data-label-copies]").forEach(input => input.addEventListener("change", () => {
     const entry = labelSelections.find(item => item.menuId === input.dataset.labelCopies);
     const copies = Number(input.value);
@@ -4618,7 +4697,7 @@ function openLabelModal(menuId) {
   const menu = store.menus.find(item => item.id === menuId && item.deleted !== true);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text" style="margin-top:12px">Ukuran tetap 30 × 40 mm (portrait). Label menampilkan nama menu, QR Code, dan harga saja.</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text label-size-note">Ukuran 30 × 40 mm</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
   try { drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu)); }
   catch (error) { root.querySelector("#label-preview-barcode").textContent = "QR tidak dapat dibuat. Periksa koneksi internet."; }
   root.querySelector("#label-print-form").addEventListener("submit", event => {
@@ -4675,7 +4754,7 @@ function printMenuLabels(menuOrItems, copies = 1) {
       body.printing-labels #label-print-root { display: block !important; position: static !important; width: 30mm !important; max-width: 30mm !important; margin: 0 !important; padding: 0 !important; }
       body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
       body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
-      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 8pt/1.05 Arial, sans-serif !important; }
+      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 5.5pt/1.05 Arial, sans-serif !important; }
       body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${qrWidth}mm !important; max-width: 100% !important; height: ${qrHeight}mm !important; overflow: hidden !important; background: #fff !important; }
       body.printing-labels .print-label-barcode svg { display: block !important; width: ${qrSize}mm !important; height: ${qrSize}mm !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
       body.printing-labels .print-label-price { height: auto !important; line-height: 1.05 !important; align-self: center !important; font: 700 9pt/1.05 Arial, sans-serif !important; white-space: nowrap !important; }
@@ -5041,14 +5120,14 @@ async function resetDailyOperations(dateKey, button) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ""))) return toast("Tanggal reset tidak valid.", "error");
   const selectedText = formatDate(dateFromKey(dateKey), { day: "numeric", month: "long", year: "numeric" });
   const ok = await kalapConfirm(
-    `Reset seluruh aktivitas KALAP tanggal ${selectedText}? Stok masuk dan penyesuaian stok pada tanggal itu akan dibalik dari saldo, seluruh transaksi penjualan tanggal itu beserta arus kas dan penjualan mitra terkait akan dihapus, pengajuan terkait dibatalkan, dan data closing tanggal itu dibersihkan. Stok dan transaksi tanggal lain tidak dihapus. Tindakan ini tidak dapat dibatalkan.`,
+    `Reset seluruh aktivitas KALAP tanggal ${selectedText}? Stok masuk dan penyesuaian pada tanggal itu akan dibalik dari saldo, transaksi serta catatan keuangan terkait akan dihapus, dan pengajuan yang masih menunggu pada tanggal itu akan dihapus permanen tanpa status batal atau pemberitahuan di akun Mitra. Pengajuan yang sudah Direvisi atau Ditolak tetap terlihat oleh Mitra. Data closing tanggal itu juga dibersihkan. Tindakan ini tidak dapat dibatalkan.`,
     { title: "Reset harian", confirmText: "Ya, reset tanggal ini", danger: true }
   );
   if (!ok) return;
   setBusy(button, true, "Mereset...");
   try {
     const result = await callApi("resetDailyOperations", { dateKey });
-    toast(`Reset ${dateKey} selesai. ${integer(result.transactionCount)} transaksi dan ${integer(result.stockMovementCount)} pergerakan stok tanggal tersebut dibersihkan.`, "success");
+    toast(`Reset ${dateKey} selesai. ${integer(result.transactionCount)} transaksi, ${integer(result.stockMovementCount)} pergerakan stok, dan ${integer(result.stockRequestCount || 0)} pengajuan dihapus.`, "success");
     stockDailyCurrentPage = 1;
     subscribeStockDailyDate(dateKey);
     if (activePage === "closing") subscribeClosingSummaries(dateKey);
@@ -5137,7 +5216,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.0", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.1", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -5196,7 +5275,7 @@ setInterval(() => {
     stockDailyCurrentPage = 1;
     if (profile) subscribeStockDailyDate(currentDay);
     if (profile && currentMonth !== monthKey) subscribeMonthData(currentMonth);
-    else if (profile && ["dashboard", "transactions", "partnerHome", "closing"].includes(activePage)) renderPage();
+    else if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos"].includes(activePage)) renderPage();
   }
 }, 60000);
 
