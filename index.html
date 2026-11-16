@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.1.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.0">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.1.0</title>
+  <title>KALAP Management System v2.2.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -394,10 +394,17 @@ td { border-top-color:#f5e8e6; }
 .new-menu-form .form-field { min-width: 0; }
 .new-menu-form .form-field label { margin-top: 0; }
 .new-menu-form .form-actions { grid-column: 1 / -1; margin-top: 8px; }
-.request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
+.request-actions { display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; gap:5px; min-width:238px; }
+.request-actions .btn { flex:1 1 0; min-width:0; white-space:nowrap; }
 .action-link.danger-link { color: var(--kalap-red, #c8202b); }
 .request-extra { display: block; margin-top: 4px; font-size: 9px; line-height: 1.45; }
 #manual-stock-pending { display: grid; gap: 8px; margin-top: 12px; }
+.request-bulk-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 13px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+.request-bulk-toolbar label { display:flex; align-items:center; gap:9px; color:#465148; font-size:11px; font-weight:800; cursor:pointer; }
+.request-bulk-toolbar input { width:17px; height:17px; margin:0; accent-color:var(--kalap-red,#c8202b); }
+.request-bulk-toolbar .helper-text { margin:0; }
+.manual-pending-summary { padding:10px 12px; background:#f4f7ed; border-radius:9px; color:#536b31; font-size:11px; font-weight:800; }
+.request-pagination .page-buttons { flex-wrap:wrap; justify-content:flex-end; }
 #manual-stock-pending .btn { justify-self: start; }
 .manual-existing-banner { line-height: 1.6; }
 .manual-lookup-results button { width: 100%; }
@@ -408,7 +415,8 @@ td { border-top-color:#f5e8e6; }
   .table-toolbar:has(#request-search) { align-items: stretch; flex-direction: column; }
   .table-toolbar:has(#request-search) input,
   .table-toolbar:has(#request-search) select { width: 100%; max-width: none; }
-  .request-actions { gap: 4px 8px; }
+  .request-actions { flex-direction:row !important; flex-wrap:nowrap !important; align-items:center; gap:4px; min-width:218px; }
+  .request-actions .btn { flex:1 1 0; min-width:0; padding:8px 6px; font-size:10px; white-space:nowrap; }
 }
 
 /* Product workflow and realtime indicator *//* Product workflow and realtime indicator */
@@ -938,7 +946,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 }
 
 
-/* KALAP v2.1.0: daily reset, stock editing, and multi-label printing */
+/* KALAP v2.2.0: daily reset fix, stock approvals, and permanent stock deletion */
 .nav-badge {
   margin-left: auto;
   min-width: 21px;
@@ -987,7 +995,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 .transaction-cancelled-row { opacity:.78; background:#fff8f7; }
 .transaction-cancel-note { margin-top:12px; padding:12px 14px; border:1px solid #f1d2cf; border-radius:11px; background:#fff5f3; color:#9d4038; font-size:11px; line-height:1.6; }
 .danger-link { color:#b42318 !important; }
-@media (max-width:560px) { .menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; .label-selector-grid { grid-template-columns:1fr; } .cash-payment-total,.cash-change-panel { align-items:flex-start; flex-direction:column; gap:7px; } .cash-payment-total strong,.cash-change-panel strong { font-size:18px; } }
+@media (max-width:560px) { .menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; } .label-selector-grid { grid-template-columns:1fr; } .cash-payment-total,.cash-change-panel { align-items:flex-start; flex-direction:column; gap:7px; } .cash-payment-total strong,.cash-change-panel strong { font-size:18px; } }
 
 
 /* KALAP v1.9.0 — Blueprint ECO80BT label printing base */
@@ -1128,7 +1136,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.1.0</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.0</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1236,6 +1244,9 @@ let closingHistorySearchQuery = "";
 let requestSearchQuery = "";
 let requestPartnerFilter = "";
 let requestCurrentPage = 1;
+let requestSelectAll = false;
+let requestBulkApprovalRunning = false;
+let requestBulkCandidateIds = [];
 let menuListSearchQuery = "";
 let menuStatusFilter = "all";
 let menuListCurrentPage = 1;
@@ -2214,13 +2225,12 @@ async function callApi(name, payload = {}) {
     const movementId = String(payload.movementId || "").trim();
     if (!movementId) throw new Error("Batch stok harian tidak valid.");
     const movementRef = doc(db, "stockMovements", movementId);
-    const reversalRef = doc(collection(db, "stockMovements"));
     const firstSnap = await getDoc(movementRef);
     if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
     const firstData = firstSnap.data();
     if (firstData.requestId) {
       const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
-      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Penghapusan langsung tidak tersedia agar riwayat koreksi tidak terputus.");
+      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Hapus/koreksi batch melalui alur koreksi terakhir terlebih dahulu.");
     }
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
@@ -2241,36 +2251,21 @@ async function callApi(name, payload = {}) {
         if (!requestSnap.exists() || requestSnap.data().status !== "received" || requestSnap.data().movementId !== movementId) {
           throw new Error("Pengajuan yang terkait dengan batch stok ini tidak cocok atau belum diterima.");
         }
-        if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi sehingga tidak dapat dihapus langsung.");
+        if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi dan tidak dapat dihapus langsung.");
       }
-      const qtyToReverse = Number(movement.editedQty || movement.qty || 0);
+      const qtyToRemove = Number(movement.editedQty || movement.qty || 0);
       const stockBefore = Number(menu.stock || 0);
-      if (!Number.isInteger(qtyToReverse) || qtyToReverse < 1 || stockBefore < qtyToReverse) {
-        throw new Error(`Saldo stok saat ini ${integer(stockBefore)} unit, sedangkan batch berjumlah ${integer(qtyToReverse)} unit. Batch tidak dapat dihapus penuh karena sebagian stok kemungkinan sudah terjual atau telah digunakan.`);
+      if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || stockBefore < qtyToRemove) {
+        throw new Error(`Saldo stok saat ini ${integer(stockBefore)} unit, sedangkan batch berjumlah ${integer(qtyToRemove)} unit. Penghapusan dibatalkan agar stok tidak menjadi negatif.`);
       }
-      const stockAfter = stockBefore - qtyToReverse;
+      const stockAfter = stockBefore - qtyToRemove;
       const now = serverTimestamp();
-      tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: reversalRef.id });
-      tx.set(reversalRef, {
-        type: "adjustment", qty: qtyToReverse, adjustmentDelta: 0 - qtyToReverse,
-        changeType: "dikurang", menuId: movement.menuId,
-        menuName: movement.menuName || menu.name,
-        partnerId: movement.partnerId || menu.partnerId || null,
-        partnerName: movement.partnerName || menu.partnerName || "—",
-        stockBefore, stockAfter,
-        note: `Pembalikan batch stok ${qtyToReverse} unit yang dihapus dari stok jual`,
-        source: "stock_daily_delete", sourceMovementId: movementId,
-        requestId: movement.requestId || null, actorUid, actorName, createdAt: now
-      });
-      tx.update(movementRef, {
-        voided: true, voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
-        voidReason: "Batch dihapus dari stok jual melalui Stok Harian."
-      });
-      if (requestSnap?.exists()) tx.update(requestRef, {
-        status: "voided", voidedAt: now, voidedBy: actorUid,
-        voidedByName: actorName, voidReason: "Batch stok dihapus dari stok jual."
-      });
-      return { movementId, qty: qtyToReverse, stockAfter };
+      // Hapus sumber catatan, bukan membuat pergerakan pembalikan/audit baru.
+      // Dokumen menu tetap diperbarui agar saldo POS langsung berkurang.
+      tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: movementId });
+      tx.delete(movementRef);
+      if (requestSnap?.exists()) tx.delete(requestRef);
+      return { movementId, qty: qtyToRemove, stockAfter };
     });
   }
 
@@ -2413,9 +2408,18 @@ async function callApi(name, payload = {}) {
         if (data.cashflowId) cashflowRefsMap.set(String(data.cashflowId), doc(db, "cashflows", String(data.cashflowId)));
         if (Array.isArray(data.partnerSaleIds)) data.partnerSaleIds.forEach(id => partnerSaleRefsMap.set(String(id), doc(db, "partnerSales", String(id))));
       }
-      const legacyCashflows = await getDocs(query(collection(db, "cashflows"), where("transactionId", "in", transactionIds.slice(0, 30)), limit(1000))).catch(() => null);
+      // Firestore menolak filter "in" dengan array kosong. Jika tanggal ini
+      // tidak memiliki transaksi, pencarian catatan legacy memang tidak diperlukan.
+      let legacyCashflows = null;
+      let legacyPartnerSales = null;
+      const transactionIdsForLookup = transactionIds.slice(0, 30);
+      if (transactionIdsForLookup.length > 0) {
+        [legacyCashflows, legacyPartnerSales] = await Promise.all([
+          getDocs(query(collection(db, "cashflows"), where("transactionId", "in", transactionIdsForLookup), limit(1000))).catch(() => null),
+          getDocs(query(collection(db, "partnerSales"), where("transactionId", "in", transactionIdsForLookup), limit(1000))).catch(() => null)
+        ]);
+      }
       if (legacyCashflows) legacyCashflows.docs.forEach(snap => { if (["sale", "operational_sale"].includes(snap.data().source)) cashflowRefsMap.set(snap.id, snap.ref); });
-      const legacyPartnerSales = await getDocs(query(collection(db, "partnerSales"), where("transactionId", "in", transactionIds.slice(0, 30)), limit(1000))).catch(() => null);
       if (legacyPartnerSales) legacyPartnerSales.docs.forEach(snap => partnerSaleRefsMap.set(snap.id, snap.ref));
       // Fallback untuk lebih dari 30 transaksi atau transaksi legacy tanpa array link.
       if (transactionIds.length > 30) {
@@ -3424,7 +3428,7 @@ function renderDailyStockLedger() {
     <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 14px"><div class="stat-card"><div class="stat-top">Barang masuk / tambahan</div><div class="stat-value">${integer(incomingQty)} unit</div></div><div class="stat-card"><div class="stat-top">Koreksi pengurangan</div><div class="stat-value">${integer(reducedQty)} unit</div></div></div>
     <div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Jenis</th><th>Jumlah / sumber</th><th>Sisa setelah catatan</th><th>Catatan</th><th>Tanggal / petugas</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="table-empty">Belum ada stok yang disetujui atau koreksi pada tanggal ini.</td></tr>`}</tbody></table></div>
     <div class="pagination-row"><span class="helper-text">${integer(filtered.length)} item · halaman ${stockDailyCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-stock-daily-page="prev" ${stockDailyCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-stock-daily-page="next" ${stockDailyCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
-    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Sistem mencatat penyesuaian saldo dan menjaga jejak audit; penghapusan ditolak bila stok batch sudah tidak mencukupi untuk dibalik.</div>` : ""}
+    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Hapus akan mengurangi saldo lalu menghapus batch dan pengajuan terkait secara permanen. Penghapusan ditolak jika stok tidak mencukupi atau batch memiliki riwayat koreksi.</div>` : ""}
   </section>`;
 }
 
@@ -3441,10 +3445,13 @@ function renderRequestsPage() {
       .some(value => String(value || "").toLowerCase().includes(q));
     return partnerMatches && searchMatches;
   });
-  const pageSize = 10;
+  const pageSize = 7;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  requestCurrentPage = Math.min(requestCurrentPage, pages);
+  requestCurrentPage = Math.min(Math.max(1, requestCurrentPage), pages);
   const visible = filtered.slice((requestCurrentPage - 1) * pageSize, requestCurrentPage * pageSize);
+  const pendingRequests = filtered.filter(row => ["pending", "revised"].includes(row.status || "pending"));
+  requestBulkCandidateIds = pendingRequests.map(row => row.id);
+  if (!pendingRequests.length) requestSelectAll = false;
   const pendingCount = pendingStockRequestCount();
   const header = staffCanReceive
     ? pageHeading("Pengajuan dan Stok Harian", "Kelola pengajuan mitra, input manual, dan telusuri catatan stok berdasarkan tanggal.", `<span class="status pending">${integer(pendingCount)} menu menunggu</span>`)
@@ -3476,9 +3483,6 @@ function renderRequestsPage() {
     if (canProcess) {
       actions = `<div class="request-actions"><button type="button" class="btn btn-primary btn-compact" data-accept-request="${row.id}">Terima</button><button type="button" class="btn btn-light btn-compact" data-revise-request="${row.id}">Revisi</button><button type="button" class="btn btn-danger btn-compact" data-reject-request="${row.id}">Tolak</button></div>`;
     } else {
-      const hasCorrectionHistory = Boolean(row.latestAdjustmentRequestId)
-        || allRequests.some(request => request.requestType === "adjustment" && request.baseRequestId === row.id);
-      const deleteAction = ""; // Penghapusan batch operasional tersedia di tabel Stok Harian.
       const hasPendingCorrection = allRequests.some(request => request.requestType === "adjustment"
         && request.baseRequestId === row.id && ["pending", "revised"].includes(request.status));
       const editAction = profile.role === "partner" && status === "received" && !row.latestAdjustmentRequestId && !hasPendingCorrection
@@ -3487,14 +3491,24 @@ function renderRequestsPage() {
         ? `<div class="muted request-extra">Batch ini sudah dikoreksi. Gunakan riwayat koreksi terbaru untuk perubahan berikutnya.</div>`
         : profile.role === "partner" && status === "received" && hasPendingCorrection
           ? `<div class="muted request-extra">Pengajuan edit untuk batch ini sedang menunggu persetujuan Admin/SPV.</div>` : "";
-      actions = `<span class="status ${status === "received" ? "success" : ["rejected", "voided"].includes(status) ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${deleteAction}${editAction}`;
+      actions = `<span class="status ${status === "received" ? "success" : ["rejected", "voided"].includes(status) ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${editAction}`;
     }
     return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${requestKind}${changeDetail}${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
   }).join("");
+  const bulkToolbar = staffCanReceive && pendingRequests.length
+    ? `<div class="request-bulk-toolbar"><label><input type="checkbox" id="request-select-all"><span>Terima semua stok</span></label><span class="helper-text">${integer(pendingRequests.length)} pengajuan menunggu persetujuan</span></div>`
+    : "";
+  const pageNumbers = pages <= 7 ? Array.from({ length: pages }, (_, i) => i + 1)
+    : [...new Set([1, Math.max(2, requestCurrentPage - 1), requestCurrentPage, Math.min(pages - 1, requestCurrentPage + 1), pages])].sort((a,b) => a-b);
+  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === requestCurrentPage ? "active-page" : ""}" data-request-page-number="${page}" aria-current="${page === requestCurrentPage ? "page" : "false"}">${page}</button>`).join("");
+  const pagination = filtered.length > pageSize
+    ? `<div class="pagination-row request-pagination"><span class="helper-text">${integer(filtered.length)} pengajuan · halaman ${requestCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-request-page="prev" ${requestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-request-page="next" ${requestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>`
+    : "";
   return `${header}${form}<section class="panel">${panelHeader(staffCanReceive ? "Daftar pengajuan dari mitra" : "Riwayat pengajuan Anda", `${integer(filtered.length)} pengajuan ditemukan`, actionHeader)}
     <div class="table-toolbar">${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, status, atau scan QR..." autocomplete="off"></div>
+    ${bulkToolbar}
     <div class="table-wrap"><table><thead><tr>${staffCanReceive ? "<th>Mitra</th>" : ""}<th>Menu</th><th>Jumlah diajukan</th><th>Catatan</th><th>Tanggal</th><th>Status / aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="${staffCanReceive ? 6 : 5}" class="table-empty">Belum ada pengajuan yang sesuai dengan pencarian.</td></tr>`}</tbody></table></div>
-    <div class="pagination-row"><span class="helper-text">Halaman ${requestCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-request-page="prev" ${requestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-request-page="next" ${requestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
+    ${pagination}
   </section>${renderDailyStockLedger()}`;
 }
 
@@ -3650,10 +3664,16 @@ function attachPageEvents() {
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
   initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
-  $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
-  $("#request-partner-filter")?.addEventListener("input", event => { requestPartnerFilter = event.target.value; requestCurrentPage = 1; renderPage(); const input=$("#request-partner-filter"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
+  $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
+  $("#request-partner-filter")?.addEventListener("input", event => { requestPartnerFilter = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-partner-filter"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
   $("#open-manual-stock-input")?.addEventListener("click", openManualStockInputModal);
+  $("#request-select-all")?.addEventListener("change", event => {
+    if (!event.target.checked) { requestSelectAll = false; return renderPage(); }
+    requestSelectAll = true;
+    acceptAllStockRequests(null);
+  });
   $$('[data-request-page]').forEach(button => button.addEventListener("click", () => { requestCurrentPage += button.dataset.requestPage === "next" ? 1 : -1; renderPage(); }));
+  $$('[data-request-page-number]').forEach(button => button.addEventListener("click", () => { requestCurrentPage = Number(button.dataset.requestPageNumber); renderPage(); }));
   $("#stock-daily-date")?.addEventListener("change", event => {
     if (!event.target.value) return;
     stockDailyDateKey = event.target.value;
@@ -4721,6 +4741,62 @@ async function acceptStockRequest(requestId, button) {
   finally { setBusy(button, false); }
 }
 
+async function acceptAllStockRequests(button) {
+  if (requestBulkApprovalRunning) return;
+  if (!["superadmin", "spv"].includes(profile?.role)) {
+    requestSelectAll = false;
+    renderPage();
+    return toast("Hanya SPV atau Superadmin yang dapat menyetujui semua pengajuan.", "error");
+  }
+  const requests = requestBulkCandidateIds
+    .map(id => store.stockRequests.find(item => item.id === id))
+    .filter(item => item && ["pending", "revised"].includes(item.status));
+  if (!requests.length) {
+    requestSelectAll = false;
+    renderPage();
+    return toast("Tidak ada pengajuan yang menunggu persetujuan.", "info");
+  }
+  requestBulkApprovalRunning = true;
+  const checkbox = $("#request-select-all");
+  if (checkbox) checkbox.disabled = true;
+  try {
+    const confirmed = await kalapConfirm(
+      `Setujui seluruh ${integer(requests.length)} pengajuan stok yang sedang ditampilkan setelah filter pencarian? Jumlah stok akan langsung ditambahkan atau disesuaikan ke saldo menu terkait.`,
+      { title: "Terima semua stok", confirmText: "Setujui semua", danger: false }
+    );
+    if (!confirmed) return;
+    setBusy(button, true, "Memproses...");
+    let succeeded = 0;
+    const failures = [];
+    for (const request of requests) {
+      try {
+        await callApi("receiveStock", {
+          menuId: request.menuId,
+          qty: Number(request.qty),
+          note: `Penerimaan pengajuan mitra ${request.partnerName || ""}`,
+          requestId: request.id
+        });
+        succeeded += 1;
+      } catch (error) {
+        failures.push(`${request.menuName || "Menu"}: ${friendlyError(error)}`);
+      }
+    }
+    if (failures.length) {
+      const details = failures.slice(0, 2).join(" · ");
+      toast(`${succeeded} pengajuan berhasil disetujui, ${failures.length} gagal. ${details}`, "error");
+    } else {
+      toast(`${succeeded} pengajuan stok berhasil disetujui.`, "success");
+    }
+  } catch (error) {
+    toast(friendlyError(error), "error");
+  } finally {
+    requestBulkApprovalRunning = false;
+    requestSelectAll = false;
+    setBusy(button, false);
+    renderPage();
+  }
+}
+
 function openReviseStockRequestModal(requestId) {
   const request = store.stockRequests.find(item => item.id === requestId);
   if (!request || !["pending", "revised"].includes(request.status)) return;
@@ -4859,7 +4935,8 @@ async function openManualStockInputModal() {
     }
     if (pending.length) {
       pendingBox.classList.remove("hidden");
-      pendingBox.innerHTML = `<div class="info-banner"><span>!</span><div><strong>Menu ini sudah memiliki pengajuan yang belum diproses.</strong><br>Pengajuan mitra: ${pending.map(row => `${integer(row.qty)} unit (${escapeHtml(row.partnerName || menu.partnerName || "Mitra")})`).join(", ")}. Tidak ada stok yang ditambahkan melalui input manual agar tidak terjadi stok ganda.</div></div>${pending.filter(row => row.id).map(row => `<button type="button" class="btn btn-primary" data-manual-approve-request="${row.id}">Setujui pengajuan ${integer(row.qty)} unit</button>`).join("")}`;
+      const pendingQty = pending.reduce((sum, row) => sum + Math.max(0, Number(row.qty || 0)), 0);
+      pendingBox.innerHTML = `<div class="manual-pending-summary">Pengajuan stok: ${integer(pendingQty)}</div>${pending.filter(row => row.id).map(row => `<button type="button" class="btn btn-primary" data-manual-approve-request="${row.id}">Setuju</button>`).join("")}`;
       pendingBox.querySelectorAll("[data-manual-approve-request]").forEach(button => button.addEventListener("click", () => acceptStockRequest(button.dataset.manualApproveRequest, button)));
     } else {
       quantityFields.classList.remove("hidden");
@@ -4897,7 +4974,9 @@ async function openManualStockInputModal() {
     if (localPending.length) {
       pendingBox.classList.remove("hidden");
       quantityFields.classList.add("hidden");
-      pendingBox.innerHTML = `<div class="info-banner"><span>!</span><div>Menu ini sudah memiliki pengajuan ${integer(localPending[0].qty)} unit. Silakan setujui pengajuan tersebut dari daftar di bawah ini, bukan input manual.</div></div>`;
+      const pendingQty = localPending.reduce((sum, row) => sum + Math.max(0, Number(row.qty || 0)), 0);
+      pendingBox.innerHTML = `<div class="manual-pending-summary">Pengajuan stok: ${integer(pendingQty)}</div>${localPending.filter(row => row.id).map(row => `<button type="button" class="btn btn-primary" data-manual-approve-request="${row.id}">Setuju</button>`).join("")}`;
+      pendingBox.querySelectorAll("[data-manual-approve-request]").forEach(approveButton => approveButton.addEventListener("click", () => acceptStockRequest(approveButton.dataset.manualApproveRequest, approveButton)));
       return;
     }
     const button = form.querySelector('[type="submit"]');
@@ -4945,14 +5024,14 @@ async function deleteDailyStockMovement(movementId, button) {
   const effectiveQty = Number(movement.editedQty || movement.qty || 0);
   const dateLabel = formatDate(movement.createdAt, { day: "numeric", month: "long", year: "numeric" });
   const ok = await kalapConfirm(
-    `Hapus batch stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok jual akan dikurangi sebesar batch tersebut. Jika stok sudah terjual sehingga saldo tidak mencukupi, sistem akan menolak penghapusan.`,
+    `Hapus permanen batch stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok akan dikurangi, dan catatan batch beserta pengajuan yang terkait akan dihapus dari sistem dan seluruh akun. Jika stok sudah digunakan sehingga saldo tidak mencukupi, penghapusan akan ditolak.`,
     { title: "Hapus stok masuk", confirmText: "Hapus stok", danger: true }
   );
   if (!ok) return;
   setBusy(button, true, "Menghapus...");
   try {
     await callApi("deleteDailyStockMovement", { movementId });
-    toast("Batch stok dihapus dari stok yang dapat dijual.", "success");
+    toast("Batch stok dan pengajuan terkait berhasil dihapus permanen. Saldo POS sudah disesuaikan.", "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -5058,7 +5137,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.1.0", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.0", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});

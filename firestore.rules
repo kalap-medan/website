@@ -105,6 +105,27 @@ service cloud.firestore {
                   && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.changeType == 'dikurang')));
     }
 
+    // Validasi penghapusan batch stok yang benar-benar mengurangi saldo menu.
+    // ID batch yang dihapus dipakai untuk memvalidasi perubahan saldo pada transaksi yang sama.
+    function deletedStockBatchLinked(menuId) {
+      let movementId = request.resource.data.get('lastMovementId', '');
+      return isStaff()
+        && movementId is string
+        && movementId.size() > 0
+        && exists(/databases/$(database)/documents/stockMovements/$(movementId))
+        && !existsAfter(/databases/$(database)/documents/stockMovements/$(movementId))
+        && get(/databases/$(database)/documents/stockMovements/$(movementId)).data.menuId == menuId
+        && get(/databases/$(database)/documents/stockMovements/$(movementId)).data.type == 'in'
+        && get(/databases/$(database)/documents/stockMovements/$(movementId)).data.get('voided', false) == false
+        && get(/databases/$(database)/documents/stockMovements/$(movementId)).data.get('editedQty', get(/databases/$(database)/documents/stockMovements/$(movementId)).data.qty) is int
+        && get(/databases/$(database)/documents/stockMovements/$(movementId)).data.get('editedQty', get(/databases/$(database)/documents/stockMovements/$(movementId)).data.qty) > 0
+        && request.resource.data.stock == resource.data.stock
+          - get(/databases/$(database)/documents/stockMovements/$(movementId)).data.get('editedQty', get(/databases/$(database)/documents/stockMovements/$(movementId)).data.qty)
+        && request.resource.data.updatedAt == request.time
+        && (get(/databases/$(database)/documents/stockMovements/$(movementId)).data.get('requestId', null) == null
+          || !existsAfter(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockMovements/$(movementId)).data.requestId)));
+    }
+
     function validNewMenu(menuId) {
       return isStaff()
         && request.resource.data.name is string
@@ -210,7 +231,7 @@ service cloud.firestore {
           && request.resource.data.stock is int
           && request.resource.data.stock >= 0
           && request.resource.data.updatedAt == request.time
-          && linkedMovement(menuId));
+          && (linkedMovement(menuId) || deletedStockBatchLinked(menuId)));
       allow delete: if isSuperadmin()
         && existsAfter(/databases/$(database)/documents/menuArchives/$(menuId))
         && getAfter(/databases/$(database)/documents/menuArchives/$(menuId)).data.originalMenuId == menuId
@@ -351,11 +372,22 @@ service cloud.firestore {
           && (resource.data.get('requestId', null) == null
             || (existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
               && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided')));
-      allow delete: if resetAuthorizationContains('stockMovementIds', movementId)
-        && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
-          || (resource.data.get('transactionId', null) is string
-            && resetAuthorizationContains('transactionIds', resource.data.transactionId)
-            && resetTransactionBelongsToTargetDay(resource.data.transactionId)));
+      allow delete: if (resetAuthorizationContains('stockMovementIds', movementId)
+          && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
+            || (resource.data.get('transactionId', null) is string
+              && resetAuthorizationContains('transactionIds', resource.data.transactionId)
+              && resetTransactionBelongsToTargetDay(resource.data.transactionId))))
+        || (isStaff()
+          && resource.data.type == 'in'
+          && resource.data.get('voided', false) == false
+          && exists(/databases/$(database)/documents/menus/$(resource.data.menuId))
+          && existsAfter(/databases/$(database)/documents/menus/$(resource.data.menuId))
+          && getAfter(/databases/$(database)/documents/menus/$(resource.data.menuId)).data.lastMovementId == movementId
+          && getAfter(/databases/$(database)/documents/menus/$(resource.data.menuId)).data.stock
+            == get(/databases/$(database)/documents/menus/$(resource.data.menuId)).data.stock
+              - resource.data.get('editedQty', resource.data.qty)
+          && (resource.data.get('requestId', null) == null
+            || !existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))));
     }
 
 
@@ -598,10 +630,14 @@ service cloud.firestore {
               'qty', 'previousQty', 'receivedQty', 'editedAt', 'editedBy', 'editedByName', 'editNote'
             ]))
         ));
-      allow delete: if isSuperadmin() && resource.data.status == 'received'
+      allow delete: if isStaff() && resource.data.status == 'received'
         && resource.data.get('requestType', 'stock') != 'adjustment'
         && resource.data.get('latestAdjustmentRequestId', null) == null
-        && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId));
+        && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+        && resource.data.get('movementId', null) is string
+        && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+        && !existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+        && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId;
     }
 
     match /stockRequestLocks/{menuId} {
