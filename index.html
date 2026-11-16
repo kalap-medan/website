@@ -11,7 +11,8 @@
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
   <link rel="manifest" href="./manifest.webmanifest?v=2.2.1">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <title>KALAP Management System v2.2.1</title>
+  <meta name="application-version" content="2.2.2">
+  <title>KALAP Management System v2.2.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1087,21 +1088,21 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 /* KALAP v2.3.0 — clean, readable receipt sheet and compact label name */
 .receipt-stage {
   position:fixed !important; inset:0 !important; z-index:110 !important;
-  display:grid !important; place-items:start center !important;
-  padding:10px !important; overflow:hidden !important;
-  background:#fff !important;
+  display:flex !important; align-items:stretch !important; justify-content:center !important;
+  width:100vw !important; height:100dvh !important; padding:0 !important;
+  overflow:hidden !important; background:#fff !important;
 }
 .receipt-view {
-  width:min(100%,540px) !important; height:100% !important;
-  max-height:calc(100dvh - 20px) !important; min-height:0 !important;
-  overflow-y:auto !important; overflow-x:hidden !important;
-  display:flex !important; flex-direction:column !important;
+  width:min(100%,560px) !important; height:100% !important; max-height:100dvh !important;
+  min-height:0 !important; min-width:0 !important; overflow-y:auto !important; overflow-x:hidden !important;
+  display:flex !important; flex:0 1 560px !important; flex-direction:column !important;
   align-items:stretch !important; justify-content:flex-start !important;
-  gap:12px !important; padding:4px 2px 14px !important;
-  box-sizing:border-box !important; scrollbar-gutter:stable;
+  gap:14px !important; padding:18px 14px max(18px, env(safe-area-inset-bottom)) !important;
+  box-sizing:border-box !important; scrollbar-gutter:stable; overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch; background:#fff !important;
 }
 .receipt-paper {
-  width:100% !important; max-width:500px !important; margin:0 auto !important;
+  width:100% !important; max-width:520px !important; margin:0 auto !important;
   flex:0 0 auto !important; box-sizing:border-box !important;
   padding:28px 26px !important; border:1px solid #e5e7eb !important;
   border-radius:2px !important; background:#fff !important; color:#111 !important;
@@ -1119,12 +1120,12 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 .receipt-grand-total strong { font-size:20px !important; }
 .receipt-thanks { color:#111 !important; font-size:13px !important; margin-top:17px !important; }
 .receipt-thanks small { font-size:12px !important; font-weight:400 !important; }
-#receipt-back { width:min(100%,500px) !important; flex:0 0 auto !important; margin:0 auto !important; }
-.label-preview-name { font-size:6pt !important; }
+#receipt-back { width:100% !important; max-width:520px !important; flex:0 0 auto !important; margin:0 auto !important; }
+.label-preview-name { font-size:4.5pt !important; line-height:1.05 !important; }
 @media (max-width:600px) {
-  .receipt-stage { padding:6px !important; }
-  .receipt-view { max-height:calc(100dvh - 12px) !important; padding:2px 1px 12px !important; }
-  .receipt-paper { padding:22px 17px !important; font-size:13px !important; }
+  .receipt-stage { padding:0 !important; }
+  .receipt-view { width:100% !important; max-height:100dvh !important; padding:14px 12px max(16px, env(safe-area-inset-bottom)) !important; }
+  .receipt-paper { padding:22px 17px !important; font-size:14px !important; }
   .receipt-brand { font-size:25px !important; }
   .receipt-meta,.receipt-meta strong,.receipt-item,.receipt-item strong { font-size:12px !important; }
   .receipt-item small { font-size:11px !important; }
@@ -3202,7 +3203,7 @@ function renderPosPage() {
   const total = cartItems.reduce((sum, row) => sum + row.price * row.qty, 0);
   const todayKey = jakartaDateKey(new Date());
   const todayTransactions = store.transactions.filter(tx => dayKeyFromTimestamp(tx.createdAt) === todayKey).slice(0, 5);
-  return `${pageHeading("Kasir / POS", "Cari nama menu atau scan barcode, lalu masukkan ke keranjang.", `<span class="status success">● Sistem siap</span>`)}
+  return `${pageHeading("Kasir / POS", "", `<span class="status success">● Sistem siap</span>`)}
     <div class="pos-layout"><section class="panel">${panelHeader("Daftar menu", `${integer(availableMenus.length)} menu aktif`, `<span class="muted" style="font-size:10px">Klik menu untuk menambahkan</span>`)}
       <div class="pos-searchbar"><input id="pos-menu-search" type="search" value="${escapeHtml(posSearchQuery)}" placeholder="Cari nama menu atau scan QR/barcode..." autocomplete="off" aria-label="Cari atau scan menu"></div>
       <div id="pos-menu-results"></div><div id="pos-menu-pagination" class="pos-pagination"></div>
@@ -3370,7 +3371,7 @@ function renderAccountsPage() {
     ? `Menampilkan ${start + 1}–${Math.min(start + accountsPageSize, filteredUsers.length)} dari ${integer(filteredUsers.length)} akun`
     : "0 akun ditemukan";
   return `${pageHeading("Akun pengguna", "Buat akun dan kelola akses staf. Kata sandi tidak pernah ditampilkan; perubahan sandi dicatat waktunya.", `<span class="status neutral">${integer(store.users.length)} akun</span>`)}
-    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" id="new-user-role" required><option value="spv">SPV</option><option value="cashier">Kasir</option></select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
+    <div class="content-grid"><section class="panel">${panelHeader("Buat akun baru", "Akun dibuat oleh Admin melalui Firebase Authentication")}<form id="create-user-form"><div class="form-field"><label>Nama lengkap</label><input name="displayName" maxlength="80" required placeholder="Nama pengguna"></div><div class="form-field"><label>Email login</label><input name="email" type="email" required placeholder="nama@email.com"></div><div class="form-field"><label>Kata sandi awal</label><input name="password" type="password" minlength="8" required placeholder="Minimal 8 karakter"><div class="helper-text">Gunakan minimal 8 karakter. Firebase Authentication tidak menerima sandi 4 karakter; batas minimum resminya 6 karakter.</div></div><div class="form-field"><label>Role akun</label><select name="role" required><option value="spv">SPV</option><option value="cashier">Kasir</option></select></div><div class="form-actions"><button class="btn btn-primary" type="submit">Buat akun</button></div></form></section>
     <section class="panel">${panelHeader("Hak akses tiap role", "Ringkasan pembagian kewenangan")}<div class="summary-list"><div class="summary-row"><span><strong>Admin</strong></span><span>Semua fitur & pengaturan</span></div><div class="summary-row"><span><strong>SPV</strong></span><span>Dashboard, POS, transaksi, stok</span></div><div class="summary-row"><span><strong>Kasir</strong></span><span>POS & riwayat transaksi</span></div><div class="summary-divider"></div><div class="helper-text">Akun Mitra dibuat melalui menu Manajemen Mitra agar akun login dan rekening tersimpan dalam satu proses.</div></div></section></div>
     <section class="panel">${panelHeader("Akun terdaftar", `${integer(filteredUsers.length)} dari ${integer(store.users.length)} akun`)}<div class="table-toolbar"><input id="accounts-search" type="search" value="${escapeHtml(accountsSearchQuery)}" placeholder="Cari nama, email, atau role akun..." aria-label="Cari akun pengguna"></div><div class="table-wrap"><table><thead><tr><th>Nama / email</th><th>Role</th><th>Terakhir ubah sandi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="table-empty">${q ? "Tidak ada akun yang cocok dengan pencarian." : "Belum ada akun lain."}</td></tr>`}</tbody></table></div><div class="pagination-row"><span class="helper-text">${showing} · Halaman ${accountsCurrentPage} dari ${pages} · 7 akun per halaman</span><div class="page-buttons"><button type="button" data-account-page="prev" ${accountsCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-account-page="next" ${accountsCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div><div class="profile-security-note" style="margin-top:13px"><strong>Catatan keamanan:</strong> Password asli tidak dapat dibaca Admin. Gunakan reset sandi atau minta staf mengganti sandi melalui Profil Saya. Penghapusan akun menghapus profil akses dari Firestore sehingga akun tidak dapat masuk ke aplikasi. Identitas Firebase Authentication terpisah hanya dapat dihapus melalui Admin SDK/server; riwayat transaksi tetap dipertahankan sebagai arsip keuangan.</div></section>`;
 }
@@ -3629,7 +3630,7 @@ function renderPartnerHome() {
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
-  return `${pageHeading("Cetak label", "Pilih menu yang akan dicetak.", `<span class="status neutral">Ukuran 30 × 40 mm</span>`)}
+  return `${pageHeading("Cetak label", "", `<span class="status neutral">30 × 40 mm</span>`)}
     <section class="panel">${panelHeader("Pilih beberapa label", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
         <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Cari nama menu atau scan QR..." value=""><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
@@ -3814,7 +3815,6 @@ function attachPageEvents() {
   $$('[data-edit-user-name]').forEach(button => button.addEventListener("click", () => editManagedUserName(button.dataset.editUserName)));
   $$('[data-edit-partner]').forEach(button => button.addEventListener("click", () => editPartnerBank(button.dataset.editPartner)));
   $$('[data-delete-partner]').forEach(button => button.addEventListener("click", () => deleteManagedPartner(button.dataset.deletePartner, button)));
-  $("#new-user-role")?.addEventListener("change", event => $("#partner-bank-fields")?.classList.toggle("hidden", event.target.value !== "partner"));
   $$('[data-toggle-user]').forEach(button => button.addEventListener("click", () => toggleManagedUser(button.dataset.toggleUser, button.dataset.nextActive === "true", button)));
   $$('[data-delete-user]').forEach(button => button.addEventListener("click", () => deleteManagedUser(button.dataset.deleteUser, button)));
   $$('[data-reset-user]').forEach(button => button.addEventListener("click", () => sendManagedUserPasswordReset(button.dataset.resetUser, button)));
@@ -4697,7 +4697,7 @@ function openLabelModal(menuId) {
   const menu = store.menus.find(item => item.id === menuId && item.deleted !== true);
   if (!menu) return;
   const root = $("#modal-root");
-  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><div class="helper-text label-size-note">Ukuran 30 × 40 mm</div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
+  root.innerHTML = `<div class="modal-backdrop" data-label-backdrop><section class="modal"><div class="modal-head"><div><h2>Cetak label</h2><p>${escapeHtml(menu.name)} · ${money(menu.price)}</p></div><button class="modal-close" data-label-close>×</button></div><div id="label-preview" class="label-preview"><div class="label-preview-name">${escapeHtml(menu.name)}</div><div id="label-preview-barcode" class="label-preview-barcode"></div><div class="label-preview-price">${money(menu.price)}</div></div><form id="label-print-form"><div class="form-field"><label>Jumlah label yang dicetak</label><input name="copies" type="number" min="1" max="300" value="1" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-label-close>Batal</button><button type="submit" class="btn btn-primary">Cetak sekarang</button></div></form></section></div>`;
   try { drawMenuQr(root.querySelector("#label-preview-barcode"), menuQrPayload(menu)); }
   catch (error) { root.querySelector("#label-preview-barcode").textContent = "QR tidak dapat dibuat. Periksa koneksi internet."; }
   root.querySelector("#label-print-form").addEventListener("submit", event => {
@@ -4732,7 +4732,18 @@ function printMenuLabels(menuOrItems, copies = 1) {
   normalizedItems.forEach(({ menu, copies: itemCopies }) => {
     const template = document.createElement("div");
     template.className = "print-label";
-    template.innerHTML = `<div class="print-label-name">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
+    const nameCanvas = document.createElement("canvas");
+    const nameContext = nameCanvas.getContext("2d");
+    const maxNameWidthPx = (28 / 25.4) * 96;
+    let nameFontPt = 4.5;
+    if (nameContext) {
+      nameContext.font = `600 ${nameFontPt}pt Arial`;
+      const measuredNameWidth = nameContext.measureText(String(menu.name || "")).width;
+      if (measuredNameWidth > maxNameWidthPx) {
+        nameFontPt = Math.max(3.2, nameFontPt * maxNameWidthPx / measuredNameWidth);
+      }
+    }
+    template.innerHTML = `<div class="print-label-name" style="font-size:${nameFontPt.toFixed(2)}pt !important">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
     drawMenuQr(template.querySelector(".print-label-barcode"), menuQrPayload(menu));
     for (let index = 0; index < itemCopies; index += 1) fragment.appendChild(template.cloneNode(true));
   });
@@ -4754,7 +4765,7 @@ function printMenuLabels(menuOrItems, copies = 1) {
       body.printing-labels #label-print-root { display: block !important; position: static !important; width: 30mm !important; max-width: 30mm !important; margin: 0 !important; padding: 0 !important; }
       body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
       body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
-      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 5.5pt/1.05 Arial, sans-serif !important; }
+      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 4.5pt/1.05 Arial, sans-serif !important; }
       body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${qrWidth}mm !important; max-width: 100% !important; height: ${qrHeight}mm !important; overflow: hidden !important; background: #fff !important; }
       body.printing-labels .print-label-barcode svg { display: block !important; width: ${qrSize}mm !important; height: ${qrSize}mm !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
       body.printing-labels .print-label-price { height: auto !important; line-height: 1.05 !important; align-self: center !important; font: 700 9pt/1.05 Arial, sans-serif !important; white-space: nowrap !important; }
@@ -5274,8 +5285,8 @@ setInterval(() => {
     stockDailySearchQuery = "";
     stockDailyCurrentPage = 1;
     if (profile) subscribeStockDailyDate(currentDay);
+    if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos"].includes(activePage)) renderPage();
     if (profile && currentMonth !== monthKey) subscribeMonthData(currentMonth);
-    else if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos"].includes(activePage)) renderPage();
   }
 }, 60000);
 

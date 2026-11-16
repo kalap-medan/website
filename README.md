@@ -1,11 +1,11 @@
-# KALAP Management System v2.2.1
+# KALAP Management System v2.2.2
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
 - `firestore.rules`: Firebase Firestore Security Rules yang wajib dipublikasikan bersama pembaruan ini.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.1.
+- `service-worker.js`: cache shell versi 2.2.2.
 
 ## Perubahan v2.2.0 dan fitur sebelumnya
 
@@ -55,24 +55,30 @@
 - **Popup Tambah Mitra:** formulir hanya berisi Nama lengkap, Email login, Kata sandi, Bank, Norek, dan Nama pemilik. Formulir membuat akun login Mitra sekaligus profil/rekening yang terhubung.
 - **Cache PWA:** versi cache service worker dinaikkan ke `kalap-shell-v2.2.1` agar aplikasi mengambil berkas pembaruan.
 
+### Perubahan v2.2.2 — perapian akun, label, POS, dan struk
+- **Akun Pengguna:** pilihan jenis akun tetap hanya SPV dan Kasir; akun Mitra dibuat melalui Manajemen Mitra.
+- **Cetak label:** petunjuk pemilihan menu dan keterangan ukuran berulang dihilangkan. Ukuran label hanya ditampilkan sekali sebagai **30 × 40 mm**.
+- **Stiker:** nama menu diperkecil menjadi 4,5 pt dan otomatis diperkecil lagi untuk nama panjang. Ukuran QR dan harga tetap seperti sebelumnya.
+- **POS kasir:** deskripsi instruksi scanner di bawah judul halaman dihilangkan; pencarian nama menu dan input QR/barcode tetap berfungsi.
+- **Transaksi POS:** tanggal transaksi tetap mengikuti zona waktu Asia/Jakarta dan halaman POS langsung diperbarui pada pergantian tanggal/bulan, lalu disegarkan kembali setelah snapshot bulan baru diterima.
+- **Struk:** tampilan memakai latar putih polos, teks hitam dengan ukuran lebih terbaca, satu area gulir vertikal untuk struk panjang, dan tombol kembali tetap tersedia di bawah struk.
+- **Cache PWA:** nama cache dinaikkan menjadi `kalap-shell-v2.2.2` agar berkas terbaru dimuat.
+
+Tidak ada perubahan Firestore Rules atau indeks database pada versi ini.
+
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.1.
+2. Ekstrak ZIP v2.2.2.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.1 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.2 mengambil file terbaru.
 
-## WAJIB — Publikasikan Firestore Rules
-Versi ini mengubah aturan keamanan Firestore. **Jangan hanya mengganti `index.html`** karena fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian akan ditolak oleh database bila Rules lama masih aktif.
+## Firestore Rules
+Versi v2.2.2 **tidak mengubah** `firestore.rules` atau indeks database. Bila Firebase sudah menggunakan Rules dari v2.2.1, tidak perlu memublikasikan Rules ulang; cukup perbarui file aplikasi dan aset PWA.
 
-Cara publikasi:
-1. Buka Firebase Console dan pilih project KALAP.
-2. Masuk ke **Firestore Database → Rules**.
-3. Ganti isi Rules dengan seluruh isi file `firestore.rules` dari paket ini.
-4. Periksa lalu klik **Publish**.
-5. Setelah Rules berhasil dipublikasikan, upload file aplikasi dan aset PWA dari paket ini ke GitHub Pages.
+Bila Rules v2.2.1 belum pernah dipublikasikan, gunakan file `firestore.rules` yang disertakan dalam paket ini: buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya, lalu klik **Publish**. Rules tersebut tetap memuat izin untuk fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian dari pembaruan sebelumnya.
 
-Tidak ada indeks komposit tambahan yang diperlukan untuk perubahan ini. Bila project menggunakan Firebase CLI, Rules juga dapat dipublikasikan dari direktori proyek dengan `firebase deploy --only firestore:rules` setelah memastikan Firebase CLI menunjuk ke project KALAP yang benar.
+Tidak ada indeks komposit tambahan yang diperlukan untuk v2.2.2.
 
 ## Catatan penting
 - Reset tanggal historis hanya bisa dilakukan jika pembalikan stok aman. Bila stok dari tanggal tersebut sudah terpakai pada tanggal berikutnya sehingga tidak cukup untuk membalikkan stok masuk, sistem akan membatalkan reset dan menampilkan alasannya; jangan menghapus dokumen secara manual.
