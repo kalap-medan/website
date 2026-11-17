@@ -1,11 +1,23 @@
-# KALAP Management System v2.2.4
+# KALAP Management System v2.2.5
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: Firebase Firestore Security Rules yang wajib dipublikasikan bersama pembaruan ini.
+- `firestore.rules`: Firebase Firestore Security Rules (tidak berubah pada v2.2.5; tetap gunakan Rules v2.2.3 atau versi yang lebih baru dari repository).
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.4.
+- `service-worker.js`: cache shell versi 2.2.5.
+
+## Perubahan v2.2.5 — dashboard harian, laporan Keuangan, operasional, dan label
+- **Dashboard Superadmin:** ringkasan penjualan hanya memakai tanggal berjalan zona waktu Asia/Jakarta. Ketika tanggal berganti, ringkasan kembali dimulai dari hari baru dan menerima data terbaru secara real-time.
+- **Stok di dashboard:** ditampilkan stok masuk hari ini, stok terjual hari ini, dan sisa stok terkini seluruh menu aktif.
+- **Grafik Superadmin:** grafik menampilkan penjualan per jam untuk hari berjalan. Klik titik grafik membuka tanggal yang sama di halaman Keuangan, bukan lagi query stok historis dari dashboard.
+- **Keuangan:** pemilih tanggal dipusatkan di halaman ini untuk memeriksa omzet, jumlah transaksi, unit terjual, pemasukan, pengeluaran, saldo arus kas, bagian KALAP dari menu mitra, transaksi, pengeluaran, serta pergerakan stok dan omzet per menu pada tanggal yang dipilih.
+- **Laba bersih:** tidak ditampilkan sebagai angka karena data harga modal/HPP per menu belum tersedia pada model data aplikasi. Saldo arus kas dibedakan secara jelas dari laba bersih.
+- **Pengajuan dan Stok Harian:** pencarian khusus nama mitra yang duplikat dihapus. Satu kolom pencarian gabungan tetap bisa mencari nama menu, mitra, status, catatan, dan kode QR/barcode.
+- **Pembayaran Operasional KALAP:** kasir wajib menulis catatan penggunaan, misalnya “sedekah”. Catatan disimpan pada transaksi dan catatan pengeluaran, serta terlihat di struk.
+- **Cetak label:** ukuran huruf nama menu diperbesar. Ukuran QR dan harga tidak diubah.
+- **Firestore:** tidak ada perubahan pada `firestore.rules` maupun `firestore.indexes.json` pada versi ini. Persyaratan publikasi Rules dari versi sebelumnya tetap berlaku.
+- **Cache PWA:** versi cache dinaikkan menjadi `kalap-shell-v2.2.5`.
 
 ## Perubahan v2.2.0 dan fitur sebelumnya
 
@@ -81,10 +93,10 @@
 
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.4.
+2. Ekstrak ZIP v2.2.5.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.4 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.5 mengambil file terbaru.
 
 ## Firestore Rules
 Versi v2.2.3 **mengubah** `firestore.rules`. Publikasikan Rules v2.2.3 sebelum menggunakan fitur Reset Harian. Buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket ini, lalu klik **Publish**.

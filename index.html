@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.4">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.5">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.4">
-  <title>KALAP Management System v2.2.4</title>
+  <meta name="application-version" content="2.2.5">
+  <title>KALAP Management System v2.2.5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -842,6 +842,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .mobile-menu-btn { display:inline-flex !important; align-items:center; justify-content:center; font-size:18px; color:var(--kalap-red); }
 .install-app-btn { display:inline-flex; align-items:center; justify-content:center; color:var(--kalap-red); font-size:18px; }
 .date-range-control { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:9px 11px; background:#fff; border:1px solid var(--line); border-radius:13px; }
+.finance-date-control { display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:10px; font-weight:700; }
+.finance-date-control input { min-width:160px; }
 .date-range-control label { display:grid; gap:4px; color:var(--muted); font-size:9px; font-weight:800; }
 .date-range-control input { min-width:132px; width:150px; min-height:36px; padding:7px 9px; font-size:11px; }
 .chart-click-hint { margin-top:8px; color:var(--muted); font-size:10px; }
@@ -1125,7 +1127,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 .receipt-thanks { color:#111 !important; font-size:13px !important; margin-top:17px !important; }
 .receipt-thanks small { font-size:12px !important; font-weight:400 !important; }
 #receipt-back { width:100% !important; max-width:520px !important; flex:0 0 auto !important; margin:0 auto !important; }
-.label-preview-name { font-size:4.5pt !important; line-height:1.05 !important; }
+.label-preview-name { font-size:7.5pt !important; line-height:1.05 !important; }
 @media (max-width:600px) {
   .receipt-stage { padding:0 !important; }
   .receipt-view { width:100% !important; max-height:100dvh !important; padding:14px 12px max(16px, env(safe-area-inset-bottom)) !important; }
@@ -1189,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.4</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.5</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1287,6 +1289,8 @@ let monthKey = jakartaMonthKey(new Date());
 let historyDate = jakartaDateKey(new Date());
 let dashboardFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return jakartaDateKey(d); })();
 let dashboardTo = jakartaDateKey(new Date());
+let dashboardDateKey = jakartaDateKey(new Date());
+let financeDateKey = jakartaDateKey(new Date());
 let partnerTransferDate = jakartaDateKey(new Date());
 let chartDays = 31;
 let selectedClosingDateKey = jakartaDateKey(new Date());
@@ -1295,7 +1299,6 @@ let closingSummaryPage = 1;
 let closingSearchQuery = "";
 let closingHistorySearchQuery = "";
 let requestSearchQuery = "";
-let requestPartnerFilter = "";
 let requestCurrentPage = 1;
 let requestSelectAll = false;
 let requestBulkApprovalRunning = false;
@@ -1327,9 +1330,10 @@ let unsubscribers = [];
 let monthUnsubscribers = [];
 let dashboardUnsubscribers = [];
 let transferUnsubscribers = [];
+let financeMovementsUnsubscriber = null;
 let store = {
   menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [],
-  dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
+  dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [], financeMovements: [],
   transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [],
   dailyClosings: [], closingSummaries: [], partnerDailySummary: null
 };
@@ -1716,6 +1720,8 @@ async function callApi(name, payload = {}) {
     requireRole("superadmin", "spv", "cashier");
     const paymentMethod = String(payload.paymentMethod || "cash").toLowerCase();
     if (!["cash", "qris", "transfer", "kalap_operational"].includes(paymentMethod)) throw new Error("Metode pembayaran tidak valid.");
+    const operationalNote = String(payload.operationalNote || "").trim().slice(0, 120);
+    if (paymentMethod === "kalap_operational" && !operationalNote) throw new Error("Catatan penggunaan operasional wajib diisi.");
     if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 50) throw new Error("Keranjang transaksi tidak valid.");
     const quantities = new Map();
     for (const item of payload.items) {
@@ -1781,7 +1787,7 @@ async function callApi(name, payload = {}) {
       tx.set(saleRef, { transactionCode: code, items: storedItems,
         movementIds: movementRefs.map(ref => ref.id), cashflowId: cashflowRef.id, partnerSaleIds,
         total, paymentMethod, payerType: isKalapOperational ? "kalap" : "customer",
-        isOperationalSale: isKalapOperational, businessDate,
+        isOperationalSale: isKalapOperational, operationalNote: isKalapOperational ? operationalNote : null, businessDate,
         amountReceived, changeAmount,
         cashierUid: actorUid, cashierName: actorName, createdAt, status: "completed" });
       for (const item of prepared) {
@@ -1804,13 +1810,13 @@ async function callApi(name, payload = {}) {
         type: isKalapOperational ? "expense" : "income",
         amount: total,
         category: isKalapOperational ? "Beban operasional - penjualan" : "Penjualan",
-        note: isKalapOperational ? `Penjualan ${code} ditanggung KALAP` : `Penjualan ${code}`,
+        note: isKalapOperational ? `Operasional: ${operationalNote} · Penjualan ${code} ditanggung KALAP` : `Penjualan ${code}`,
         source: isKalapOperational ? "operational_sale" : "sale",
         transactionId: saleRef.id, transactionCode: code, status: "posted",
         createdAt, createdBy: actorUid, createdByName: actorName
       });
       return { transactionId: saleRef.id, transactionCode: code, total, paymentMethod,
-        payerType: isKalapOperational ? "kalap" : "customer", amountReceived, changeAmount,
+        payerType: isKalapOperational ? "kalap" : "customer", operationalNote: isKalapOperational ? operationalNote : null, amountReceived, changeAmount,
         cashierName: actorName, createdAt: new Date(),
         items: prepared.map(item => ({ name: item.name, price: item.price, qty: item.qty, subtotal: item.subtotal })) };
     });
@@ -2598,7 +2604,7 @@ async function callApi(name, payload = {}) {
 }
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
 function resetStore() {
-  store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
+  store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
 }
 
 async function startApp() {
@@ -2635,6 +2641,8 @@ async function startApp() {
     profile = { uid: currentUser.uid, ...userData };
     monthKey = jakartaMonthKey(new Date());
     historyDate = jakartaDateKey(new Date());
+    dashboardDateKey = historyDate;
+    financeDateKey = historyDate;
     stockDailyDateKey = historyDate;
     stockDailySearchQuery = "";
     stockDailyCurrentPage = 1;
@@ -2653,6 +2661,7 @@ async function startApp() {
       safeUnsubscribe(monthUnsubscribers);
       safeUnsubscribe(dashboardUnsubscribers);
       safeUnsubscribe(transferUnsubscribers);
+      if (financeMovementsUnsubscriber) { try { financeMovementsUnsubscriber(); } catch (_) {} financeMovementsUnsubscriber = null; }
       if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
       if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
       if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
@@ -2740,6 +2749,7 @@ function startSubscriptions() {
   if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
   safeUnsubscribe(dashboardUnsubscribers);
   safeUnsubscribe(transferUnsubscribers);
+  if (financeMovementsUnsubscriber) { try { financeMovementsUnsubscriber(); } catch (_) {} financeMovementsUnsubscriber = null; }
   if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
   if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
   const role = profile.role;
@@ -2813,7 +2823,8 @@ function startSubscriptions() {
 
   subscribeMonthData(monthKey);
   subscribeStockDailyDate(stockDailyDateKey);
-  if (["superadmin", "spv"].includes(role)) subscribeDashboardRange(dashboardFrom, dashboardTo);
+  if (role === "superadmin") subscribeDashboardToday(dashboardDateKey);
+  else if (role === "spv") subscribeDashboardRange(dashboardFrom, dashboardTo);
 }
 
 function subscribeStockDailyDate(dateKey = stockDailyDateKey) {
@@ -2913,6 +2924,47 @@ function subscribeDashboardRange(fromKey = dashboardFrom, toKey = dashboardTo) {
     renderIfPage("dashboard");
   }, onDataError));
 }
+function subscribeDashboardToday(dateKey = jakartaDateKey(new Date())) {
+  safeUnsubscribe(dashboardUnsubscribers);
+  dashboardDateKey = String(dateKey || jakartaDateKey(new Date()));
+  if (profile?.role !== "superadmin") return;
+  const start = dateFromKey(dashboardDateKey);
+  const end = new Date(start.getTime() + 86400000);
+  const startTs = Timestamp.fromDate(start), endTs = Timestamp.fromDate(end);
+  const build = name => query(collection(db, name),
+    where("createdAt", ">=", startTs), where("createdAt", "<", endTs),
+    orderBy("createdAt", "asc"), limit(10000));
+  dashboardUnsubscribers.push(onSnapshot(build("transactions"), snap => {
+    store.dashboardTransactions = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    renderIfPage("dashboard");
+  }, onDataError));
+  dashboardUnsubscribers.push(onSnapshot(build("stockMovements"), snap => {
+    store.dashboardMovements = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    renderIfPage("dashboard");
+  }, onDataError));
+  dashboardUnsubscribers.push(onSnapshot(build("cashflows"), snap => {
+    store.dashboardCashflows = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    renderIfPage("dashboard");
+  }, onDataError));
+}
+
+function subscribeFinanceDate(dateKey = financeDateKey) {
+  financeDateKey = String(dateKey || jakartaDateKey(new Date()));
+  if (financeMovementsUnsubscriber) { try { financeMovementsUnsubscriber(); } catch (_) {} financeMovementsUnsubscriber = null; }
+  store.financeMovements = [];
+  if (profile?.role !== "superadmin") return;
+  const start = dateFromKey(financeDateKey);
+  const end = new Date(start.getTime() + 86400000);
+  const movementsQuery = query(collection(db, "stockMovements"),
+    where("createdAt", ">=", Timestamp.fromDate(start)),
+    where("createdAt", "<", Timestamp.fromDate(end)),
+    orderBy("createdAt", "asc"), limit(10000));
+  financeMovementsUnsubscriber = onSnapshot(movementsQuery, snap => {
+    store.financeMovements = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    renderIfPage("finance");
+  }, onDataError);
+}
+
 function subscribePartnerTransferDate(dateKey = partnerTransferDate) {
   safeUnsubscribe(transferUnsubscribers);
   partnerTransferDate = String(dateKey || jakartaDateKey(new Date()));
@@ -3037,6 +3089,11 @@ function showPage(page) {
     if (currentMonth !== monthKey) subscribeMonthData(currentMonth);
   }
   if (page === "partnerTransfers" && profile?.role === "superadmin") subscribePartnerTransferDate(partnerTransferDate);
+  if (page === "finance" && profile?.role === "superadmin") {
+    const selectedMonth = financeDateKey.slice(0, 7);
+    if (selectedMonth !== monthKey) subscribeMonthData(selectedMonth);
+    subscribeFinanceDate(financeDateKey);
+  }
   renderPage();
 }
 function pageHeading(title, subtitle, actions = "") {
@@ -3094,23 +3151,37 @@ function getDashboardKeys() {
   return keys;
 }
 function renderSuperadminDashboard() {
-  const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled");
+  const today = dashboardDateKey || jakartaDateKey(new Date());
+  const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === today);
+  const moves = store.dashboardMovements.filter(row => !row.hiddenFromDaily && dayKeyFromTimestamp(row.createdAt) === today);
   const revenue = sumBy(txs, "total");
-  const cashIn = store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "income").reduce((sum,row)=>sum+Number(row.amount||0),0);
-  const cashOut = store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "expense").reduce((sum,row)=>sum+Number(row.amount||0),0);
-  const historySales = sortNewest(txs).slice(0, 5);
-  return `${pageHeading("Dashboard", "Pilih rentang tanggal untuk melihat kinerja KALAP.", dashboardRangeControls())}
+  const stockIn = moves.filter(row => row.type === "in").reduce((sum, row) => sum + Number(row.editedQty || row.qty || 0), 0);
+  const sold = txs.reduce((sum, tx) => sum + (tx.items || []).reduce((qty, item) => qty + Number(item.qty || 0), 0), 0);
+  const stockRemaining = store.menus.filter(menu => menu.deleted !== true).reduce((sum, menu) => sum + Math.max(0, Number(menu.stock || 0)), 0);
+  const pending = pendingStockRequestCount();
+  const latest = sortNewest(txs).slice(0, 5);
+  const dateText = formatDate(dateFromKey(today), { day: "numeric", month: "long", year: "numeric" });
+  return `${pageHeading("Dashboard", `Ringkasan penjualan dan stok hari ini · ${dateText}`, `<span class="status success">REALTIME HARI INI</span>`)}
     <section class="stats-grid">
-      ${statCard("Total penjualan", money(revenue), "↗", `${integer(txs.length)} transaksi pada periode terpilih`)}
-      ${statCard("Pemasukan pelanggan", money(cashIn), "＋", "Uang yang benar-benar diterima KALAP")}
-      ${statCard("Pengeluaran", money(cashOut), "−", "Termasuk transaksi yang ditanggung KALAP")}
-      ${statCard("Total mitra / menu", `${integer(store.partners.filter(partner => partner.active !== false).length)} / ${integer(store.menus.filter(menu=>menu.deleted!==true).length)}`, "▤", "Data katalog saat ini")}
+      ${statCard("Penjualan hari ini", money(revenue), "↗", `${integer(txs.length)} transaksi hari ini`)}
+      ${statCard("Stok masuk hari ini", `${integer(stockIn)} unit`, "＋", "Stok yang diterima hari ini")}
+      ${statCard("Stok terjual hari ini", `${integer(sold)} unit`, "▣", "Unit dari transaksi selesai hari ini")}
+      ${statCard("Sisa stok sekarang", `${integer(stockRemaining)} unit`, "▤", "Saldo stok terkini seluruh menu aktif")}
     </section>
     <section class="content-grid">
-      <article class="panel">${panelHeader("Grafik penjualan", `${dashboardFrom} sampai ${dashboardTo}`, `<span class="status neutral">REALTIME</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik titik atau batang grafik untuk membuka detail penjualan pada tanggal tersebut.</div></article>
-      <article class="panel">${panelHeader("Pemasukan dan pengeluaran", "Mengikuti rentang tanggal di atas")}<div class="chart-wrap"><canvas id="cashflow-chart"></canvas></div><div class="summary-list" style="margin-top:8px"><div class="summary-row"><span>Total pemasukan</span><strong>${money(cashIn)}</strong></div><div class="summary-row"><span>Total pengeluaran</span><strong>${money(cashOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo arus kas</span><strong>${money(cashIn-cashOut)}</strong></div></div></article>
+      <article class="panel">${panelHeader("Grafik penjualan hari ini", "Aktivitas penjualan per jam · WIB", `<span class="status neutral">LIVE</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik titik pada grafik untuk membuka rincian tanggal ini di halaman Keuangan.</div></article>
+      <article class="panel">${panelHeader("Ringkasan stok", "Jumlah yang terus mengikuti perubahan stok")}
+        <div class="summary-list">
+          <div class="summary-row"><span>Stok masuk hari ini</span><strong>${integer(stockIn)} unit</strong></div>
+          <div class="summary-row"><span>Stok terjual hari ini</span><strong>${integer(sold)} unit</strong></div>
+          <div class="summary-row"><span>Sisa stok saat ini</span><strong>${integer(stockRemaining)} unit</strong></div>
+          <div class="summary-divider"></div>
+          <div class="summary-row"><span>Pengajuan stok menunggu</span><strong>${integer(pending)} menu</strong></div>
+          <button class="btn btn-light btn-wide" data-nav="requests">Buka pengajuan stok →</button>
+        </div>
+      </article>
     </section>
-    <section class="panel">${panelHeader("Transaksi terbaru", "Lima transaksi terbaru pada rentang tanggal terpilih", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(historySales, true)}</section>`;
+    <section class="panel">${panelHeader("Transaksi hari ini", "Transaksi pada tanggal berjalan", `<button class="panel-action" data-nav="transactions">Lihat riwayat →</button>`)}${renderTransactionTable(latest, true)}</section>`;
 }
 function renderSpvDashboard() {
   const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled");
@@ -3132,7 +3203,47 @@ function renderSpvDashboard() {
     <section class="panel">${panelHeader("Transaksi terbaru", "Aktivitas POS pada rentang tanggal terpilih", `<button class="panel-action" data-nav="transactions">Lihat semua →</button>`)}${renderTransactionTable(recent,true)}</section>`;
 }
 function destroyCharts() { chartInstances.forEach(chart => { try { chart.destroy(); } catch (_) {} }); chartInstances = []; }
+function mountSuperadminDailyChart() {
+  const canvas = $("#sales-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+  const today = dashboardDateKey || jakartaDateKey(new Date());
+  const labels = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+  const hourlySales = Array(24).fill(0);
+  const hourFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", hourCycle: "h23" });
+  for (const tx of store.dashboardTransactions.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === today)) {
+    const date = asDate(tx.createdAt);
+    if (!date) continue;
+    const hour = Number(hourFormatter.format(date));
+    if (Number.isInteger(hour) && hour >= 0 && hour < 24) hourlySales[hour] += Number(tx.total || 0);
+  }
+  const chart = new Chart(canvas, {
+    type: "line",
+    data: { labels, datasets: [{ label: "Penjualan", data: hourlySales, borderColor: "#E00000", backgroundColor: "rgba(224,0,0,.12)", fill: true, tension: .3, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: "#E00000" }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "nearest", intersect: true },
+      onClick: (_event, elements) => { if (elements?.length) openFinanceDateDetail(today); },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: "#3b211a", padding: 11, titleFont: { family: "DM Sans", size: 10 }, bodyFont: { family: "DM Sans", size: 10 }, callbacks: { label: context => money(context.parsed.y) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#9b8f82", font: { size: 9 }, maxTicksLimit: 12 } },
+        y: { beginAtZero: true, grid: { color: "#f0e8df" }, ticks: { color: "#9b8f82", font: { size: 9 }, callback: value => value >= 1000000 ? `${(value / 1000000).toFixed(1)}jt` : value >= 1000 ? `${Math.round(value / 1000)}rb` : value } }
+      }
+    }
+  });
+  chartInstances.push(chart);
+}
+
+function openFinanceDateDetail(dateKey) {
+  if (profile?.role !== "superadmin") return;
+  financeDateKey = String(dateKey || jakartaDateKey(new Date()));
+  showPage("finance");
+}
+
 function mountDashboardCharts() {
+  if (profile?.role === "superadmin") {
+    mountSuperadminDailyChart();
+    return;
+  }
   const salesCanvas = $("#sales-chart"); const cashCanvas = $("#cashflow-chart");
   if (!salesCanvas || typeof Chart === "undefined") return;
   let keys=[]; try { keys=getDashboardKeys(); } catch(error) { toast(error.message,"error"); return; }
@@ -3162,7 +3273,7 @@ async function openDashboardDayDetail(dateKey) {
     const expenses=store.dashboardCashflows.filter(row=>row.status!=="cancelled"&&row.type==="expense"&&dayKeyFromTimestamp(row.createdAt)===dateKey);
     const start=dateFromKey(dateKey), end=new Date(start.getTime()+86400000);
     // Read latest stock state at or before selected day; single-field query, no composite index.
-    const historicalSnap=await getDocs(query(collection(db,"stockMovements"),where("createdAt","<",Timestamp.fromDate(end)),orderBy("createdAt","desc"),limit(12000)));
+    const historicalSnap=await getDocs(query(collection(db,"stockMovements"),where("createdAt","<",Timestamp.fromDate(end)),orderBy("createdAt","desc"),limit(10000)));
     const latestByMenu=new Map();
     for(const snap of historicalSnap.docs){const row=snap.data();if(row.menuId&&!latestByMenu.has(row.menuId))latestByMenu.set(row.menuId,row);}
     const menuRows=store.menus.filter(menu=>!menu.createdAt||asDate(menu.createdAt)<=end).map(menu=>{
@@ -3414,13 +3525,69 @@ function renderProfilePage() {
 }
 
 function renderFinancePage() {
-  const totalIn = store.cashflows.filter(row => row.status !== "cancelled" && row.type === "income").reduce((s,row)=>s+Number(row.amount||0),0);
-  const totalOut = store.cashflows.filter(row => row.status !== "cancelled" && row.type === "expense").reduce((s,row)=>s+Number(row.amount||0),0);
-  return `${pageHeading("Keuangan", "Catat pemasukan dan pengeluaran di luar transaksi penjualan.", selectedMonthControl())}
-    <section class="stats-grid">${statCard("Total pemasukan", money(totalIn), "＋", "Pembayaran pelanggan + pemasukan lain")}${statCard("Total pengeluaran", money(totalOut), "−", "Termasuk transaksi yang ditanggung KALAP")}${statCard("Saldo arus kas", money(totalIn-totalOut), "◉", "Pemasukan dikurangi pengeluaran")}${statCard("Catatan keuangan", integer(store.cashflows.length), "▤", "Termasuk pencatatan otomatis penjualan")}</section>
+  const dateKey = financeDateKey || jakartaDateKey(new Date());
+  const txs = store.transactions.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === dateKey);
+  const flows = store.cashflows.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === dateKey);
+  const movements = store.financeMovements.filter(row => !row.hiddenFromDaily && !row.voided && dayKeyFromTimestamp(row.createdAt) === dateKey);
+  const omzet = sumBy(txs, "total");
+  const totalIn = flows.filter(row => row.type === "income").reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const totalOut = flows.filter(row => row.type === "expense").reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const soldQty = txs.reduce((sum, tx) => sum + (tx.items || []).reduce((qty, item) => qty + Number(item.qty || 0), 0), 0);
+  const paymentBreakdown = { cash: 0, qris: 0, transfer: 0, kalap_operational: 0 };
+  let partnerCommission = 0;
+  let kalapOwnedSales = 0;
+  const menuSales = new Map();
+  for (const tx of txs) {
+    paymentBreakdown[tx.paymentMethod] = (paymentBreakdown[tx.paymentMethod] || 0) + Number(tx.total || 0);
+    const partnerGrossByTransaction = new Map();
+    for (const item of tx.items || []) {
+      const subtotal = Number(item.subtotal || (Number(item.price || 0) * Number(item.qty || 0)));
+      if (item.partnerId) partnerGrossByTransaction.set(item.partnerId, (partnerGrossByTransaction.get(item.partnerId) || 0) + subtotal);
+      else kalapOwnedSales += subtotal;
+      const menuKey = String(item.menuId || item.name || "unknown");
+      const row = menuSales.get(menuKey) || { menuId: item.menuId || "", name: item.name || "Menu", partnerName: item.partnerName || "—", qty: 0, amount: 0 };
+      row.qty += Number(item.qty || 0); row.amount += subtotal;
+      menuSales.set(menuKey, row);
+    }
+    // Samakan pembulatan dengan saat transaksi dibuat: 20% dihitung per mitra per transaksi.
+    partnerCommission += [...partnerGrossByTransaction.values()].reduce((sum, gross) => sum + Math.round(gross * PARTNER_KALAP_SHARE_RATE), 0);
+  }
+  const stockByMenu = new Map();
+  for (const movement of movements) {
+    const key = String(movement.menuId || movement.menuName || "unknown");
+    const row = stockByMenu.get(key) || { menuId: movement.menuId || "", name: movement.menuName || "Menu", partnerName: movement.partnerName || "—", incoming: 0, returned: 0, adjustment: 0 };
+    if (movement.type === "in") row.incoming += Number(movement.editedQty || movement.qty || 0);
+    else if (movement.type === "sale_cancel") row.returned += Number(movement.qty || 0);
+    else if (movement.type === "adjustment") row.adjustment += Number(movement.adjustmentDelta || 0);
+    stockByMenu.set(key, row);
+  }
+  const allMenuKeys = new Set([...menuSales.keys(), ...stockByMenu.keys()]);
+  const stockRows = [...allMenuKeys].map(key => {
+    const sale = menuSales.get(key) || { menuId: "", name: "Menu", partnerName: "—", qty: 0, amount: 0 };
+    const stock = stockByMenu.get(key) || { menuId: "", incoming: 0, returned: 0, adjustment: 0 };
+    const menuId = sale.menuId || stock.menuId;
+    const menu = menuId ? store.menus.find(item => item.id === menuId) : null;
+    return { ...sale, ...stock, menuId, name: sale.name !== "Menu" ? sale.name : stock.name, partnerName: sale.partnerName !== "—" ? sale.partnerName : stock.partnerName, currentStock: menu ? Number(menu.stock || 0) : null };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  const expenseRows = flows.filter(row => row.type === "expense").sort((a, b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0));
+  const dateText = formatDate(dateFromKey(dateKey), { day: "numeric", month: "long", year: "numeric" });
+  const profitCard = statCard("Laba bersih", "Belum dihitung", "—", "HPP / modal menu belum dicatat oleh sistem");
+  return `${pageHeading("Keuangan", `Laporan penjualan, stok, dan arus kas pada ${dateText}.`, `<label class="finance-date-control">Tanggal laporan<input type="date" id="finance-date" value="${dateKey}"></label>`)}
+    <section class="stats-grid">
+      ${statCard("Omzet penjualan", money(omzet), "↗", `${integer(txs.length)} transaksi selesai`)}
+      ${statCard("Unit terjual", `${integer(soldQty)} unit`, "▣", "Jumlah semua item transaksi" )}
+      ${statCard("Pemasukan tercatat", money(totalIn), "＋", "Penerimaan yang masuk ke arus kas")}
+      ${statCard("Pengeluaran tercatat", money(totalOut), "−", "Termasuk penjualan yang ditanggung KALAP")}
+      ${statCard("Saldo arus kas", money(totalIn - totalOut), "◉", "Pemasukan dikurangi pengeluaran")}
+      ${statCard("Bagian KALAP dari menu mitra", money(partnerCommission), "％", "Perhitungan komisi 20% dari penjualan menu mitra")}
+      ${profitCard}
+      ${statCard("Menu terjual", integer(menuSales.size), "▤", "Jumlah jenis menu yang terjual")}
+    </section>
     <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="text" name="amount" inputmode="numeric" data-money-input required placeholder="Contoh: 150.000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
-    <section class="panel">${panelHeader("Ringkasan arus kas", `Bulan ${monthKey}`)}<div class="summary-list"><div class="summary-row"><span>Penjualan otomatis</span><strong>${money(sumBy(store.transactions.filter(row=>row.status!=="cancelled"),"total"))}</strong></div><div class="summary-row"><span>Pemasukan lain</span><strong>${money(store.cashflows.filter(r=>r.status!=="cancelled"&&r.type==="income"&&r.source!=="sale").reduce((s,r)=>s+Number(r.amount||0),0))}</strong></div><div class="summary-row"><span>Pengeluaran</span><strong>${money(totalOut)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Saldo tercatat</span><strong>${money(totalIn-totalOut)}</strong></div></div><div class="helper-text">Semua transaksi POS masuk ke total penjualan. Pembayaran pelanggan masuk sebagai pemasukan, sedangkan pilihan Beban operasional KALAP masuk sebagai pengeluaran agar tidak dianggap uang yang diterima dari pelanggan.</div></section></div>
-    <section class="panel">${panelHeader("Riwayat keuangan", `${integer(store.cashflows.length)} catatan bulan ini`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${store.cashflows.filter(row=>row.status!=="cancelled").slice().sort((a,b)=>asDate(b.createdAt)-asDate(a.createdAt)).map(row => `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><span class="status ${row.type === "income" ? "success" : "inactive"}">${row.type === "income" ? "Pemasukan" : "Pengeluaran"}</span></td><td>${escapeHtml(row.category || (row.source === "sale" ? "Penjualan" : "—"))}</td><td>${escapeHtml(row.note || (row.source === "sale" ? `Penjualan ${row.transactionCode || ""}` : "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada catatan keuangan.</td></tr>`}</tbody></table></div></section>`;
+      <section class="panel">${panelHeader("Rincian pembayaran", `Metode pembayaran pada ${dateText}`)}<div class="summary-list"><div class="summary-row"><span>Tunai</span><strong>${money(paymentBreakdown.cash)}</strong></div><div class="summary-row"><span>QRIS</span><strong>${money(paymentBreakdown.qris)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${money(paymentBreakdown.transfer)}</strong></div><div class="summary-row"><span>Operasional KALAP</span><strong>${money(paymentBreakdown.kalap_operational)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Penjualan menu milik KALAP (kotor)</span><strong>${money(kalapOwnedSales)}</strong></div><div class="summary-row"><span>Bagian KALAP dari menu mitra</span><strong>${money(partnerCommission)}</strong></div></div><div class="profile-security-note" style="margin-top:12px">Laba bersih belum dapat dihitung karena harga modal / HPP tiap menu belum disimpan. Saldo arus kas di atas bukan angka laba bersih.</div></section></div>
+    <section class="panel">${panelHeader("Rincian penjualan", `${integer(txs.length)} transaksi · ${integer(menuSales.size)} jenis menu pada ${dateText}`)}${renderTransactionTable(sortNewest(txs), true)}</section>
+    <section class="panel">${panelHeader("Penjualan dan pergerakan stok per menu", "Stok saat ini mengikuti saldo terbaru; masuk dan terjual mengikuti tanggal laporan.")}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Stok masuk</th><th>Terjual</th><th>Stok kembali</th><th>Koreksi</th><th>Omzet</th><th>Stok saat ini</th></tr></thead><tbody>${stockRows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.qty)}</td><td>${integer(row.returned)}</td><td>${row.adjustment > 0 ? "+" : ""}${integer(row.adjustment)}</td><td><strong>${money(row.amount)}</strong></td><td>${row.currentStock === null ? "—" : `${integer(row.currentStock)} unit`}</td></tr>`).join("") || `<tr><td colspan="7" class="table-empty">Tidak ada penjualan atau pergerakan stok pada tanggal ini.</td></tr>`}</tbody></table></div></section>
+    <section class="panel">${panelHeader("Rincian pengeluaran", `${integer(expenseRows.length)} catatan pengeluaran pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenseRows.map(row => `<tr><td>${formatTime(row.createdAt)} WIB</td><td>${escapeHtml(row.category || "Pengeluaran")}</td><td>${escapeHtml(row.note || row.transactionCode || "—")}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Tidak ada pengeluaran pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
 }
 
 function renderClosingPage() {
@@ -3528,12 +3695,9 @@ function renderRequestsPage() {
   const q = requestSearchQuery.trim().toLowerCase();
   const filtered = allRequests.filter(row => {
     const menu = store.menus.find(item => item.id === row.menuId);
-    const partnerMatches = !staffCanReceive || !requestPartnerFilter
-      || String(row.partnerName || "").toLowerCase().includes(requestPartnerFilter.trim().toLowerCase());
-    const searchMatches = !q || [row.partnerName, row.menuName, row.note, row.status, row.changeType,
+    return !q || [row.partnerName, row.menuName, row.note, row.status, row.changeType,
       menuBarcode(menu || {}), menuQrPayload(menu || {})]
       .some(value => String(value || "").toLowerCase().includes(q));
-    return partnerMatches && searchMatches;
   });
   const pageSize = 7;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -3547,9 +3711,6 @@ function renderRequestsPage() {
     ? pageHeading("Pengajuan dan Stok Harian", "Kelola pengajuan mitra, input manual, dan telusuri catatan stok berdasarkan tanggal.", `<span class="status pending">${integer(pendingCount)} menu menunggu pada tanggal ini</span>`)
     : pageHeading("Pengajuan dan Stok Harian", "Ajukan stok untuk menu Anda dan telusuri riwayat stok masuk berdasarkan tanggal.");
   const form = staffCanReceive ? "" : renderStockRequestForm();
-  const partnerFilter = staffCanReceive
-    ? `<input id="request-partner-filter" type="search" value="${escapeHtml(requestPartnerFilter)}" aria-label="Cari nama mitra" placeholder="Cari nama mitra..." autocomplete="off">`
-    : "";
   const requestDateFilter = `<input type="date" id="stock-daily-date" value="${stockDailyDateKey}" aria-label="Tanggal pengajuan dan stok harian" title="Pilih tanggal pengajuan dan stok">`;
   const actionHeader = staffCanReceive ? `<button type="button" class="btn btn-primary" id="open-manual-stock-input">＋ Input</button>` : "";
   const rows = visible.map(row => {
@@ -3596,7 +3757,7 @@ function renderRequestsPage() {
     ? `<div class="pagination-row request-pagination"><span class="helper-text">${integer(filtered.length)} pengajuan · halaman ${requestCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-request-page="prev" ${requestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-request-page="next" ${requestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>`
     : "";
   return `${header}${form}<section class="panel">${panelHeader(staffCanReceive ? "Daftar pengajuan dari mitra" : "Riwayat pengajuan Anda", `${integer(filtered.length)} pengajuan pada ${formatDate(dateFromKey(stockDailyDateKey))}`, actionHeader)}
-    <div class="table-toolbar">${requestDateFilter}${partnerFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, status, atau scan QR..." autocomplete="off"></div>
+    <div class="table-toolbar">${requestDateFilter}<input id="request-search" type="search" value="${escapeHtml(requestSearchQuery)}" placeholder="Cari nama menu, mitra, status, atau scan QR..." autocomplete="off"></div>
     ${bulkToolbar}
     <div class="table-wrap"><table><thead><tr>${staffCanReceive ? "<th>Mitra</th>" : ""}<th>Menu</th><th>Jumlah diajukan</th><th>Catatan</th><th>Tanggal</th><th>Status / aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="${staffCanReceive ? 6 : 5}" class="table-empty">Belum ada pengajuan yang sesuai dengan pencarian.</td></tr>`}</tbody></table></div>
     ${pagination}
@@ -3728,6 +3889,15 @@ function attachPageEvents() {
     try { normalizeDateRange(from,to); subscribeDashboardRange(from,to); }
     catch(error) { toast(error.message,"error"); }
   });
+  $("#finance-date")?.addEventListener("change", event => {
+    const value = event.target.value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    financeDateKey = value;
+    const selectedMonth = value.slice(0, 7);
+    if (selectedMonth !== monthKey) subscribeMonthData(selectedMonth);
+    subscribeFinanceDate(value);
+    renderPage();
+  });
   $("#month-select")?.addEventListener("change", event => {
     const value = event.target.value;
     if (!/^\d{4}-\d{2}$/.test(value)) return;
@@ -3755,7 +3925,6 @@ function attachPageEvents() {
   initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
-  $("#request-partner-filter")?.addEventListener("input", event => { requestPartnerFilter = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-partner-filter"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
   $("#open-manual-stock-input")?.addEventListener("click", openManualStockInputModal);
   $("#request-select-all")?.addEventListener("change", event => {
     if (!event.target.checked) { requestSelectAll = false; return renderPage(); }
@@ -3885,6 +4054,19 @@ function openPaymentModal() {
   root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">${PAYMENT_ICONS.cash}</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">${PAYMENT_ICONS.qris}</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">${PAYMENT_ICONS.transfer}</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">${PAYMENT_ICONS.kalap_operational}</span><span>Operasional KALAP</span></button></div><div id="cash-tender-step"></div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
   root.querySelectorAll('[data-pay-method]').forEach(button=>button.addEventListener('click',()=>{
     const method=button.dataset.payMethod;
+    if(method==='kalap_operational'){
+      const box=root.querySelector('#cash-tender-step');
+      box.innerHTML=`<div class="cash-tender-box"><div class="cash-payment-total"><span>Total operasional</span><strong>${money(total)}</strong></div><div class="form-field"><label for="operational-payment-note">Catatan penggunaan operasional</label><input id="operational-payment-note" type="text" maxlength="120" autocomplete="off" placeholder="Contoh: sedekah" required></div><button type="button" class="btn btn-primary btn-wide" id="confirm-operational-payment">Konfirmasi operasional</button></div>`;
+      const noteInput=box.querySelector('#operational-payment-note');
+      const confirmBtn=box.querySelector('#confirm-operational-payment');
+      confirmBtn.addEventListener('click',()=>{
+        const note=String(noteInput.value||'').trim();
+        if(!note){toast('Isi catatan penggunaan operasional terlebih dahulu.','error');noteInput.focus();return;}
+        checkout('kalap_operational',null,confirmBtn,note);
+      });
+      noteInput.focus();
+      return;
+    }
     if(method!=='cash'){checkout(method);return;}
     const box=root.querySelector('#cash-tender-step');
     box.innerHTML=`<div class="cash-tender-box"><div class="cash-payment-total"><span>Total belanja</span><strong>${money(total)}</strong></div><div class="form-field"><label for="cash-amount-received">Uang diterima (Rp)</label><input id="cash-amount-received" type="text" inputmode="numeric" data-money-input placeholder="Masukkan nominal uang" required></div><div class="cash-change-panel"><span>Kembalian</span><strong id="cash-change-value">${money(0)}</strong></div><button type="button" class="btn btn-primary btn-wide" id="confirm-cash-payment" disabled>Konfirmasi & bayar</button></div>`;
@@ -3898,7 +4080,7 @@ function openPaymentModal() {
   root.querySelectorAll('[data-payment-cancel]').forEach(item=>item.addEventListener('click',()=>root.innerHTML=""));
   root.querySelector('[data-payment-backdrop]')?.addEventListener('click',event=>{if(event.target===event.currentTarget)root.innerHTML="";});
 }
-async function checkout(paymentMethod, amountReceived = null, button = null) {
+async function checkout(paymentMethod, amountReceived = null, button = null, operationalNote = "") {
   if (busy || !cart.size) return;
   if (!['cash','qris','transfer','kalap_operational'].includes(paymentMethod)) return toast("Metode pembayaran tidak valid.","error");
   const root=$("#modal-root"); const buttonToBusy=button||root.querySelector(`[data-pay-method="${paymentMethod}"]`);
@@ -3909,7 +4091,7 @@ async function checkout(paymentMethod, amountReceived = null, button = null) {
   }
   busy=true;if(buttonToBusy)setBusy(buttonToBusy,true,"Menyimpan...");
   try{
-    const payload={items:[...cart.values()].map(row=>({menuId:row.menuId,qty:row.qty})),paymentMethod,...(paymentMethod==='cash'?{amountReceived:Number(amountReceived)}:{})};
+    const payload={items:[...cart.values()].map(row=>({menuId:row.menuId,qty:row.qty})),paymentMethod,...(paymentMethod==='cash'?{amountReceived:Number(amountReceived)}:{}),...(paymentMethod==='kalap_operational'?{operationalNote:String(operationalNote||'').trim()}:{})};
     const result=await callApi("createSale",payload);
     cart.clear();posSearchQuery="";posCurrentPage=1;renderPage();showReceipt(result);
   }catch(error){root.innerHTML="";toast(friendlyError(error),"error");}
@@ -3934,6 +4116,7 @@ function showReceipt(result) {
       ${result.paymentMethod === "cash" ? `<div class="receipt-meta"><span>Uang diterima</span><strong>${money(result.amountReceived)}</strong></div><div class="receipt-meta"><span>Kembalian</span><strong>${money(result.changeAmount)}</strong></div>` : ""}
       <div class="receipt-dash"></div>
       <div class="receipt-meta"><span>${result.paymentMethod === "kalap_operational" ? "Penanggung biaya" : "Metode pembayaran"}</span><strong>${escapeHtml(paymentMethodLabel(result.paymentMethod))}</strong></div>
+      ${result.paymentMethod === "kalap_operational" && result.operationalNote ? `<div class="receipt-meta"><span>Catatan operasional</span><strong>${escapeHtml(result.operationalNote)}</strong></div>` : ""}
       <div class="receipt-dash"></div><div class="receipt-thanks">TERIMA KASIH<br><small>Selamat menikmati pesanan Anda.</small></div>
     </div>
     <button type="button" class="btn btn-primary btn-wide" id="receipt-back">← Kembali ke POS</button>
@@ -4771,12 +4954,12 @@ function printMenuLabels(menuOrItems, copies = 1) {
     const nameCanvas = document.createElement("canvas");
     const nameContext = nameCanvas.getContext("2d");
     const maxNameWidthPx = (28 / 25.4) * 96;
-    let nameFontPt = 4.5;
+    let nameFontPt = 7.5;
     if (nameContext) {
       nameContext.font = `600 ${nameFontPt}pt Arial`;
       const measuredNameWidth = nameContext.measureText(String(menu.name || "")).width;
       if (measuredNameWidth > maxNameWidthPx) {
-        nameFontPt = Math.max(3.2, nameFontPt * maxNameWidthPx / measuredNameWidth);
+        nameFontPt = Math.max(5.2, nameFontPt * maxNameWidthPx / measuredNameWidth);
       }
     }
     template.innerHTML = `<div class="print-label-name" style="font-size:${nameFontPt.toFixed(2)}pt !important">${escapeHtml(menu.name)}</div><div class="print-label-barcode"></div><div class="print-label-price">${money(menu.price)}</div>`;
@@ -4801,7 +4984,7 @@ function printMenuLabels(menuOrItems, copies = 1) {
       body.printing-labels #label-print-root { display: block !important; position: static !important; width: 30mm !important; max-width: 30mm !important; margin: 0 !important; padding: 0 !important; }
       body.printing-labels .print-label { display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: ${rows} !important; row-gap: .2mm !important; align-content: center !important; justify-items: center !important; width: 30mm !important; min-width: 30mm !important; max-width: 30mm !important; height: 40mm !important; min-height: 40mm !important; max-height: 40mm !important; margin: 0 !important; padding: ${padding} !important; box-sizing: border-box !important; overflow: hidden !important; border: 0 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; break-after: page !important; page-break-after: always !important; }
       body.printing-labels .print-label:last-child { break-after: auto !important; page-break-after: auto !important; }
-      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 4.5pt/1.05 Arial, sans-serif !important; }
+      body.printing-labels .print-label-name { width: 100% !important; height: auto !important; line-height: 1.05 !important; align-self: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; text-align: center !important; font: 600 7.5pt/1.05 Arial, sans-serif !important; }
       body.printing-labels .print-label-barcode { display: flex !important; align-items: center !important; justify-content: center !important; width: ${qrWidth}mm !important; max-width: 100% !important; height: ${qrHeight}mm !important; overflow: hidden !important; background: #fff !important; }
       body.printing-labels .print-label-barcode svg { display: block !important; width: ${qrSize}mm !important; height: ${qrSize}mm !important; max-width: 100% !important; max-height: 100% !important; shape-rendering: crispEdges !important; }
       body.printing-labels .print-label-price { height: auto !important; line-height: 1.05 !important; align-self: center !important; font: 700 9pt/1.05 Arial, sans-serif !important; white-space: nowrap !important; }
@@ -5272,7 +5455,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.4", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.5", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -5322,10 +5505,21 @@ setInterval(() => {
   updateClockLabels();
   const currentDay = jakartaDateKey(new Date());
   if (currentDay !== lastJakartaDay) {
+    const previousDay = lastJakartaDay;
     lastJakartaDay = currentDay;
     historyDate = currentDay;
     const currentMonth = currentDay.slice(0, 7);
     if (profile?.role === "partner") subscribePartnerDailySummary(currentDay);
+    if (profile?.role === "superadmin") {
+      dashboardDateKey = currentDay;
+      subscribeDashboardToday(currentDay);
+      // Laporan Keuangan mengikuti hari baru hanya bila pengguna masih melihat
+      // tanggal berjalan; pilihan tanggal historis tidak diganti otomatis.
+      if (financeDateKey === previousDay) {
+        financeDateKey = currentDay;
+        if (activePage === "finance") subscribeFinanceDate(currentDay);
+      }
+    }
     stockDailyDateKey = currentDay;
     stockDailySearchQuery = "";
     stockDailyCurrentPage = 1;
