@@ -1,0 +1,6 @@
+KALAP v2.2.7 — Manajemen Mitra
+
+- Angka pada kartu Manajemen Mitra sekarang adalah jumlah stok dari pengajuan mitra yang disetujui Admin/SPV pada tanggal berjalan.
+- Angka menggunakan pergerakan stok masuk bertipe partner_request, dan diperbarui secara real-time.
+- Pada pergantian tanggal WIB, angka kembali 0 sampai ada persetujuan stok baru.
+- Tidak mengubah saldo stok aktual, transaksi, pembayaran, maupun bagian aplikasi lainnya.

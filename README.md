@@ -1,11 +1,16 @@
-# KALAP Management System v2.2.6
+# KALAP Management System v2.2.7
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
 - `firestore.rules`: Firebase Firestore Security Rules (tidak berubah pada v2.2.5; tetap gunakan Rules v2.2.3 atau versi yang lebih baru dari repository).
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.6.
+- `service-worker.js`: cache shell versi 2.2.7.
+
+## Perubahan v2.2.7 — angka harian Manajemen Mitra
+- Angka pada kartu Manajemen Mitra sekarang menunjukkan jumlah stok pengajuan mitra yang disetujui Admin/SPV pada tanggal berjalan (stok masuk hari ini), bukan saldo stok semua menu yang terkumpul dari hari-hari sebelumnya.
+- Angka mengikuti perubahan stok yang diterima secara real-time dan kembali menjadi 0 pada pergantian tanggal WIB jika belum ada pengajuan stok baru yang disetujui.
+- Tidak ada perubahan pada data stok aktual menu, transaksi, pembayaran, maupun fitur lainnya.
 
 ## Perubahan v2.2.6 — koreksi stok harian dan grafik dashboard
 - Stok masuk Dashboard Superadmin dihitung hanya dari stok pengajuan Mitra yang diterima Admin/SPV pada tanggal tersebut.

@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.6">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.7">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.6">
-  <title>KALAP Management System v2.2.6</title>
+  <meta name="application-version" content="2.2.7">
+  <title>KALAP Management System v2.2.7</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.6</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.7</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1336,10 +1336,11 @@ let store = {
   menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [],
   dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
   dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [],
-  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [],
+  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
   dailyClosings: [], closingSummaries: [], partnerDailySummary: null
 };
 let stockDailyUnsubscriber = null;
+let partnerManagementTodayUnsubscriber = null;
 let stockDailyDateKey = jakartaDateKey(new Date());
 let stockDailySearchQuery = "";
 let stockDailyCurrentPage = 1;
@@ -2607,7 +2608,7 @@ async function callApi(name, payload = {}) {
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
 function resetStore() {
   store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
-  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
+  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
 }
 
 async function startApp() {
@@ -2667,6 +2668,7 @@ async function startApp() {
       safeUnsubscribe(transferUnsubscribers);
       if (financeMovementsUnsubscriber) { try { financeMovementsUnsubscriber(); } catch (_) {} financeMovementsUnsubscriber = null; }
       if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
+      if (partnerManagementTodayUnsubscriber) { try { partnerManagementTodayUnsubscriber(); } catch (_) {} partnerManagementTodayUnsubscriber = null; }
       if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
       if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
       resetStore();
@@ -2751,6 +2753,8 @@ function subscribeClosingSummaries(dateKey = selectedClosingDateKey) {
 function startSubscriptions() {
   safeUnsubscribe(unsubscribers);
   if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
+  if (partnerManagementTodayUnsubscriber) { try { partnerManagementTodayUnsubscriber(); } catch (_) {} partnerManagementTodayUnsubscriber = null; }
+  store.partnerManagementTodayMovements = [];
   safeUnsubscribe(dashboardUnsubscribers);
   safeUnsubscribe(dashboardTodayUnsubscribers);
   safeUnsubscribe(transferUnsubscribers);
@@ -2829,6 +2833,7 @@ function startSubscriptions() {
   subscribeMonthData(monthKey);
   subscribeStockDailyDate(stockDailyDateKey);
   if (role === "superadmin") {
+    subscribePartnerManagementTodayMovements(jakartaDateKey(new Date()));
     subscribeDashboardRange(dashboardFrom, dashboardTo);
     subscribeDashboardToday(dashboardDateKey);
   } else if (role === "spv") subscribeDashboardRange(dashboardFrom, dashboardTo);
@@ -2856,6 +2861,26 @@ function subscribeStockDailyDate(dateKey = stockDailyDateKey) {
   stockDailyUnsubscriber = onSnapshot(movementQuery, snap => {
     store.dailyStockMovements = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
     renderIfPage("requests");
+  }, onDataError);
+}
+
+function subscribePartnerManagementTodayMovements(dateKey = jakartaDateKey(new Date())) {
+  if (partnerManagementTodayUnsubscriber) {
+    try { partnerManagementTodayUnsubscriber(); } catch (_) {}
+    partnerManagementTodayUnsubscriber = null;
+  }
+  store.partnerManagementTodayMovements = [];
+  renderIfPage("partners");
+  if (profile?.role !== "superadmin") return;
+  const start = dateFromKey(String(dateKey || jakartaDateKey(new Date())));
+  const end = new Date(start.getTime() + 86400000);
+  const movementsQuery = query(collection(db, "stockMovements"),
+    where("createdAt", ">=", Timestamp.fromDate(start)),
+    where("createdAt", "<", Timestamp.fromDate(end)),
+    orderBy("createdAt", "asc"), limit(3000));
+  partnerManagementTodayUnsubscriber = onSnapshot(movementsQuery, snap => {
+    store.partnerManagementTodayMovements = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    renderIfPage("partners");
   }, onDataError);
 }
 
@@ -3489,7 +3514,13 @@ function renderPartnersPage() {
   return `${pageHeading("Manajemen mitra", "", `<button class="btn btn-primary" data-open-modal="partner">＋ Tambah mitra</button>`)}
     <section class="panel">${panelHeader("Daftar mitra", `${integer(filtered.length)} dari ${integer(activePartners.length)} mitra aktif`)}
       <div class="table-toolbar"><input id="partner-directory-search" type="search" value="${escapeHtml(partnerListSearchQuery)}" placeholder="Cari nama mitra..."></div>
-      <div class="product-card-grid">${visible.length ? visible.map(partner=>`<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="transfer-bank">${escapeHtml(partner.bankName||"Bank belum diisi")} · ${escapeHtml(partner.accountNumber||"—")}<br>${escapeHtml(partner.accountHolder||"")}</div><div class="product-quantity">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).reduce((sum,menu)=>sum+Number(menu.stock||0),0))}</div><div class="product-meta">Total stok produk · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div><div class="account-actions" style="margin-top:10px"><button type="button" class="action-link" data-edit-partner="${partner.id}">Edit rekening</button><button type="button" class="action-link danger" data-delete-partner="${partner.id}">Hapus mitra</button></div></article>`).join("") : `<div class="table-empty">Tidak ada mitra yang cocok dengan pencarian.</div>`}</div>
+      <div class="product-card-grid">${visible.length ? visible.map(partner=>{
+        const approvedToday = store.partnerManagementTodayMovements
+          .filter(movement => movement.partnerId === partner.id && movement.type === "in"
+            && movement.source === "partner_request" && movement.voided !== true && movement.hiddenFromDaily !== true)
+          .reduce((sum, movement) => sum + Number(movement.editedQty || movement.qty || 0), 0);
+        return `<article class="product-card"><h3>${escapeHtml(partner.name)}</h3><div class="product-meta">${integer(store.menus.filter(menu=>menu.partnerId===partner.id && menu.deleted!==true).length)} menu · Bergabung ${formatDate(partner.createdAt)}</div><div class="transfer-bank">${escapeHtml(partner.bankName||"Bank belum diisi")} · ${escapeHtml(partner.accountNumber||"—")}<br>${escapeHtml(partner.accountHolder||"")}</div><div class="product-quantity">${integer(approvedToday)}</div><div class="product-meta">Stok disetujui hari ini · <span class="status ${partner.active===false?"inactive":"success"}">${partner.active===false?"Nonaktif":"Aktif"}</span></div><div class="account-actions" style="margin-top:10px"><button type="button" class="action-link" data-edit-partner="${partner.id}">Edit rekening</button><button type="button" class="action-link danger" data-delete-partner="${partner.id}">Hapus mitra</button></div></article>`;
+      }).join("") : `<div class="table-empty">Tidak ada mitra yang cocok dengan pencarian.</div>`}</div>
       <div class="pagination-row"><span class="helper-text">Halaman ${partnerListCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-partner-list-page="prev" ${partnerListCurrentPage<=1?"disabled":""} aria-label="Sebelumnya" title="Sebelumnya">‹</button><button type="button" data-partner-list-page="next" ${partnerListCurrentPage>=pages?"disabled":""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
     </section>`;
 }
@@ -5475,7 +5506,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.6", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.7", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -5533,6 +5564,7 @@ setInterval(() => {
     if (profile?.role === "superadmin") {
       dashboardDateKey = currentDay;
       subscribeDashboardToday(currentDay);
+      subscribePartnerManagementTodayMovements(currentDay);
       // Laporan Keuangan mengikuti hari baru hanya bila pengguna masih melihat
       // tanggal berjalan; pilihan tanggal historis tidak diganti otomatis.
       if (financeDateKey === previousDay) {
@@ -5544,7 +5576,7 @@ setInterval(() => {
     stockDailySearchQuery = "";
     stockDailyCurrentPage = 1;
     if (profile) subscribeStockDailyDate(currentDay);
-    if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos", "requests"].includes(activePage)) renderPage();
+    if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos", "requests", "partners"].includes(activePage)) renderPage();
     if (profile && currentMonth !== monthKey) subscribeMonthData(currentMonth);
   }
 }, 60000);
