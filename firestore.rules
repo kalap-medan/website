@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.11 (received stock history deletion + daily reset).
+// KALAP Firestore Rules — application v2.2.12 (stock receipt cancellation with audited adjustment + daily reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -436,6 +436,18 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.menuId == resource.data.menuId
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
           && !existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && request.resource.data.hiddenFromDaily == true
+          && request.resource.data.hiddenAt == request.time
+          && request.resource.data.hiddenBy == request.auth.uid
+          && request.resource.data.hiddenByName is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
+          ]))
+        || (isStaff()
+          && resource.data.type == 'in'
+          && resource.data.get('voided', false) == false
+          && resource.data.get('requestId', null) == null
+          && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
           && request.resource.data.hiddenFromDaily == true
           && request.resource.data.hiddenAt == request.time
           && request.resource.data.hiddenBy == request.auth.uid

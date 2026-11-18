@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.11">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.12">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.11">
-  <title>KALAP Management System v2.2.11</title>
+  <meta name="application-version" content="2.2.12">
+  <title>KALAP Management System v2.2.12</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.11</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.12</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -2493,55 +2493,100 @@ async function callApi(name, payload = {}) {
     if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
     const firstData = firstSnap.data();
     const businessDate = jakartaDateKey(new Date());
-    if (firstData.partnerId && dayKeyFromTimestamp(firstData.createdAt) !== businessDate) {
-      throw new Error("Batch stok dari hari sebelumnya hanya dapat dilihat sebagai riwayat dan tidak dapat dihapus dari saldo hari ini.");
+    if (firstData.partnerId && String(firstData.businessDate || dayKeyFromTimestamp(firstData.createdAt)) !== businessDate) {
+      throw new Error("Batch stok mitra berasal dari hari sebelumnya. Riwayat lama tidak boleh mengurangi saldo operasional hari ini.");
     }
     if (firstData.partnerId) await rolloverPartnerStocksForDate(businessDate);
     if (firstData.requestId) {
       const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
-      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Hapus/koreksi batch melalui alur koreksi terakhir terlebih dahulu.");
+      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Selesaikan pemeriksaan koreksi tersebut sebelum membatalkan penerimaan.");
     }
+
+    // Satu transaksi: saldo dikurangi melalui movement koreksi, batch asli disembunyikan,
+    // dan pengajuan terkait dihapus jika batch berasal dari pengajuan mitra.
+    // Movement asli sengaja tidak di-void agar rekonstruksi saldo harian tetap menghitung
+    // stok masuk + movement koreksi negatif (tanpa double-subtract saat rollover berikutnya).
+    const reversalMovementRef = doc(collection(db, "stockMovements"));
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
       const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
       if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
-        throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat dihapus lagi.");
+        throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diubah lagi.");
       }
       if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
       const movement = movementSnap.data();
-      if (movement.type !== "in" || movement.voided || movement.hiddenFromDaily === true) throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dihapus.");
+      if (movement.type !== "in" || movement.voided === true || movement.hiddenFromDaily === true) {
+        throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dibatalkan.");
+      }
       const menuRef = doc(db, "menus", String(movement.menuId || ""));
       const menuSnap = await tx.get(menuRef);
       if (!menuSnap.exists()) throw new Error("Menu sudah tidak ditemukan dalam katalog aktif.");
       const menu = menuSnap.data();
       const lockRef = doc(db, "stockRequestLocks", String(movement.menuId || ""));
       const lockSnap = await tx.get(lockRef);
-      if (lockSnap.exists()) throw new Error("Batch tidak dapat dihapus saat menu memiliki pengajuan lain yang menunggu keputusan.");
+      if (lockSnap.exists()) throw new Error("Batch tidak dapat dibatalkan saat menu memiliki pengajuan lain yang masih menunggu keputusan.");
+
       let requestRef = null, requestSnap = null;
       if (movement.requestId) {
         requestRef = doc(db, "stockRequests", movement.requestId);
         requestSnap = await tx.get(requestRef);
         if (!requestSnap.exists() || requestSnap.data().status !== "received" || requestSnap.data().movementId !== movementId) {
-          throw new Error("Pengajuan yang terkait dengan batch stok ini tidak cocok atau belum diterima.");
+          throw new Error("Pengajuan yang terkait dengan batch stok ini tidak cocok atau belum berstatus diterima.");
         }
-        if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi dan tidak dapat dihapus langsung.");
+        if (requestSnap.data().latestAdjustmentRequestId) {
+          throw new Error("Batch ini sudah memiliki riwayat koreksi. Riwayat koreksi harus diselesaikan terlebih dahulu.");
+        }
       }
-      if (menu.partnerId && dayKeyFromTimestamp(movement.createdAt) !== businessDate) {
-        throw new Error("Batch stok dari hari sebelumnya tidak dapat dihapus dari saldo hari ini.");
+      if (menu.partnerId && String(movement.businessDate || dayKeyFromTimestamp(movement.createdAt)) !== businessDate) {
+        throw new Error("Batch stok mitra dari hari sebelumnya tidak dapat mengurangi saldo hari ini.");
       }
+
       const qtyToRemove = Number(movement.editedQty || movement.qty || 0);
       const stockBefore = menuStockForDate(menu, businessDate, false);
-      if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || stockBefore < qtyToRemove) {
-        throw new Error(`Saldo stok saat ini ${integer(stockBefore)} unit, sedangkan batch berjumlah ${integer(qtyToRemove)} unit. Penghapusan dibatalkan agar stok tidak menjadi negatif.`);
+      if (!Number.isSafeInteger(qtyToRemove) || qtyToRemove < 1) {
+        throw new Error("Jumlah batch stok tidak valid. Periksa catatan stok sebelum mencoba lagi.");
       }
+      if (stockBefore < qtyToRemove) {
+        const usedQty = qtyToRemove - stockBefore;
+        throw new Error(`Batch ${integer(qtyToRemove)} unit tidak dapat dibatalkan seluruhnya karena saldo tersedia hanya ${integer(stockBefore)} unit. Sekitar ${integer(usedQty)} unit sudah terpakai. Batalkan transaksi penjualan terkait atau lakukan rekonsiliasi stok terlebih dahulu agar saldo tidak menjadi negatif.`);
+      }
+
       const stockAfter = stockBefore - qtyToRemove;
       const now = serverTimestamp();
-      // Hapus sumber catatan, bukan membuat pergerakan pembalikan/audit baru.
-      // Dokumen menu tetap diperbarui agar saldo POS langsung berkurang.
-      tx.update(menuRef, { stock: stockAfter, ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}), updatedAt: now, lastMovementId: movementId });
-      tx.delete(movementRef);
+      tx.update(menuRef, {
+        stock: stockAfter,
+        ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}),
+        updatedAt: now,
+        lastMovementId: reversalMovementRef.id
+      });
+      tx.set(reversalMovementRef, {
+        type: "adjustment",
+        qty: qtyToRemove,
+        adjustmentDelta: -qtyToRemove,
+        changeType: "dikurang",
+        businessDate,
+        menuId: movement.menuId,
+        menuName: movement.menuName || menu.name || "Menu",
+        partnerId: movement.partnerId || menu.partnerId || null,
+        partnerName: movement.partnerName || menu.partnerName || "—",
+        stockBefore,
+        stockAfter,
+        source: "stock_daily_delete",
+        reversesMovementId: movementId,
+        relatedRequestId: movement.requestId || null,
+        note: `Pembatalan penerimaan stok ${integer(qtyToRemove)} unit untuk koreksi saldo.`,
+        actorUid,
+        actorName,
+        createdAt: now
+      });
+      tx.update(movementRef, {
+        hiddenFromDaily: true,
+        hiddenAt: now,
+        hiddenBy: actorUid,
+        hiddenByName: actorName
+      });
       if (requestSnap?.exists()) tx.delete(requestRef);
-      return { movementId, qty: qtyToRemove, stockAfter };
+      return { movementId, reversalMovementId: reversalMovementRef.id, qty: qtyToRemove, stockBefore, stockAfter };
     });
   }
 
@@ -4041,7 +4086,7 @@ function renderDailyStockLedger() {
     <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 14px"><div class="stat-card"><div class="stat-top">Barang masuk / tambahan</div><div class="stat-value">${integer(incomingQty)} unit</div></div><div class="stat-card"><div class="stat-top">Koreksi pengurangan</div><div class="stat-value">${integer(reducedQty)} unit</div></div></div>
     <div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Jenis</th><th>Jumlah / sumber</th><th>Sisa setelah catatan</th><th>Catatan</th><th>Tanggal / petugas</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="table-empty">Belum ada stok yang disetujui atau koreksi pada tanggal ini.</td></tr>`}</tbody></table></div>
     <div class="pagination-row"><span class="helper-text">${integer(filtered.length)} item · halaman ${stockDailyCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-stock-daily-page="prev" ${stockDailyCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-stock-daily-page="next" ${stockDailyCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
-    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Hapus akan mengurangi saldo lalu menghapus batch dan pengajuan terkait secara permanen. Penghapusan ditolak jika stok tidak mencukupi atau batch memiliki riwayat koreksi.</div>` : ""}
+    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Hapus akan mengurangi saldo, menyembunyikan batch asli dari daftar, dan menyimpan catatan koreksi audit. Penghapusan ditolak jika stok tidak mencukupi atau batch memiliki riwayat koreksi.</div>` : ""}
   </section>`;
 }
 
@@ -5718,14 +5763,14 @@ async function deleteDailyStockMovement(movementId, button) {
   const effectiveQty = Number(movement.editedQty || movement.qty || 0);
   const dateLabel = formatDate(movement.createdAt, { day: "numeric", month: "long", year: "numeric" });
   const ok = await kalapConfirm(
-    `Hapus permanen batch stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok akan dikurangi, dan catatan batch beserta pengajuan yang terkait akan dihapus dari sistem dan seluruh akun. Jika stok sudah digunakan sehingga saldo tidak mencukupi, penghapusan akan ditolak.`,
+    `Batalkan penerimaan stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok akan dikurangi dengan catatan koreksi audit. Batch asli akan disembunyikan dari daftar, pengajuan terkait dihapus dari daftar, dan jejak koreksi tetap tersimpan. Jika sebagian stok sudah terpakai sehingga saldo tidak cukup, tindakan akan ditolak agar stok tidak negatif.`,
     { title: "Hapus stok masuk", confirmText: "Hapus stok", danger: true }
   );
   if (!ok) return;
   setBusy(button, true, "Menghapus...");
   try {
-    await callApi("deleteDailyStockMovement", { movementId });
-    toast("Batch stok dan pengajuan terkait berhasil dihapus permanen. Saldo POS sudah disesuaikan.", "success");
+    const result = await callApi("deleteDailyStockMovement", { movementId });
+    toast(`Penerimaan stok berhasil dibatalkan. Saldo disesuaikan dari ${integer(result.stockBefore)} menjadi ${integer(result.stockAfter)} unit dan catatan koreksi disimpan.`, "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
