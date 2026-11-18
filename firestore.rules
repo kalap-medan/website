@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.12 (stock receipt cancellation with audited adjustment + daily reset).
+// KALAP Firestore Rules — application v2.2.13 (Superadmin-only full operational reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -26,6 +26,23 @@ service cloud.firestore {
     function resetAuthorizationContains(fieldName, documentId) {
       let authPath = /databases/$(database)/documents/dailyResetAuthorizations/active;
       return activeDailyResetAuthorization()
+        && get(authPath).data.get(fieldName, []) is list
+        && get(authPath).data.get(fieldName, []).hasAny([documentId]);
+    }
+
+    // Reset Seluruh Sistem: Superadmin aktif saja. Manifest diperbarui per batch
+    // agar daftar dokumen yang diizinkan tetap kecil dan tidak melampaui batas ukuran.
+    function activeFullSystemResetAuthorization() {
+      let authPath = /databases/$(database)/documents/systemResetAuthorizations/active;
+      return isSuperadmin()
+        && exists(authPath)
+        && get(authPath).data.status == 'running'
+        && get(authPath).data.requestedBy == request.auth.uid;
+    }
+
+    function fullSystemResetContains(fieldName, documentId) {
+      let authPath = /databases/$(database)/documents/systemResetAuthorizations/active;
+      return activeFullSystemResetAuthorization()
         && get(authPath).data.get(fieldName, []) is list
         && get(authPath).data.get(fieldName, []).hasAny([documentId]);
     }
@@ -244,6 +261,15 @@ service cloud.firestore {
                 || (resource.data.get('partnerId', null) is string && resource.data.partnerId.size() == 0))
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId']))))
         || (isSuperadmin()
+          && fullSystemResetContains('menuIds', menuId)
+          && request.resource.data.stock == 0
+          && request.resource.data.lastMovementId == null
+          && request.resource.data.updatedAt == request.time
+          && ((resource.data.get('partnerId', null) is string && resource.data.partnerId.size() > 0)
+            ? request.resource.data.stockBusinessDate == get(/databases/$(database)/documents/systemResetAuthorizations/active).data.resetDateKey
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt', 'lastMovementId'])
+            : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId'])))
+        || (isSuperadmin()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'price', 'active', 'updatedAt', 'updatedBy']))
         || (isSuperadmin()
           // Menu lama belum tentu memiliki field `deleted`; gunakan default false.
@@ -336,9 +362,10 @@ service cloud.firestore {
         && request.resource.data.cancelMovementIds.size() == resource.data.items.size()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','cancelledAt','cancelledBy','cancelledByName','cancelBusinessDate','cancelReason','cancelMovementIds'])
         && (isStaff() || resource.data.cashierUid == request.auth.uid);
-      allow delete: if resetAuthorizationContains('transactionIds', transactionId)
-        && (resource.data.get('businessDate', '') == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey
-          || resetTimestampInTargetDay(resource.data.get('createdAt', null)));
+      allow delete: if fullSystemResetContains('transactionIds', transactionId)
+        || (resetAuthorizationContains('transactionIds', transactionId)
+          && (resource.data.get('businessDate', '') == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey
+            || resetTimestampInTargetDay(resource.data.get('createdAt', null))));
     }
 
     match /stockMovements/{movementId} {
@@ -455,7 +482,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
           ]));
-      allow delete: if (resetAuthorizationContains('stockMovementIds', movementId)
+      allow delete: if fullSystemResetContains('stockMovementIds', movementId)
+        || (resetAuthorizationContains('stockMovementIds', movementId)
           && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
             || (resource.data.get('transactionId', null) is string
               && resetAuthorizationContains('transactionIds', resource.data.transactionId))))
@@ -524,10 +552,11 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId))
         && getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.status == 'cancelled'
         && (isStaff() || getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
-      allow delete: if resetAuthorizationContains('cashflowIds', cashflowId)
-        && resource.data.source in ['sale', 'operational_sale']
-        && resource.data.transactionId is string
-        && resetAuthorizationContains('transactionIds', resource.data.transactionId);
+      allow delete: if fullSystemResetContains('cashflowIds', cashflowId)
+        || (resetAuthorizationContains('cashflowIds', cashflowId)
+          && resource.data.source in ['sale', 'operational_sale']
+          && resource.data.transactionId is string
+          && resetAuthorizationContains('transactionIds', resource.data.transactionId));
     }
 
     match /partnerSales/{partnerSaleId} {
@@ -550,9 +579,10 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId))
         && getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.status == 'cancelled'
         && (isStaff() || getAfter(/databases/$(database)/documents/transactions/$(resource.data.transactionId)).data.cashierUid == request.auth.uid);
-      allow delete: if resetAuthorizationContains('partnerSaleIds', partnerSaleId)
-        && resource.data.transactionId is string
-        && resetAuthorizationContains('transactionIds', resource.data.transactionId);
+      allow delete: if fullSystemResetContains('partnerSaleIds', partnerSaleId)
+        || (resetAuthorizationContains('partnerSaleIds', partnerSaleId)
+          && resource.data.transactionId is string
+          && resetAuthorizationContains('transactionIds', resource.data.transactionId));
     }
 
     match /stockRequests/{requestId} {
@@ -737,7 +767,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'expiredAt', 'expiredBy', 'expiredByName', 'expiredForBusinessDate'
           ]));
-      allow delete: if (resetAuthorizationContains('stockRequestIds', requestId)
+      allow delete: if fullSystemResetContains('stockRequestIds', requestId)
+        || (resetAuthorizationContains('stockRequestIds', requestId)
           && resource.data.status in ['pending', 'received', 'voided']
           && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
             || resetTimestampInTargetDay(resource.data.get('voidedAt', null))
@@ -786,7 +817,8 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.businessDate == request.resource.data.businessDate
         && getAfter(/databases/$(database)/documents/stockRequests/$(request.resource.data.requestId)).data.status == 'pending';
       allow update: if false;
-      allow delete: if resetAuthorizationContains('stockRequestLockIds', menuId)
+      allow delete: if fullSystemResetContains('stockRequestLockIds', menuId)
+        || resetAuthorizationContains('stockRequestLockIds', menuId)
         || (isStaff() && (
         // Bersihkan lock yatim atau lock yang sudah diselesaikan/dikadaluarsakan.
         !exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
@@ -845,8 +877,9 @@ service cloud.firestore {
             'status', 'failedAt', 'failureMessage'
           ]))
       );
-      allow delete: if activeDailyResetAuthorization()
-        && get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey == dateKey;
+      allow delete: if (activeDailyResetAuthorization()
+          && get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey == dateKey)
+        || fullSystemResetContains('closingIds', dateKey);
 
       match /partnerSummaries/{partnerId} {
         allow get: if isStaff() || (isPartner() && partnerId == myProfile().partnerId);
@@ -878,8 +911,9 @@ service cloud.firestore {
             'disposition', 'dispositionAt', 'dispositionByUid', 'dispositionByName', 'updatedAt'
           ])
           && get(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed';
-        allow delete: if resetAuthorizationContains('closingSummaryIds', partnerId)
-          && get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey == dateKey;
+        allow delete: if (resetAuthorizationContains('closingSummaryIds', partnerId)
+            && get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey == dateKey)
+          || fullSystemResetContains('closingSummaryIds', dateKey + '|' + partnerId);
       }
     }
 
@@ -898,8 +932,9 @@ service cloud.firestore {
         && request.resource.data.status == 'paid'
         && request.resource.data.markedPaidBy == request.auth.uid
         && request.resource.data.markedPaidAt == request.time;
-      allow delete: if resetAuthorizationContains('payoutIds', payoutId)
-        && resource.data.dateKey == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey;
+      allow delete: if fullSystemResetContains('payoutIds', payoutId)
+        || (resetAuthorizationContains('payoutIds', payoutId)
+          && resource.data.dateKey == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey);
     }
 
     match /dailyResetAuthorizations/{authId} {
@@ -969,6 +1004,85 @@ service cloud.firestore {
             : request.resource.data.failedAt == request.time
               && request.resource.data.failureMessage is string))
       );
+      allow delete: if false;
+    }
+
+    match /systemResetAuthorizations/{authId} {
+      allow get, list: if isSuperadmin();
+      allow create: if isSuperadmin()
+        && authId == 'active'
+        && request.resource.data.status == 'running'
+        && request.resource.data.resetDateKey is string
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.requestedByName is string
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.chunkIndex is int
+        && request.resource.data.menuIds is list
+        && request.resource.data.transactionIds is list
+        && request.resource.data.cashflowIds is list
+        && request.resource.data.partnerSaleIds is list
+        && request.resource.data.stockMovementIds is list
+        && request.resource.data.stockRequestIds is list
+        && request.resource.data.stockRequestLockIds is list
+        && request.resource.data.payoutIds is list
+        && request.resource.data.closingIds is list
+        && request.resource.data.closingSummaryIds is list;
+      allow update: if isSuperadmin() && authId == 'active'
+        && (
+          // Pemilik proses yang sama boleh memperbarui manifest untuk batch berikutnya.
+          (resource.data.status == 'running'
+            && resource.data.requestedBy == request.auth.uid
+            && request.resource.data.status == 'running'
+            && request.resource.data.resetDateKey == resource.data.resetDateKey
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'menuIds', 'transactionIds', 'cashflowIds', 'partnerSaleIds', 'stockMovementIds',
+              'stockRequestIds', 'stockRequestLockIds', 'payoutIds', 'closingIds',
+              'closingSummaryIds', 'chunkIndex', 'updatedAt'
+            ])
+            && request.resource.data.menuIds is list
+            && request.resource.data.transactionIds is list
+            && request.resource.data.cashflowIds is list
+            && request.resource.data.partnerSaleIds is list
+            && request.resource.data.stockMovementIds is list
+            && request.resource.data.stockRequestIds is list
+            && request.resource.data.stockRequestLockIds is list
+            && request.resource.data.payoutIds is list
+            && request.resource.data.closingIds is list
+            && request.resource.data.closingSummaryIds is list)
+          ||
+          // Selesaikan atau tandai gagal setelah seluruh batch selesai/terhenti.
+          (resource.data.status == 'running'
+            && resource.data.requestedBy == request.auth.uid
+            && request.resource.data.status in ['completed', 'failed']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'completedAt', 'failedAt', 'failureMessage', 'committedChunks',
+              'totalOperations', 'counts'
+            ]))
+          ||
+          // Percobaan baru boleh dimulai setelah catatan sebelumnya selesai/gagal.
+          (resource.data.status in ['completed', 'failed']
+            && request.resource.data.status == 'running'
+            && request.resource.data.resetDateKey is string
+            && request.resource.data.requestedBy == request.auth.uid
+            && request.resource.data.requestedByName is string
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.chunkIndex == 0
+            && request.resource.data.menuIds is list
+            && request.resource.data.transactionIds is list
+            && request.resource.data.cashflowIds is list
+            && request.resource.data.partnerSaleIds is list
+            && request.resource.data.stockMovementIds is list
+            && request.resource.data.stockRequestIds is list
+            && request.resource.data.stockRequestLockIds is list
+            && request.resource.data.payoutIds is list
+            && request.resource.data.closingIds is list
+            && request.resource.data.closingSummaryIds is list
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'resetDateKey', 'status', 'requestedBy', 'requestedByName', 'createdAt', 'chunkIndex',
+              'menuIds', 'transactionIds', 'cashflowIds', 'partnerSaleIds', 'stockMovementIds',
+              'stockRequestIds', 'stockRequestLockIds', 'payoutIds', 'closingIds', 'closingSummaryIds'
+            ]))
+        );
       allow delete: if false;
     }
 

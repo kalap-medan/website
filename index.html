@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.12">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.13">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.12">
-  <title>KALAP Management System v2.2.12</title>
+  <meta name="application-version" content="2.2.13">
+  <title>KALAP Management System v2.2.13</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.12</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.13</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1594,6 +1594,57 @@ function kalapConfirm(message, options = {}) {
     okButton.focus();
   });
 }
+function confirmFullSystemReset() {
+  const root = $("#modal-root");
+  if (!root) return Promise.resolve(false);
+  return new Promise(resolve => {
+    const previousFocus = document.activeElement;
+    root.innerHTML = `<div class="modal-backdrop" data-full-reset-backdrop>
+      <section class="modal" role="alertdialog" aria-modal="true" aria-labelledby="full-reset-title" style="width:min(620px,calc(100vw - 28px));max-height:90vh;overflow:auto">
+        <div class="modal-head"><div><h2 id="full-reset-title">Reset seluruh sistem</h2><p class="muted">Tindakan permanen dan tidak dapat dibatalkan</p></div><button type="button" class="modal-close" data-full-reset-cancel aria-label="Tutup">×</button></div>
+        <div style="padding:0 2px 14px;line-height:1.7">
+          <p><strong>Data operasional yang akan dihapus:</strong> transaksi, catatan keuangan, penjualan mitra, seluruh pergerakan stok, pengajuan stok dan kuncinya, pembayaran mitra, data closing, serta ringkasan closing.</p>
+          <p><strong>Saldo stok semua menu akan diatur menjadi 0.</strong> Nama menu, harga, kode QR/barcode, status menu, data mitra, rekening mitra, dan akun login pengguna tidak dihapus. Arsip menu dan mitra juga tetap dipertahankan.</p>
+          <p class="status inactive" style="display:block;white-space:normal;margin:12px 0">Pastikan semua kasir dan mitra berhenti melakukan input selama proses reset. Jangan tutup halaman sampai proses selesai.</p>
+          <label class="field-label" for="full-reset-confirm-word">Ketik <strong>RESET SEMUA</strong> untuk mengaktifkan tombol</label>
+          <input id="full-reset-confirm-word" type="text" autocomplete="off" spellcheck="false" placeholder="Ketik RESET SEMUA">
+        </div>
+        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid var(--line)">
+          <button type="button" class="btn btn-light" data-full-reset-cancel>Batal</button>
+          <button type="button" class="btn btn-danger" data-full-reset-confirm disabled>Reset sekarang</button>
+        </div>
+      </section>
+    </div>`;
+    const input = $("#full-reset-confirm-word", root);
+    const confirmButton = $("[data-full-reset-confirm]", root);
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeyDown);
+      root.innerHTML = "";
+      if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
+      resolve(value);
+    };
+    const isConfirmed = () => input.value.trim().toUpperCase() === "RESET SEMUA";
+    const onKeyDown = event => {
+      if (event.key === "Escape") { event.preventDefault(); finish(false); }
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        if (isConfirmed()) finish(true);
+      }
+    };
+    input.addEventListener("input", () => { confirmButton.disabled = !isConfirmed(); });
+    confirmButton.addEventListener("click", () => { if (isConfirmed()) finish(true); });
+    root.querySelectorAll("[data-full-reset-cancel]").forEach(button => button.addEventListener("click", () => finish(false)));
+    root.querySelector("[data-full-reset-backdrop]").addEventListener("click", event => {
+      if (event.target === event.currentTarget) finish(false);
+    });
+    document.addEventListener("keydown", onKeyDown);
+    input.focus();
+  });
+}
+
 function friendlyError(error) {
   const code = error?.code || "";
   if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password") || code.includes("auth/user-not-found")) return "Email atau kata sandi tidak sesuai.";
@@ -2940,6 +2991,165 @@ async function callApi(name, payload = {}) {
     }
   }
 
+  if (name === "resetEntireSystem") {
+    let resetPhase = "memeriksa akun Superadmin";
+    let authRef = null;
+    let resetStarted = false;
+    let committedChunks = 0;
+    try {
+      if (!actorUid) throw new Error("Sesi akun tidak ditemukan. Silakan login kembali.");
+      const liveProfileSnap = await getDocFromServer(doc(db, "users", actorUid));
+      if (!liveProfileSnap.exists()) throw new Error("Profil akun tidak ditemukan di Firestore.");
+      const liveProfile = liveProfileSnap.data();
+      if (liveProfile.active !== true || liveProfile.role !== "superadmin") {
+        throw new Error("Reset seluruh sistem hanya dapat dijalankan oleh akun Superadmin yang aktif.");
+      }
+      if (profile?.role !== "superadmin" || profile?.active !== true) profile = { uid: actorUid, ...liveProfile };
+
+      const resetDateKey = jakartaDateKey(new Date());
+      authRef = doc(db, "systemResetAuthorizations", "active");
+      resetPhase = "memeriksa proses reset sebelumnya";
+      const previousAuth = await getDocFromServer(authRef);
+      if (previousAuth.exists() && previousAuth.data().status === "running") {
+        const previousData = previousAuth.data();
+        const startedAt = asDate(previousData.createdAt);
+        const age = startedAt ? Date.now() - startedAt.getTime() : 0;
+        if (previousData.requestedBy === actorUid && age > 30 * 60 * 1000) {
+          await updateDoc(authRef, {
+            status: "failed", failedAt: serverTimestamp(),
+            failureMessage: "Proses reset sebelumnya dipulihkan karena terputus lebih dari 30 menit."
+          });
+        } else {
+          throw new Error("Sudah ada proses Reset Seluruh Sistem yang tercatat berjalan. Jangan jalankan reset kedua kali sebelum proses sebelumnya selesai.");
+        }
+      }
+
+      const manifestFields = [
+        "menuIds", "transactionIds", "cashflowIds", "partnerSaleIds", "stockMovementIds",
+        "stockRequestIds", "stockRequestLockIds", "payoutIds", "closingIds", "closingSummaryIds"
+      ];
+      const emptyManifest = Object.fromEntries(manifestFields.map(field => [field, []]));
+      const initialAuth = {
+        resetDateKey, status: "running", requestedBy: actorUid, requestedByName: actorName,
+        createdAt: serverTimestamp(), chunkIndex: 0, ...emptyManifest
+      };
+      resetPhase = "mengunci proses reset seluruh sistem";
+      if (previousAuth.exists()) await setDoc(authRef, initialAuth, { merge: true });
+      else await setDoc(authRef, initialAuth);
+      resetStarted = true;
+
+      resetPhase = "membaca semua data operasional";
+      const collectionNames = [
+        "transactions", "cashflows", "partnerSales", "stockMovements",
+        "stockRequests", "stockRequestLocks", "partnerPayouts", "dailyClosings"
+      ];
+      const collectionSnapshots = await Promise.all(collectionNames.map(name => getDocs(collection(db, name))));
+      const snapshotsByName = Object.fromEntries(collectionNames.map((name, index) => [name, collectionSnapshots[index]]));
+      const closingSummarySnapshots = await Promise.all(snapshotsByName.dailyClosings.docs.map(closingSnap =>
+        getDocs(collection(db, "dailyClosings", closingSnap.id, "partnerSummaries"))
+      ));
+      const allClosingSummaries = closingSummarySnapshots.flatMap(snap => snap.docs.map(summarySnap => ({
+        snap: summarySnap,
+        dateKey: summarySnap.ref.parent.parent?.id || ""
+      })));
+      const menuSnapshot = await getDocs(collection(db, "menus"));
+
+      const operations = [];
+      const stockResetAt = serverTimestamp();
+      for (const menuSnap of menuSnapshot.docs) {
+        const menu = menuSnap.data();
+        const isPartnerMenu = typeof menu.partnerId === "string" && menu.partnerId.length > 0;
+        const numericStock = Number(menu.stock);
+        const needsReset = typeof menu.stock !== "number" || !Number.isSafeInteger(numericStock) || numericStock !== 0
+          || (menu.lastMovementId !== null && menu.lastMovementId !== undefined)
+          || (isPartnerMenu && String(menu.stockBusinessDate || "") !== resetDateKey);
+        if (!needsReset) continue;
+        const update = {
+          stock: 0,
+          lastMovementId: null,
+          updatedAt: stockResetAt
+        };
+        if (isPartnerMenu) update.stockBusinessDate = resetDateKey;
+        operations.push({
+          action: "update", ref: menuSnap.ref, id: menuSnap.id, field: "menuIds", data: update
+        });
+      }
+      const addDeletes = (name, field) => snapshotsByName[name].docs.forEach(snap => operations.push({
+        action: "delete", ref: snap.ref, id: snap.id, field
+      }));
+      addDeletes("transactions", "transactionIds");
+      addDeletes("cashflows", "cashflowIds");
+      addDeletes("partnerSales", "partnerSaleIds");
+      addDeletes("stockMovements", "stockMovementIds");
+      addDeletes("stockRequests", "stockRequestIds");
+      addDeletes("stockRequestLocks", "stockRequestLockIds");
+      addDeletes("partnerPayouts", "payoutIds");
+      addDeletes("dailyClosings", "closingIds");
+      allClosingSummaries.forEach(({ snap, dateKey }) => operations.push({
+        action: "delete", ref: snap.ref, id: `${dateKey}|${snap.id}`, field: "closingSummaryIds"
+      }));
+
+      const totalOperations = operations.length;
+      const chunkSize = 250;
+      const chunks = [];
+      for (let index = 0; index < operations.length; index += chunkSize) {
+        chunks.push(operations.slice(index, index + chunkSize));
+      }
+      const counts = {
+        menusStockReset: operations.filter(item => item.action === "update").length,
+        transactions: snapshotsByName.transactions.size,
+        cashflows: snapshotsByName.cashflows.size,
+        partnerSales: snapshotsByName.partnerSales.size,
+        stockMovements: snapshotsByName.stockMovements.size,
+        stockRequests: snapshotsByName.stockRequests.size,
+        stockRequestLocks: snapshotsByName.stockRequestLocks.size,
+        partnerPayouts: snapshotsByName.partnerPayouts.size,
+        dailyClosings: snapshotsByName.dailyClosings.size,
+        closingSummaries: allClosingSummaries.length
+      };
+
+      for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+        const chunk = chunks[chunkIndex];
+        const manifest = Object.fromEntries(manifestFields.map(field => [field, []]));
+        chunk.forEach(operation => manifest[operation.field].push(operation.id));
+        resetPhase = `mempersiapkan batch ${chunkIndex + 1} dari ${chunks.length}`;
+        await updateDoc(authRef, {
+          ...manifest, chunkIndex: chunkIndex + 1, updatedAt: serverTimestamp()
+        });
+        const batch = writeBatch(db);
+        chunk.forEach(operation => {
+          if (operation.action === "update") batch.update(operation.ref, operation.data);
+          else batch.delete(operation.ref);
+        });
+        resetPhase = `menerapkan batch ${chunkIndex + 1} dari ${chunks.length}`;
+        await batch.commit();
+        committedChunks += 1;
+        if (typeof payload.onProgress === "function") payload.onProgress(chunkIndex + 1, chunks.length, totalOperations);
+      }
+
+      resetPhase = "menyelesaikan catatan reset";
+      await updateDoc(authRef, {
+        status: "completed", completedAt: serverTimestamp(),
+        completedChunks: committedChunks, totalOperations,
+        counts
+      });
+      return { resetDateKey, totalOperations, committedChunks, counts };
+    } catch (error) {
+      if (authRef && resetStarted) {
+        await updateDoc(authRef, {
+          status: "failed", failedAt: serverTimestamp(),
+          failureMessage: `${resetPhase}: ${String(error?.message || error).slice(0, 240)}`,
+          committedChunks
+        }).catch(() => {});
+      }
+      try {
+        error.kalapFullResetPhase = resetPhase;
+        error.kalapCommittedChunks = committedChunks;
+      } catch (_) {}
+      throw error;
+    }
+  }
+
   throw new Error(`Aksi ${name} tidak dikenali.`);
 }
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
@@ -3849,7 +4059,10 @@ function renderStockPage() {
   const stockColumn = catalogOnly ? "" : "<th>Stok</th>";
   const stockCell = menu => catalogOnly ? "" : `<td><strong>${integer(menuStockForDate(menu))}</strong></td>`;
   const emptyColspan = catalogOnly ? (profile.role === "superadmin" ? 6 : 5) : (profile.role === "superadmin" ? 7 : 6);
-  return `${pageHeading(catalogOnly ? "Menu & persediaan" : "Pemantauan stok", catalogOnly ? "Kelola daftar menu, mitra, harga, dan status menu KALAP." : "Pantau daftar menu dan ketersediaan stok hari ini.")}
+  const fullResetAction = catalogOnly
+    ? `<button type="button" class="btn btn-danger" id="reset-entire-system">Reset seluruh sistem</button>`
+    : "";
+  return `${pageHeading(catalogOnly ? "Menu & persediaan" : "Pemantauan stok", catalogOnly ? "Kelola daftar menu, mitra, harga, dan status menu KALAP." : "Pantau daftar menu dan ketersediaan stok hari ini.", fullResetAction)}
     ${stats}
     <section class="panel">
       ${panelHeader("Semua menu KALAP", `${integer(filteredMenus.length)} dari ${integer(allMenus.length)} menu`, `<button class="btn btn-light" data-export-menus>Ekspor daftar CSV</button>`)}
@@ -4422,6 +4635,7 @@ function attachPageEvents() {
   updateLabelSelectionSummary();
   refreshUnifiedLabelSearch();
   $('[data-export-menus]')?.addEventListener("click", exportMenusCsv);
+  $("#reset-entire-system")?.addEventListener("click", event => resetEntireSystem(event.currentTarget));
   $$('[data-detail-tx]').forEach(button => button.addEventListener("click", () => showTransactionDetail(button.dataset.detailTx)));
   $$('[data-cancel-tx]').forEach(button => button.addEventListener("click", () => cancelTransactionFromHistory(button.dataset.cancelTx, button)));
   $$('[data-edit-user-name]').forEach(button => button.addEventListener("click", () => editManagedUserName(button.dataset.editUserName)));
@@ -5773,6 +5987,38 @@ async function deleteDailyStockMovement(movementId, button) {
     toast(`Penerimaan stok berhasil dibatalkan. Saldo disesuaikan dari ${integer(result.stockBefore)} menjadi ${integer(result.stockAfter)} unit dan catatan koreksi disimpan.`, "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
+}
+
+async function resetEntireSystem(button) {
+  if (profile?.role !== "superadmin" || profile?.active !== true) {
+    return toast("Reset seluruh sistem hanya dapat dilakukan oleh Superadmin aktif.", "error");
+  }
+  const confirmed = await confirmFullSystemReset();
+  if (!confirmed) return;
+  setBusy(button, true, "Menyiapkan reset...");
+  try {
+    const result = await callApi("resetEntireSystem", {
+      onProgress: (current, total) => { if (button) button.textContent = `Reset ${current}/${total}...`; }
+    });
+    const count = result.counts || {};
+    toast(`Reset selesai. ${integer(count.menusStockReset)} saldo menu menjadi 0; ${integer(count.transactions)} transaksi, ${integer(count.stockMovements)} pergerakan stok, ${integer(count.stockRequests)} pengajuan, dan seluruh data operasional terkait dibersihkan. Menu, mitra, dan akun login tetap tersimpan.`, "success");
+    stockDailyDateKey = jakartaDateKey(new Date());
+    stockDailyCurrentPage = 1;
+    requestCurrentPage = 1;
+    // Snapshot Firestore yang sudah aktif akan memperbarui tabel dan dashboard
+    // setelah setiap batch. Render ulang hanya untuk mereset halaman/filter lokal.
+    renderPage();
+  } catch (error) {
+    console.error("Reset Seluruh Sistem gagal", {
+      code: error?.code || "unknown", phase: error?.kalapFullResetPhase || "tidak diketahui",
+      committedChunks: error?.kalapCommittedChunks || 0, message: error?.message || String(error), error
+    });
+    const phase = String(error?.kalapFullResetPhase || "proses reset");
+    const partial = Number(error?.kalapCommittedChunks || 0);
+    toast(`Reset gagal pada tahap ${phase}. ${partial ? `${partial} batch sudah berhasil diterapkan; jalankan ulang setelah memeriksa data.` : "Tidak ada batch perubahan yang berhasil diterapkan."} Detail: ${friendlyError(error)}`, "error");
+  } finally {
+    setBusy(button, false);
+  }
 }
 
 async function resetDailyOperations(dateKey, button) {
