@@ -1,11 +1,11 @@
-# KALAP Management System v2.2.10
+# KALAP Management System v2.2.11
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: Firebase Firestore Security Rules v2.2.10. Wajib dipublikasikan karena skema otorisasi Reset Harian ditambah `menuIds` dan jalur validasi batch dioptimalkan.
+- `firestore.rules`: Firebase Firestore Security Rules v2.2.11. Wajib dipublikasikan karena skema otorisasi Reset Harian ditambah `menuIds` dan jalur validasi batch dioptimalkan.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`: identitas PWA. Folder `icons/` dipertahankan dari repository yang sudah ada (tidak disertakan ulang di ZIP ini).
-- `service-worker.js`: cache shell versi 2.2.10.
+- `service-worker.js`: cache shell versi 2.2.11.
 
 
 ## Perubahan v2.2.9 — perbaikan otorisasi Reset Harian
@@ -149,3 +149,14 @@ Rules v2.2.10 tetap mempertahankan izin fitur Tolak, edit/hapus stok, arsip menu
 - Arsip `menuArchives` dan `partnerArchives` menyimpan snapshot untuk menjaga referensi transaksi lama; keduanya bukan daftar menu/mitra aktif.
 - Penghapusan profil `users` dari browser memutus akses aplikasi karena pemeriksaan profil gagal dan sesi akan dikeluarkan. Identitas akun di Firebase Authentication tetap perlu dihapus melalui Admin SDK jika memang ingin dihapus permanen dari daftar Authentication.
 - Reset harian menghapus transaksi operasional tanggal yang dipilih. Pastikan tanggal yang benar dipilih sebelum menyetujui konfirmasi.
+
+## Perubahan v2.2.11 — perbaikan hapus riwayat stok diterima
+
+- Memperbaiki ketidaksesuaian antara operasi aplikasi dan Firestore Rules saat Superadmin menghapus riwayat pengajuan stok berstatus `received`.
+- Operasi aplikasi memang mempertahankan dokumen `stockMovements` untuk menjaga saldo dan jejak audit, sambil menandainya `hiddenFromDaily`; Rules sebelumnya justru mensyaratkan dokumen movement ikut dihapus.
+- Rules sekarang mengizinkan perubahan metadata `hiddenFromDaily` hanya jika movement bertipe stok masuk terhubung ke pengajuan `received` yang sama dan pengajuan tersebut dihapus dalam transaksi yang sama oleh staf aktif.
+- Rules penghapusan pengajuan memverifikasi movement tetap ada, ID request cocok, dan penandaan tersembunyi dibuat oleh pengguna yang sama pada transaksi yang sama.
+- Penghapusan ini tidak mengubah `menus.stock`, tidak menghapus dokumen pergerakan stok, dan tidak membalik saldo. Riwayat stok tetap dapat diaudit; hanya baris pengajuan dan tampilan pergerakan harian yang disembunyikan sesuai perilaku aplikasi.
+- Cache PWA dinaikkan ke `kalap-shell-v2.2.11`.
+
+**Penting:** publikasikan `firestore.rules` v2.2.11 ke project Firebase yang sama dan deploy `index.html` v2.2.11. Aturan v2.2.10 sebelumnya tidak mengizinkan transaksi hide movement + delete received request yang dilakukan aplikasi. Folder `icons/` tetap dipertahankan dari repository yang ada.

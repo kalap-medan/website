@@ -1,0 +1,11 @@
+KALAP Management System v2.2.11
+
+Perbaikan hapus riwayat stok diterima (Superadmin)
+- Aplikasi menghapus dokumen stockRequests berstatus received setelah menandai stockMovements terkait dengan hiddenFromDaily=true. Dokumen stockMovements sengaja dipertahankan agar saldo dan jejak audit tidak berubah.
+- Firestore Rules sebelumnya menolak transaksi ini karena mengharuskan movement ikut dihapus, padahal aplikasi meng-update movement dan menghapus request dalam satu transaksi.
+- Rules kini mengizinkan update metadata hiddenFromDaily hanya jika movement bertipe in terkait dengan request received yang sama, tidak memiliki koreksi/lock aktif, dan request tersebut dihapus dalam transaksi yang sama oleh staf aktif.
+- Rules penghapusan request memverifikasi movement tetap ada, requestId cocok, serta metadata hiddenFromDaily/hiddenAt/hiddenBy dibuat oleh pengguna yang sama dalam transaksi tersebut.
+- Tidak mengubah saldo menu, tidak menghapus stockMovement, dan tidak mengubah saldo POS.
+- Versi cache PWA dinaikkan ke kalap-shell-v2.2.11.
+
+Publikasikan firestore.rules dari paket v2.2.11 ke project Firebase yang sama, lalu deploy index.html v2.2.11.

@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — optimized for application v2.2.10 daily reset batches.
+// KALAP Firestore Rules — application v2.2.11 (received stock history deletion + daily reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -423,7 +423,26 @@ service cloud.firestore {
           ])
           && (resource.data.get('requestId', null) == null
             || (existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
-              && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided')));
+              && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided')))
+        || (isStaff()
+          && resource.data.type == 'in'
+          && resource.data.get('voided', false) == false
+          && resource.data.get('requestId', null) is string
+          && exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'received'
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('requestType', 'stock') != 'adjustment'
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', null) == null
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.movementId == movementId
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.menuId == resource.data.menuId
+          && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+          && !existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && request.resource.data.hiddenFromDaily == true
+          && request.resource.data.hiddenAt == request.time
+          && request.resource.data.hiddenBy == request.auth.uid
+          && request.resource.data.hiddenByName is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
+          ]));
       allow delete: if (resetAuthorizationContains('stockMovementIds', movementId)
           && (resetTimestampInTargetDay(resource.data.get('createdAt', null))
             || (resource.data.get('transactionId', null) is string
@@ -719,7 +738,19 @@ service cloud.firestore {
           && resource.data.get('movementId', null) is string
           && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
           && !existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
-          && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId);
+          && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId)
+        || (isStaff() && resource.data.status == 'received'
+          && resource.data.get('requestType', 'stock') != 'adjustment'
+          && resource.data.get('latestAdjustmentRequestId', null) == null
+          && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+          && resource.data.get('movementId', null) is string
+          && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+          && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
+          && existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+          && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
+          && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenFromDaily == true
+          && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenAt == request.time
+          && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenBy == request.auth.uid);
     }
 
     match /stockRequestLocks/{menuId} {
