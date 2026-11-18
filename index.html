@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.7">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.8">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.7">
-  <title>KALAP Management System v2.2.7</title>
+  <meta name="application-version" content="2.2.8">
+  <title>KALAP Management System v2.2.8</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.7</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.8</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1226,7 +1226,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, getDoc, getDocFromCache, getDocFromServer, getDocs, onSnapshot, query, where,
+  collection, doc, getDoc, getDocFromCache, getDocFromServer, getDocs, getDocsFromServer, onSnapshot, query, where,
   orderBy, limit, Timestamp, addDoc, setDoc, updateDoc, deleteDoc, runTransaction, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -1321,6 +1321,7 @@ const directoryPageSize = 12;
 const closingPageSize = 10;
 let closingSummariesUnsubscriber = null;
 let partnerClosingUnsubscriber = null;
+let todayClosingUnsubscriber = null;
 let posSearchQuery = "";
 let posCurrentPage = 1;
 const posPageSize = 12;
@@ -1337,7 +1338,7 @@ let store = {
   dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
   dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [],
   transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
-  dailyClosings: [], closingSummaries: [], partnerDailySummary: null
+  dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null
 };
 let stockDailyUnsubscriber = null;
 let partnerManagementTodayUnsubscriber = null;
@@ -1345,6 +1346,10 @@ let stockDailyDateKey = jakartaDateKey(new Date());
 let stockDailySearchQuery = "";
 let stockDailyCurrentPage = 1;
 const stockDailyPageSize = 15;
+let stockRolloverDayKey = "";
+let stockRolloverPromise = null;
+let stockRequestExpiryDayKey = "";
+let stockRequestExpiryPromise = null;
 let busy = false;
 
 function jakartaDateKey(date) {
@@ -1371,6 +1376,125 @@ function asDate(value) {
   return new Date(value);
 }
 function dayKeyFromTimestamp(value) { const date = asDate(value); return date ? jakartaDateKey(date) : ""; }
+function isBusinessDayLocked(dateKey = jakartaDateKey(new Date())) {
+  const today = store.todayClosing;
+  if (today?.id === dateKey && ["closing", "closed"].includes(String(today.status || ""))) return true;
+  if (store.dailyClosings.some(row => row.id === dateKey && ["closing", "closed"].includes(String(row.status || "")))) return true;
+  return store.partnerDailySummary?.dateKey === dateKey && store.partnerDailySummary?.status === "closed";
+}
+function menuStockForDate(menu, dateKey = jakartaDateKey(new Date()), respectClosing = true) {
+  if (!menu) return 0;
+  const stock = Math.max(0, Number(menu.stock || 0));
+  if (!menu.partnerId) return stock;
+  if (respectClosing && isBusinessDayLocked(dateKey)) return 0;
+  return String(menu.stockBusinessDate || "") === String(dateKey) ? stock : 0;
+}
+
+// Persediaan produk Mitra adalah saldo harian, bukan saldo yang dibawa antarhari.
+// Pada pemasangan pertama, stok yang benar-benar masuk hari ini tetap dipertahankan.
+async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())) {
+  if (!db || !profile || !["superadmin", "spv"].includes(profile.role)) return { reset: 0, currentDayStock: 0 };
+  if (stockRolloverDayKey === dateKey) return { reset: 0, currentDayStock: 0 };
+  if (stockRolloverPromise) return stockRolloverPromise;
+  stockRolloverPromise = (async () => {
+    // Jangan membangun ulang saldo jika tanggal yang diminta sudah masuk proses closing.
+    // Tanpa pemeriksaan ini, sesi baru yang dibuka setelah closing dapat menulis kembali
+    // saldo dari pergerakan hari yang sudah ditutup.
+    const closingSnap = await getDocFromServer(doc(db, "dailyClosings", dateKey));
+    if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+      stockRolloverDayKey = dateKey;
+      return { reset: 0, currentDayStock: 0, locked: true };
+    }
+    const start = dateFromKey(dateKey);
+    const end = new Date(start.getTime() + 86400000);
+    const menusQuery = query(collection(db, "menus"), orderBy("name", "asc"), limit(3000));
+    const todayMovementsQuery = query(collection(db, "stockMovements"),
+      where("createdAt", ">=", Timestamp.fromDate(start)),
+      where("createdAt", "<", Timestamp.fromDate(end)), limit(10000));
+    const [menusSnap, movementSnap] = await Promise.all([
+      getDocsFromServer(menusQuery), getDocsFromServer(todayMovementsQuery)
+    ]);
+    // Rekonstruksi saldo harian dari nol agar sisa kemarin tidak ikut terbawa.
+    // Pergerakan hari ini tetap dihitung, termasuk stok masuk, penjualan, dan koreksi.
+    const todayNetByMenu = new Map();
+    for (const movementSnapItem of movementSnap.docs) {
+      const movement = movementSnapItem.data();
+      if (movement.voided === true) continue;
+      const menuId = String(movement.menuId || "");
+      if (!menuId) continue;
+      const qty = Number(movement.qty || 0);
+      let delta = 0;
+      if (movement.type === "in") delta = qty;
+      else if (movement.type === "sale") delta = -qty;
+      else if (movement.type === "sale_cancel") delta = qty;
+      else if (["adjustment", "reset"].includes(String(movement.type || ""))) delta = Number(movement.adjustmentDelta || 0);
+      if (Number.isSafeInteger(delta)) todayNetByMenu.set(menuId, (todayNetByMenu.get(menuId) || 0) + delta);
+    }
+    const updates = [];
+    let reset = 0, currentDayStock = 0;
+    for (const snap of menusSnap.docs) {
+      const menu = snap.data();
+      if (!menu.partnerId || String(menu.stockBusinessDate || "") === dateKey) continue;
+      const oldStock = Math.max(0, Number(menu.stock || 0));
+      const todayStock = Math.max(0, Number(todayNetByMenu.get(snap.id) || 0));
+      updates.push({ ref: snap.ref, data: { stock: todayStock, stockBusinessDate: dateKey, updatedAt: serverTimestamp() } });
+      if (oldStock !== todayStock) reset += 1;
+      currentDayStock += todayStock;
+    }
+    for (let i = 0; i < updates.length; i += 450) {
+      const batch = writeBatch(db);
+      updates.slice(i, i + 450).forEach(item => batch.update(item.ref, item.data));
+      await batch.commit();
+    }
+    stockRolloverDayKey = dateKey;
+    return { reset, currentDayStock };
+  })().finally(() => { stockRolloverPromise = null; });
+  return stockRolloverPromise;
+}
+
+// Pengajuan dari tanggal sebelumnya tidak lagi menjadi notifikasi atau mengunci menu baru.
+// Catatannya tetap tersimpan dan dapat dilihat saat tanggal historis dipilih.
+async function expireStaleStockRequestsForDate(dateKey = jakartaDateKey(new Date())) {
+  if (!db || !profile || !["superadmin", "spv"].includes(profile.role)) return 0;
+  if (stockRequestExpiryDayKey === dateKey) return 0;
+  if (stockRequestExpiryPromise) return stockRequestExpiryPromise;
+  stockRequestExpiryPromise = (async () => {
+    const requestSnap = await getDocsFromServer(query(
+      collection(db, "stockRequests"), orderBy("createdAt", "desc"), limit(10000)
+    ));
+    const stale = requestSnap.docs.filter(item => {
+      const row = item.data();
+      return ["pending", "revised"].includes(String(row.status || "pending").toLowerCase())
+        && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) < dateKey;
+    });
+    let expired = 0;
+    for (const item of stale) {
+      await runTransaction(db, async tx => {
+        const requestRef = doc(db, "stockRequests", item.id);
+        const current = await tx.get(requestRef);
+        if (!current.exists()) return;
+        const row = current.data();
+        if (!["pending", "revised"].includes(String(row.status || "pending").toLowerCase())
+          || String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) >= dateKey) return;
+        const menuId = String(row.menuId || "");
+        const lockRef = menuId ? doc(db, "stockRequestLocks", menuId) : null;
+        const lockSnap = lockRef ? await tx.get(lockRef) : null;
+        const now = serverTimestamp();
+        tx.update(requestRef, {
+          status: "expired", expiredAt: now, expiredBy: profile.uid,
+          expiredByName: profile.displayName || profile.email || "Admin", expiredForBusinessDate: dateKey
+        });
+        if (lockSnap?.exists() && lockSnap.data().requestId === item.id) tx.delete(lockRef);
+        expired += 1;
+      });
+    }
+    stockRequestExpiryDayKey = dateKey;
+    updateRequestNavBadge();
+    renderIfPage("requests", "dashboard");
+    return expired;
+  })().finally(() => { stockRequestExpiryPromise = null; });
+  return stockRequestExpiryPromise;
+}
 function money(value) { return IDR.format(Number(value || 0)); }
 function moneyDigits(value) { return String(value ?? "").replace(/\D/g, ""); }
 function parseMoneyInput(value) { const digits = moneyDigits(value); return digits ? Number(digits) : 0; }
@@ -1644,7 +1768,7 @@ async function callApi(name, payload = {}) {
     const createdAt = serverTimestamp();
     await setDoc(menuRef, {
       name: nameValue, partnerId, partnerName: partner.name, category: "Lainnya",
-      price, stock: 0, active: true, barcode: barcodeValue,
+      price, stock: 0, stockBusinessDate: jakartaDateKey(new Date()), active: true, barcode: barcodeValue,
       createdAt, createdBy: actorUid, updatedAt: createdAt
     });
     return { menuId: menuRef.id, name: nameValue, barcode: barcodeValue, stock: 0 };
@@ -1757,7 +1881,7 @@ async function callApi(name, payload = {}) {
         const menu = snap.data();
         const qty = quantities.get(menuId);
         if (menu.active === false) throw new Error(`Menu ${menu.name} sedang nonaktif.`);
-        const stockBefore = Number(menu.stock || 0);
+        const stockBefore = menuStockForDate(menu, businessDate, false);
         if (stockBefore < qty) throw new Error(`Stok ${menu.name} tidak cukup. Tersedia ${stockBefore}.`);
         const price = Number(menu.price || 0);
         const subtotal = price * qty;
@@ -1794,8 +1918,8 @@ async function callApi(name, payload = {}) {
         amountReceived, changeAmount,
         cashierUid: actorUid, cashierName: actorName, createdAt, status: "completed" });
       for (const item of prepared) {
-        tx.update(item.ref, { stock: item.stockAfter, updatedAt: createdAt, lastMovementId: item.movementRef.id });
-        tx.set(item.movementRef, { type: "sale", qty: item.qty, menuId: item.menuId, menuName: item.name,
+        tx.update(item.ref, { stock: item.stockAfter, ...(item.partnerId ? { stockBusinessDate: businessDate } : {}), updatedAt: createdAt, lastMovementId: item.movementRef.id });
+        tx.set(item.movementRef, { type: "sale", qty: item.qty, businessDate, menuId: item.menuId, menuName: item.name,
           partnerId: item.partnerId, partnerName: item.partnerName, stockBefore: item.stockBefore,
           stockAfter: item.stockAfter, transactionId: saleRef.id, transactionCode: code,
           actorUid, actorName, createdAt });
@@ -1868,13 +1992,19 @@ async function callApi(name, payload = {}) {
     }
 
     const closingRef = doc(db, "dailyClosings", businessDate);
+    const stockBusinessDate = jakartaDateKey(new Date());
+    const stockClosingRef = doc(db, "dailyClosings", stockBusinessDate);
     return await runTransaction(db, async tx => {
       const saleSnap = await tx.get(saleRef);
       const closingSnap = await tx.get(closingRef);
+      const stockClosingSnap = stockBusinessDate === businessDate ? closingSnap : await tx.get(stockClosingRef);
       if (!saleSnap.exists() || saleSnap.data().status !== "completed") throw new Error("Transaksi sudah diproses oleh pengguna lain. Stok tidak ditambahkan dua kali.");
       const sale = saleSnap.data();
       if (profile.role === "cashier" && sale.cashierUid !== actorUid) throw new Error("Kasir hanya dapat membatalkan transaksi miliknya sendiri.");
-      if (closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status)) throw new Error("Tanggal transaksi sudah masuk proses atau selesai closing. Transaksi tidak dapat dibatalkan dari tanggal yang telah ditutup.");
+      if ((closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status))
+        || (stockClosingSnap.exists() && ["closing", "closed"].includes(stockClosingSnap.data().status))) {
+        throw new Error("Tanggal transaksi atau hari berjalan sudah masuk proses/selesai closing. Transaksi tidak dapat dibatalkan.");
+      }
 
       const refsToRead = [...menuRefs, ...archiveRefs, ...cashflowRefs, ...partnerSaleRefs];
       const reads = await Promise.all(refsToRead.map(ref => tx.get(ref)));
@@ -1892,16 +2022,18 @@ async function callApi(name, payload = {}) {
         const menuItem = menuItems[i], menuSnap = menuSnaps[i];
         if (!menuSnap.exists()) throw new Error(`Menu ${menuItem.name || "transaksi"} tidak ditemukan. Hubungi Admin untuk pemeriksaan manual.`);
         const menu = menuSnap.data();
+        const isLiveMenu = liveMenuSnaps[i].exists();
         const qty = Number(menuItem.qty);
         if (!Number.isInteger(qty) || qty < 1) throw new Error("Jumlah item pada transaksi tidak valid.");
-        const stockBefore = Number(menu.stock || 0);
+        const stockBefore = isLiveMenu && menu.partnerId
+          ? menuStockForDate(menu, stockBusinessDate, false) : Number(menu.stock || 0);
         const stockAfter = stockBefore + qty;
         if (!Number.isSafeInteger(stockAfter)) throw new Error(`Stok ${menu.name} melebihi batas angka yang aman.`);
         const movementRef = movementRefs[i];
         cancelMovementIds.push(movementRef.id);
-        tx.update(menuWriteRefs[i], { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
+        tx.update(menuWriteRefs[i], { stock: stockAfter, ...(isLiveMenu && menu.partnerId ? { stockBusinessDate } : {}), updatedAt: createdAt, lastMovementId: movementRef.id });
         tx.set(movementRef, {
-          type: "sale_cancel", qty, menuId: menuItem.menuId, menuName: menu.name || menuItem.name || "Menu",
+          type: "sale_cancel", qty, businessDate: stockBusinessDate, menuId: menuItem.menuId, menuName: menu.name || menuItem.name || "Menu",
           partnerId: menu.partnerId || menuItem.partnerId || null, partnerName: menu.partnerName || menuItem.partnerName || "—",
           stockBefore, stockAfter, transactionId, transactionCode: sale.transactionCode || transactionId,
           actorUid, actorName, note: "Pengembalian stok akibat pembatalan transaksi", createdAt
@@ -1930,6 +2062,10 @@ async function callApi(name, payload = {}) {
 
   if (name === "receiveStock") {
     requireRole("superadmin", "spv");
+    const businessDate = jakartaDateKey(new Date());
+    await rolloverPartnerStocksForDate(businessDate);
+    await expireStaleStockRequestsForDate(businessDate);
+    const closingRef = doc(db, "dailyClosings", businessDate);
     const menuId = String(payload.menuId || "");
     const requestedQty = Number(payload.qty);
     if (!menuId || !Number.isInteger(requestedQty) || requestedQty < 1 || requestedQty > 100000) throw new Error("Jumlah stok tidak valid.");
@@ -1940,12 +2076,15 @@ async function callApi(name, payload = {}) {
     if (!requestId) {
       // Kompatibilitas aman untuk pengajuan lama yang belum memiliki dokumen lock.
       const legacyRequests = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menuId)));
-      const legacyPending = legacyRequests.docs.find(snapshot => ["pending", "revised"].includes(snapshot.data().status));
+      const legacyPending = legacyRequests.docs.find(snapshot => ["pending", "revised"].includes(snapshot.data().status)
+        && String(snapshot.data().businessDate || dayKeyFromTimestamp(snapshot.data().createdAt)) === businessDate);
       if (legacyPending) throw new Error(`Menu ini masih memiliki pengajuan ${Number(legacyPending.data().qty || 0)} unit yang menunggu persetujuan. Setujui atau tolak pengajuan tersebut, bukan input manual.`);
     }
     return await runTransaction(db, async tx => {
-      const menuSnap = await tx.get(menuRef);
-      const lockSnap = await tx.get(lockRef);
+      const [closingSnap, menuSnap, lockSnap] = await Promise.all([tx.get(closingRef), tx.get(menuRef), tx.get(lockRef)]);
+      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+        throw new Error("Closing harian sudah dilakukan. Input stok baru tersedia pada hari berikutnya.");
+      }
       if (!menuSnap.exists()) throw new Error("Menu tidak ditemukan.");
       const menu = menuSnap.data();
       if (menu.active === false) throw new Error("Menu ini sudah nonaktif dan tidak dapat menerima stok.");
@@ -1960,6 +2099,9 @@ async function callApi(name, payload = {}) {
         const requestSnap = await tx.get(doc(db, "stockRequests", requestId));
         if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
         requestData = requestSnap.data();
+        if (String(requestData.businessDate || dayKeyFromTimestamp(requestData.createdAt)) !== businessDate) {
+          throw new Error("Pengajuan dari hari sebelumnya sudah kedaluwarsa. Mitra perlu membuat pengajuan baru.");
+        }
         if (!["pending", "revised"].includes(requestData.status) || requestData.menuId !== menuId
           || requestData.partnerId !== menu.partnerId || (lockSnap.exists() && lockSnap.data().requestId !== requestId)) {
           throw new Error("Pengajuan stok sudah diproses atau datanya tidak cocok.");
@@ -1978,6 +2120,9 @@ async function callApi(name, payload = {}) {
           if (baseRequestSnap.data().menuId !== menuId || baseRequestSnap.data().partnerId !== requestData.partnerId) {
             throw new Error("Riwayat koreksi tidak cocok dengan menu dan mitra.");
           }
+          if (String(baseRequestSnap.data().businessDate || dayKeyFromTimestamp(baseRequestSnap.data().receivedAt || baseRequestSnap.data().createdAt)) !== businessDate) {
+            throw new Error("Koreksi stok dari hari sebelumnya tidak dapat diterapkan ke stok hari ini. Buat pengajuan stok baru.");
+          }
           stockDelta = Number(requestData.deltaQty);
           if (!Number.isSafeInteger(stockDelta) || stockDelta === 0) throw new Error("Selisih penyesuaian stok tidak valid.");
           movementType = "adjustment";
@@ -1990,7 +2135,7 @@ async function callApi(name, payload = {}) {
       } else if (lockSnap.exists()) {
         throw new Error("Mitra sudah memiliki pengajuan stok untuk menu ini. Buka Pengajuan Stok lalu setujui atau tolak pengajuan tersebut agar tidak terjadi stok ganda.");
       }
-      const stockBefore = Number(menu.stock || 0);
+      const stockBefore = menuStockForDate(menu, businessDate, false);
       const stockAfter = stockBefore + stockDelta;
       if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
         throw new Error(stockDelta < 0
@@ -1998,9 +2143,9 @@ async function callApi(name, payload = {}) {
           : "Jumlah stok melebihi batas angka yang aman.");
       }
       const createdAt = serverTimestamp();
-      tx.update(menuRef, { stock: stockAfter, updatedAt: createdAt, lastMovementId: movementRef.id });
+      tx.update(menuRef, { stock: stockAfter, ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}), updatedAt: createdAt, lastMovementId: movementRef.id });
       tx.set(movementRef, {
-        type: movementType, qty: movementQty, ...(movementType === "adjustment" ? { adjustmentDelta: stockDelta, changeType: adjustmentType } : {}),
+        type: movementType, qty: movementQty, businessDate, ...(movementType === "adjustment" ? { adjustmentDelta: stockDelta, changeType: adjustmentType } : {}),
         menuId, menuName: menu.name, partnerId: menu.partnerId || null,
         partnerName: menu.partnerName || "—", stockBefore, stockAfter,
         note: String(payload.note || (movementType === "adjustment" ? `Koreksi stok mitra: ${adjustmentType}` : "")),
@@ -2094,9 +2239,42 @@ async function callApi(name, payload = {}) {
     const menuRef = doc(db, "menus", menuId);
     const requestRef = doc(collection(db, "stockRequests"));
     const lockRef = doc(db, "stockRequestLocks", menuId);
+    const businessDate = jakartaDateKey(new Date());
+    // Lepaskan pengajuan pending/revisi dari hari sebelumnya agar mitra dapat membuat pengajuan baru.
+    const existingLock = await getDoc(lockRef);
+    if (existingLock.exists()) {
+      const existingRequestId = String(existingLock.data().requestId || "");
+      if (existingRequestId) {
+        const existingRequestRef = doc(db, "stockRequests", existingRequestId);
+        const existingRequestSnap = await getDoc(existingRequestRef);
+        if (existingRequestSnap.exists()) {
+          const existing = existingRequestSnap.data();
+          const existingDate = String(existing.businessDate || dayKeyFromTimestamp(existing.createdAt));
+          if (["pending", "revised"].includes(String(existing.status || "").toLowerCase()) && existingDate < businessDate) {
+            await runTransaction(db, async tx => {
+              const [currentLock, currentRequest] = await Promise.all([tx.get(lockRef), tx.get(existingRequestRef)]);
+              if (!currentLock.exists() || currentLock.data().requestId !== existingRequestId || !currentRequest.exists()) return;
+              const row = currentRequest.data();
+              if (!["pending", "revised"].includes(String(row.status || "").toLowerCase())
+                || String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) >= businessDate) return;
+              tx.update(existingRequestRef, {
+                status: "expired", expiredAt: serverTimestamp(), expiredBy: actorUid,
+                expiredByName: actorName, expiredForBusinessDate: businessDate
+              });
+              tx.delete(lockRef);
+            });
+          }
+        }
+      }
+    }
     const result = await runTransaction(db, async tx => {
       const menuSnap = await tx.get(menuRef);
       const lockSnap = await tx.get(lockRef);
+      const summaryRef = doc(db, "dailyClosings", businessDate, "partnerSummaries", partnerId);
+      const summarySnap = await tx.get(summaryRef);
+      if (summarySnap.exists() && summarySnap.data().status === "closed") {
+        throw new Error("Closing hari ini sudah selesai. Pengajuan stok baru tersedia pada hari berikutnya.");
+      }
       if (!menuSnap.exists()) throw new Error("Menu tidak ditemukan.");
       const menu = menuSnap.data();
       if (menu.partnerId !== partnerId || menu.active === false) throw new Error("Anda hanya dapat mengajukan stok untuk menu aktif milik sendiri.");
@@ -2109,6 +2287,9 @@ async function callApi(name, payload = {}) {
         if (!existingSnap.exists()) throw new Error("Pengajuan sebelumnya belum ditemukan. Hubungi Admin untuk memeriksa pengunci stok.");
         const existing = existingSnap.data();
         if (existing.partnerId !== partnerId || existing.menuId !== menuId) throw new Error("Pengajuan aktif tidak cocok dengan menu ini.");
+        if (String(existing.businessDate || dayKeyFromTimestamp(existing.createdAt)) !== businessDate) {
+          throw new Error("Pengajuan sebelumnya berasal dari hari yang berbeda. Muat ulang halaman lalu kirim pengajuan baru.");
+        }
         if (existing.requestType === "adjustment") throw new Error("Pengajuan edit stok untuk menu ini masih menunggu persetujuan. Tunggu keputusan Admin/SPV terlebih dahulu.");
         if (existing.status !== "pending") throw new Error("Pengajuan menu ini sudah direvisi atau diproses Admin/SPV. Tunggu keputusan sebelum menambahkan stok lagi.");
         const previousQty = Number(existing.qty || 0);
@@ -2123,9 +2304,9 @@ async function callApi(name, payload = {}) {
         return { requestId: existingRequestId, merged: true, previousQty, qty: totalQty };
       }
       const createdAt = serverTimestamp();
-      tx.set(requestRef, { partnerId, partnerName, menuId, menuName: menu.name, qty, requestType: "stock",
+      tx.set(requestRef, { partnerId, partnerName, menuId, menuName: menu.name, qty, requestType: "stock", businessDate,
         note: String(payload.note || ""), status: "pending", createdAt, createdBy: actorUid });
-      tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, createdAt, createdBy: actorUid });
+      tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, businessDate, createdAt, createdBy: actorUid });
       return { requestId: requestRef.id, merged: false, qty };
     });
     return result;
@@ -2139,13 +2320,22 @@ async function callApi(name, payload = {}) {
     if (!partnerId || !baseRequestId || !Number.isInteger(targetQty) || targetQty < 1 || targetQty > 100000) {
       throw new Error("Data koreksi stok tidak valid. Jumlah harus berupa bilangan bulat 1–100.000.");
     }
+    const businessDate = jakartaDateKey(new Date());
+    const summaryRef = doc(db, "dailyClosings", businessDate, "partnerSummaries", partnerId);
     const baseRef = doc(db, "stockRequests", baseRequestId);
     const requestRef = doc(collection(db, "stockRequests"));
     const result = await runTransaction(db, async tx => {
+      const summarySnap = await tx.get(summaryRef);
+      if (summarySnap.exists() && summarySnap.data().status === "closed") {
+        throw new Error("Closing harian sudah dilakukan. Koreksi stok baru tersedia pada hari berikutnya.");
+      }
       const baseSnap = await tx.get(baseRef);
       if (!baseSnap.exists()) throw new Error("Riwayat stok yang akan diedit tidak ditemukan.");
       const base = baseSnap.data();
       if (base.partnerId !== partnerId || base.status !== "received") throw new Error("Anda hanya dapat mengedit stok milik sendiri yang sudah diterima.");
+      if (String(base.businessDate || dayKeyFromTimestamp(base.receivedAt || base.createdAt)) !== businessDate) {
+        throw new Error("Batch stok dari hari sebelumnya sudah menjadi riwayat dan tidak dapat dikoreksi untuk stok hari ini.");
+      }
       if (base.latestAdjustmentRequestId) throw new Error("Pengajuan stok ini sudah pernah dikoreksi. Gunakan riwayat koreksi terakhir untuk mengajukan perubahan berikutnya.");
       const menuId = String(base.menuId || "");
       const menuRef = doc(db, "menus", menuId);
@@ -2168,9 +2358,9 @@ async function callApi(name, payload = {}) {
         partnerId, partnerName, menuId, menuName: base.menuName || menuSnap.data().name || "Menu",
         requestType: "adjustment", baseRequestId, previousQty, qty: targetQty, deltaQty,
         changeType, changeQty: Math.abs(deltaQty), note: String(payload.note || "").trim().slice(0, 160),
-        status: "pending", createdAt, createdBy: actorUid
+        status: "pending", businessDate, createdAt, createdBy: actorUid
       });
-      tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, createdAt, createdBy: actorUid });
+      tx.set(lockRef, { requestId: requestRef.id, menuId, partnerId, partnerName, businessDate, createdAt, createdBy: actorUid });
       return { requestId: requestRef.id, previousQty, qty: targetQty, deltaQty, changeType };
     });
     return result;
@@ -2220,12 +2410,21 @@ async function callApi(name, payload = {}) {
     const firstSnap = await getDoc(movementRef);
     if (!firstSnap.exists()) throw new Error("Batch stok tidak ditemukan.");
     const firstData = firstSnap.data();
+    const businessDate = jakartaDateKey(new Date());
+    if (firstData.partnerId && dayKeyFromTimestamp(firstData.createdAt) !== businessDate) {
+      throw new Error("Batch stok dari hari sebelumnya hanya dapat dilihat sebagai riwayat dan tidak dapat mengubah stok hari ini.");
+    }
+    if (firstData.partnerId) await rolloverPartnerStocksForDate(businessDate);
     if (firstData.requestId) {
       const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
       if (!adjustmentHistory.empty) throw new Error("Batch ini sudah memiliki riwayat koreksi mitra. Gunakan alur koreksi pada pengajuan mitra agar jejak batch tetap utuh.");
     }
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
+      const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
+      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+        throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diedit lagi.");
+      }
       if (!movementSnap.exists()) throw new Error("Batch stok tidak ditemukan.");
       const movement = movementSnap.data();
       if (movement.type !== "in" || movement.voided || movement.hiddenFromDaily === true) throw new Error("Hanya batch stok masuk yang masih aktif yang dapat diedit.");
@@ -2245,18 +2444,21 @@ async function callApi(name, payload = {}) {
         }
         if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi dan tidak dapat diedit langsung.");
       }
+      if (menu.partnerId && dayKeyFromTimestamp(movement.createdAt) !== businessDate) {
+        throw new Error("Batch stok dari hari sebelumnya tidak dapat diedit untuk saldo hari ini.");
+      }
       const oldQty = Number(movement.editedQty || movement.qty || 0);
       const delta = nextQty - oldQty;
-      const stockBefore = Number(menu.stock || 0);
+      const stockBefore = menuStockForDate(menu, businessDate, false);
       const stockAfter = stockBefore + delta;
       if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
         throw new Error(`Stok yang tersedia hanya ${integer(stockBefore)} unit. Jumlah baru tidak dapat diterapkan karena akan membuat saldo stok negatif.`);
       }
       const now = serverTimestamp();
       if (delta !== 0) {
-        tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: adjustmentRef.id });
+        tx.update(menuRef, { stock: stockAfter, ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}), updatedAt: now, lastMovementId: adjustmentRef.id });
         tx.set(adjustmentRef, {
-          type: "adjustment", qty: Math.abs(delta), adjustmentDelta: delta,
+          type: "adjustment", qty: Math.abs(delta), adjustmentDelta: delta, businessDate,
           changeType: delta > 0 ? "ditambah" : "dikurang",
           menuId: movement.menuId, menuName: movement.menuName || menu.name,
           partnerId: movement.partnerId || menu.partnerId || null,
@@ -2290,12 +2492,21 @@ async function callApi(name, payload = {}) {
     const firstSnap = await getDoc(movementRef);
     if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
     const firstData = firstSnap.data();
+    const businessDate = jakartaDateKey(new Date());
+    if (firstData.partnerId && dayKeyFromTimestamp(firstData.createdAt) !== businessDate) {
+      throw new Error("Batch stok dari hari sebelumnya hanya dapat dilihat sebagai riwayat dan tidak dapat dihapus dari saldo hari ini.");
+    }
+    if (firstData.partnerId) await rolloverPartnerStocksForDate(businessDate);
     if (firstData.requestId) {
       const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
       if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Hapus/koreksi batch melalui alur koreksi terakhir terlebih dahulu.");
     }
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
+      const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
+      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+        throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat dihapus lagi.");
+      }
       if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
       const movement = movementSnap.data();
       if (movement.type !== "in" || movement.voided || movement.hiddenFromDaily === true) throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dihapus.");
@@ -2315,8 +2526,11 @@ async function callApi(name, payload = {}) {
         }
         if (requestSnap.data().latestAdjustmentRequestId) throw new Error("Batch ini sudah memiliki riwayat koreksi dan tidak dapat dihapus langsung.");
       }
+      if (menu.partnerId && dayKeyFromTimestamp(movement.createdAt) !== businessDate) {
+        throw new Error("Batch stok dari hari sebelumnya tidak dapat dihapus dari saldo hari ini.");
+      }
       const qtyToRemove = Number(movement.editedQty || movement.qty || 0);
-      const stockBefore = Number(menu.stock || 0);
+      const stockBefore = menuStockForDate(menu, businessDate, false);
       if (!Number.isInteger(qtyToRemove) || qtyToRemove < 1 || stockBefore < qtyToRemove) {
         throw new Error(`Saldo stok saat ini ${integer(stockBefore)} unit, sedangkan batch berjumlah ${integer(qtyToRemove)} unit. Penghapusan dibatalkan agar stok tidak menjadi negatif.`);
       }
@@ -2324,7 +2538,7 @@ async function callApi(name, payload = {}) {
       const now = serverTimestamp();
       // Hapus sumber catatan, bukan membuat pergerakan pembalikan/audit baru.
       // Dokumen menu tetap diperbarui agar saldo POS langsung berkurang.
-      tx.update(menuRef, { stock: stockAfter, updatedAt: now, lastMovementId: movementId });
+      tx.update(menuRef, { stock: stockAfter, ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}), updatedAt: now, lastMovementId: movementId });
       tx.delete(movementRef);
       if (requestSnap?.exists()) tx.delete(requestRef);
       return { movementId, qty: qtyToRemove, stockAfter };
@@ -2338,6 +2552,7 @@ async function callApi(name, payload = {}) {
     const selectedDate = dateFromKey(dateKey);
     if (Number.isNaN(selectedDate.getTime()) || jakartaDateKey(selectedDate) !== dateKey) throw new Error("Tanggal reset tidak valid.");
     if (dateKey > jakartaDateKey(new Date())) throw new Error("Reset tidak dapat dilakukan untuk tanggal yang akan datang.");
+    if (dateKey === jakartaDateKey(new Date())) await rolloverPartnerStocksForDate(dateKey);
 
     const closingRef = doc(db, "dailyClosings", dateKey);
     let closingLockMode = "none";
@@ -2480,7 +2695,11 @@ async function callApi(name, payload = {}) {
           continue;
         }
         const menu = menuSnap.data();
-        const stockBefore = Number(menu.stock || 0);
+        if (menu.partnerId && String(menu.stockBusinessDate || "") !== dateKey) {
+          // Jangan mengubah saldo hari berjalan ketika yang direset adalah tanggal historis.
+          continue;
+        }
+        const stockBefore = menuStockForDate(menu, dateKey, false);
         const stockAfter = stockBefore - netDelta;
         if (!Number.isSafeInteger(stockAfter) || stockAfter < 0) {
           throw new Error(`Reset dibatalkan: stok ${menu.name || menuId} saat ini ${integer(stockBefore)} unit, sedangkan pembalikan tanggal ini memerlukan ${integer(netDelta)} unit. Stok tanggal tersebut kemungkinan sudah digunakan pada tanggal berikutnya.`);
@@ -2559,9 +2778,9 @@ async function callApi(name, payload = {}) {
       const batch = writeBatch(db);
       const now = serverTimestamp();
       menuPlans.forEach(plan => {
-        batch.update(plan.menuRef, { stock: plan.stockAfter, updatedAt: now, lastMovementId: plan.movementRef.id });
+        batch.update(plan.menuRef, { stock: plan.stockAfter, ...(plan.menu.partnerId ? { stockBusinessDate: dateKey } : {}), updatedAt: now, lastMovementId: plan.movementRef.id });
         batch.set(plan.movementRef, {
-          type: "reset", qty: Math.abs(plan.delta), adjustmentDelta: plan.delta,
+          type: "reset", qty: Math.abs(plan.delta), adjustmentDelta: plan.delta, businessDate: dateKey,
           changeType: plan.delta > 0 ? "ditambah" : "dikurang",
           menuId: plan.menuId, menuName: plan.menu.name || "Menu",
           partnerId: plan.menu.partnerId || null, partnerName: plan.menu.partnerName || "—",
@@ -2608,7 +2827,7 @@ async function callApi(name, payload = {}) {
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
 function resetStore() {
   store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
-  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null };
+  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null };
 }
 
 async function startApp() {
@@ -2671,6 +2890,7 @@ async function startApp() {
       if (partnerManagementTodayUnsubscriber) { try { partnerManagementTodayUnsubscriber(); } catch (_) {} partnerManagementTodayUnsubscriber = null; }
       if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
       if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
+      if (todayClosingUnsubscriber) { try { todayClosingUnsubscriber(); } catch (_) {} todayClosingUnsubscriber = null; }
       resetStore();
       cart.clear();
       showLogin();
@@ -2727,6 +2947,16 @@ function updateClockLabels() {
   $("#footer-year").textContent = new Date().getFullYear();
 }
 
+function subscribeTodayClosing(dateKey = jakartaDateKey(new Date())) {
+  if (todayClosingUnsubscriber) { try { todayClosingUnsubscriber(); } catch (_) {} todayClosingUnsubscriber = null; }
+  store.todayClosing = null;
+  if (!profile || !dateKey || !["superadmin", "spv", "cashier"].includes(profile.role)) return;
+  todayClosingUnsubscriber = onSnapshot(doc(db, "dailyClosings", dateKey), snap => {
+    store.todayClosing = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    renderIfPage("dashboard", "pos", "stock", "partnerHome", "partnerMenu", "requests");
+  }, onDataError);
+}
+
 function subscribePartnerDailySummary(dateKey = jakartaDateKey(new Date())) {
   if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
   store.partnerDailySummary = null;
@@ -2762,6 +2992,12 @@ function startSubscriptions() {
   if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
   if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
   const role = profile.role;
+  const todayKey = jakartaDateKey(new Date());
+  subscribeTodayClosing(todayKey);
+  if (["superadmin", "spv"].includes(role)) {
+    rolloverPartnerStocksForDate(todayKey).catch(error => console.warn("Reset stok mitra harian gagal:", error));
+    expireStaleStockRequestsForDate(todayKey).catch(error => console.warn("Pembaruan pengajuan kedaluwarsa gagal:", error));
+  }
   if (role === "partner" && !profile.partnerId) {
     store.menus = []; store.stockRequests = []; store.partnerSales = [];
     toast("Akun Mitra belum terhubung dengan data mitra. Minta Admin memeriksa akun ini.", "error");
@@ -3159,9 +3395,12 @@ function partnerNetAmount(row) {
 function sumPartnerNetSales(rows) { return rows.reduce((sum, row) => sum + partnerNetAmount(row), 0); }
 function sumPartnerGrossSales(rows) { return rows.reduce((sum, row) => sum + partnerGrossAmount(row), 0); }
 function sumPartnerCommission(rows) { return rows.reduce((sum, row) => sum + partnerCommissionAmount(row), 0); }
-function pendingStockRequestCount() {
-  // Hitung menu unik yang masih menunggu keputusan, bukan unit stok atau riwayat terminal.
-  const active = store.stockRequests.filter(row => ["pending", "revised"].includes(String(row.status || "pending").toLowerCase()));
+function pendingStockRequestCount(dateKey = jakartaDateKey(new Date())) {
+  // Badge adalah notifikasi hari berjalan; riwayat tanggal sebelumnya tetap dapat dibuka lewat filter tanggal.
+  const active = store.stockRequests.filter(row =>
+    String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === dateKey
+    && ["pending", "revised"].includes(String(row.status || "pending").toLowerCase())
+  );
   return new Set(active.map(row => String(row.menuId || row.id || "").trim()).filter(Boolean)).size;
 }
 function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
@@ -3270,7 +3509,7 @@ function renderSpvDashboard() {
       ${statCard("Pengeluaran", money(expenses), "−", "Termasuk penjualan yang dibayar KALAP")}
     </section>
     <section class="content-grid"><article class="panel">${panelHeader("Grafik penjualan", `${dashboardFrom} sampai ${dashboardTo}`, `<span class="status success">LIVE</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik tanggal pada grafik untuk melihat detail barang masuk, terjual, sisa stok, transaksi, dan pengeluaran.</div></article>
-      <article class="panel">${panelHeader("Ringkasan stok", "Pergerakan pada rentang tanggal terpilih")}<div class="summary-list"><div class="summary-row"><span>Barang masuk</span><strong>${integer(received)} unit</strong></div><div class="summary-row"><span>Barang terjual</span><strong>${integer(sold)} unit</strong></div><div class="summary-row"><span>Pengajuan stok menunggu</span><strong>${integer(store.stockRequests.filter(row=>["pending","revised"].includes(row.status)).length)}</strong></div><div class="summary-divider"></div><button class="btn btn-light btn-wide" data-nav="pos">Buka kasir / POS →</button></div></article></section>
+      <article class="panel">${panelHeader("Ringkasan stok", "Pergerakan pada rentang tanggal terpilih")}<div class="summary-list"><div class="summary-row"><span>Barang masuk</span><strong>${integer(received)} unit</strong></div><div class="summary-row"><span>Barang terjual</span><strong>${integer(sold)} unit</strong></div><div class="summary-row"><span>Pengajuan stok menunggu</span><strong>${integer(store.stockRequests.filter(row=>dayKeyFromTimestamp(row.createdAt)===jakartaDateKey(new Date())&&["pending","revised"].includes(row.status)).length)}</strong></div><div class="summary-divider"></div><button class="btn btn-light btn-wide" data-nav="pos">Buka kasir / POS →</button></div></article></section>
     <section class="panel">${panelHeader("Transaksi terbaru", "Aktivitas POS pada rentang tanggal terpilih", `<button class="panel-action" data-nav="transactions">Lihat semua →</button>`)}${renderTransactionTable(recent,true)}</section>`;
 }
 function destroyCharts() { chartInstances.forEach(chart => { try { chart.destroy(); } catch (_) {} }); chartInstances = []; }
@@ -3327,7 +3566,6 @@ async function openDashboardDayDetail(dateKey) {
       <div class="stat-card"><div class="stat-top">Total penjualan</div><div class="stat-value">${money(salesTotal)}</div></div>
       <div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div>
     </div>
-    <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Detail stok per menu</h3><div class="table-wrap date-detail-list"><table><thead><tr><th>Menu / mitra</th><th>Masuk</th><th>Terjual</th><th>Stok kembali</th><th>Sisa stok</th></tr></thead><tbody>${dailyStock.rows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partner)}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.sold)}</td><td>${integer(row.returned)}</td><td><strong>${integer(row.remaining)}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Tidak ada stok pengajuan Mitra yang disetujui atau penjualan pada tanggal ini.</td></tr>`}</tbody></table></div></div>
     <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row => `<div class="operational-item-row"><span>${escapeHtml(row.category || "Pengeluaran")} · ${escapeHtml(row.note || row.transactionCode || "")}</span><strong>${money(row.amount)}</strong></div>`).join("") || `<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size ? `<div class="operational-items-list"><h4>Menu yang ditanggung KALAP</h4>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}</div>
     <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-light" data-dashboard-detail-close>Tutup</button></div>`;
     const modal = root.querySelector(".modal");
@@ -3408,7 +3646,7 @@ function drawPosMenuResults() {
   posCurrentPage = Math.min(Math.max(1, posCurrentPage), totalPages);
   const start = (posCurrentPage - 1) * posPageSize;
   const current = filtered.slice(start, start + posPageSize);
-  resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => `<button class="menu-tile" data-add-menu="${menu.id}" ${Number(menu.stock || 0) < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>Produk</span><span>${Number(menu.stock || 0) < 1 ? "Habis" : `Stok ${integer(menu.stock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau barcode." : "Belum ada menu aktif. Hubungi Admin untuk menambahkan menu."}</div>`;
+  resultRoot.innerHTML = current.length ? `<div class="menu-grid">${current.map(menu => { const availableStock = menuStockForDate(menu); return `<button class="menu-tile" data-add-menu="${menu.id}" ${availableStock < 1 ? "disabled" : ""}><div class="menu-tile-top"><span>Produk</span><span>${availableStock < 1 ? "Habis" : `Stok ${integer(availableStock)}`}</span></div><h3>${escapeHtml(menu.name)}</h3><div class="price">${money(menu.price)}</div><div class="stock-mini">${escapeHtml(menu.partnerName || "KALAP")}</div></button>`; }).join("")}</div>` : `<div class="cart-empty">${posSearchQuery ? "Menu tidak ditemukan. Periksa nama atau barcode." : "Belum ada menu aktif. Hubungi Admin untuk menambahkan menu."}</div>`;
   const pageNumbers = totalPages <= 7 ? Array.from({length: totalPages}, (_, i) => i + 1) : [...new Set([1, Math.max(2,posCurrentPage-1), posCurrentPage, Math.min(totalPages-1,posCurrentPage+1), totalPages])].sort((a,b)=>a-b);
   const numberedButtons = pageNumbers.map((page,index)=>`${index && page-pageNumbers[index-1]>1?'<span class="page-ellipsis">…</span>':''}<button type="button" class="${page===posCurrentPage?'active-page':''}" data-pos-page-number="${page}" aria-current="${page===posCurrentPage?'page':'false'}">${page}</button>`).join("");
   pageRoot.innerHTML = `<span class="muted">${filtered.length ? `Menampilkan ${start + 1}–${Math.min(start + posPageSize, filtered.length)} dari ${filtered.length} menu` : "0 menu ditemukan"}</span><div class="page-buttons"><button type="button" data-pos-page="prev" ${posCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-pos-page="next" ${posCurrentPage >= totalPages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div>`;
@@ -3435,7 +3673,7 @@ function initPosMenuSearch() {
     if (matches.length === 1) {
       const menu = matches[0];
       posSearchQuery = "";
-      if (Number(menu.stock || 0) < 1) {
+      if (menuStockForDate(menu) < 1) {
         input.value = ""; posCurrentPage = 1; drawPosMenuResults(); input.focus();
         toast(`STOK HABIS · ${menu.name}`, "error");
       } else addToCart(menu.id, true);
@@ -3453,7 +3691,7 @@ function reconcileCart() {
   for (const [id, row] of cart.entries()) {
     const menu = store.menus.find(item => item.id === id);
     if (!menu || menu.active === false) cart.delete(id);
-    else if (row.qty > Number(menu.stock || 0)) row.qty = Number(menu.stock || 0);
+    else if (row.qty > menuStockForDate(menu)) row.qty = menuStockForDate(menu);
     if (cart.get(id)?.qty < 1) cart.delete(id);
   }
 }
@@ -3489,9 +3727,9 @@ function renderStockPage() {
   const pages = Math.max(1, Math.ceil(filteredMenus.length / directoryPageSize));
   menuListCurrentPage = Math.min(menuListCurrentPage, pages);
   const visibleMenus = filteredMenus.slice((menuListCurrentPage - 1) * directoryPageSize, menuListCurrentPage * directoryPageSize);
-  const stats = `<section class="stats-grid">${statCard("Total seluruh menu", integer(allMenus.length), "▤", "Semua menu terdaftar")}${statCard("Menu aktif", integer(activeMenus.length), "✓", "Menu yang dapat dijual di POS")}${!catalogOnly ? statCard("Total stok tersedia hari ini", integer(activeMenus.reduce((sum, menu) => sum + Number(menu.stock || 0), 0)), "▣", "Akumulasi stok aktif saat ini") : ""}</section>`;
+  const stats = `<section class="stats-grid">${statCard("Total seluruh menu", integer(allMenus.length), "▤", "Semua menu terdaftar")}${statCard("Menu aktif", integer(activeMenus.length), "✓", "Menu yang dapat dijual di POS")}${!catalogOnly ? statCard("Total stok tersedia hari ini", integer(activeMenus.reduce((sum, menu) => sum + menuStockForDate(menu), 0)), "▣", "Akumulasi stok aktif saat ini") : ""}</section>`;
   const stockColumn = catalogOnly ? "" : "<th>Stok</th>";
-  const stockCell = menu => catalogOnly ? "" : `<td><strong>${integer(menu.stock)}</strong></td>`;
+  const stockCell = menu => catalogOnly ? "" : `<td><strong>${integer(menuStockForDate(menu))}</strong></td>`;
   const emptyColspan = catalogOnly ? (profile.role === "superadmin" ? 6 : 5) : (profile.role === "superadmin" ? 7 : 6);
   return `${pageHeading(catalogOnly ? "Menu & persediaan" : "Pemantauan stok", catalogOnly ? "Kelola daftar menu, mitra, harga, dan status menu KALAP." : "Pantau daftar menu dan ketersediaan stok hari ini.")}
     ${stats}
@@ -3618,7 +3856,7 @@ function renderFinancePage() {
     const stock = stockByMenu.get(key) || { menuId: "", incoming: 0, returned: 0, adjustment: 0 };
     const menuId = sale.menuId || stock.menuId;
     const menu = menuId ? store.menus.find(item => item.id === menuId) : null;
-    return { ...sale, ...stock, menuId, name: sale.name !== "Menu" ? sale.name : stock.name, partnerName: sale.partnerName !== "—" ? sale.partnerName : stock.partnerName, currentStock: menu ? Number(menu.stock || 0) : null };
+    return { ...sale, ...stock, menuId, name: sale.name !== "Menu" ? sale.name : stock.name, partnerName: sale.partnerName !== "—" ? sale.partnerName : stock.partnerName, currentStock: menu ? menuStockForDate(menu) : null };
   }).sort((a, b) => a.name.localeCompare(b.name));
   const expenseRows = flows.filter(row => row.type === "expense").sort((a, b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0));
   const dateText = formatDate(dateFromKey(dateKey), { day: "numeric", month: "long", year: "numeric" });
@@ -3676,7 +3914,7 @@ function renderClosingPage() {
 }
 
 function stockRequestStatusLabel(status) {
-  return ({ pending: "Menunggu persetujuan", revised: "Jumlah direvisi", rejected: "Ditolak", received: "Diterima", voided: "Dibatalkan" })[status] || "Status tidak dikenal";
+  return ({ pending: "Menunggu persetujuan", revised: "Jumlah direvisi", rejected: "Ditolak", received: "Diterima", voided: "Dibatalkan", expired: "Kedaluwarsa" })[status] || "Status tidak dikenal";
 }
 
 function renderDailyStockLedger() {
@@ -3794,7 +4032,7 @@ function renderRequestsPage() {
         ? `<div class="muted request-extra">Batch ini sudah dikoreksi. Gunakan riwayat koreksi terbaru untuk perubahan berikutnya.</div>`
         : profile.role === "partner" && status === "received" && hasPendingCorrection
           ? `<div class="muted request-extra">Pengajuan edit untuk batch ini sedang menunggu persetujuan Admin/SPV.</div>` : "";
-      actions = `<span class="status ${status === "received" ? "success" : ["rejected", "voided"].includes(status) ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${editAction}`;
+      actions = `<span class="status ${status === "received" ? "success" : ["rejected", "voided", "expired"].includes(status) ? "inactive" : "pending"}">${stockRequestStatusLabel(status)}</span>${staffCanReceive ? "" : partnerStatus}${correctedLabel}${editAction}`;
     }
     return `<tr>${staffCanReceive ? `<td><strong>${escapeHtml(row.partnerName || "Mitra")}</strong></td>` : ""}<td><strong>${escapeHtml(row.menuName || "—")}</strong>${requestKind}${changeDetail}${revision}</td><td>${integer(row.qty)} unit</td><td>${escapeHtml(row.note || "—")}</td><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${actions}</td></tr>`;
   }).join("");
@@ -3851,7 +4089,7 @@ function renderPartnerHome() {
   const totalSales = sumPartnerNetSales(sales);
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
   const activeMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
-  const stock = activeMenus.reduce((sum,menu)=>sum+Number(menu.stock||0),0);
+  const stock = activeMenus.reduce((sum,menu)=>sum+menuStockForDate(menu),0);
   const liveSales = sales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
   const closing = store.partnerDailySummary;
   const closingPanel = closing?.status === "closed" ? `
@@ -3867,7 +4105,7 @@ function renderPartnerHome() {
     ${closingPanel}
     <section class="stats-grid">${statCard("Pendapatan bersih bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
     <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
-      <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menu.stock)} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
+      <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menuStockForDate(menu))} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
     </article><article class="panel">${panelHeader("Aktivitas terbaru", "", `<span class="status success">LIVE</span>`)}
       <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
@@ -3887,7 +4125,7 @@ function renderLabelsPage() {
 
 function renderPartnerMenu() {
   return `${pageHeading("Menu saya", "Daftar produk milik Anda yang dijual melalui KALAP.")}
-    <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.filter(menu=>menu.deleted!==true).length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.filter(menu=>menu.deleted!==true).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menu.stock)}</strong></td><td><span class="status ${Number(menu.stock)>0?"success":"inactive"}">${Number(menu.stock)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
+    <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.filter(menu=>menu.deleted!==true).length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.filter(menu=>menu.deleted!==true).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menuStockForDate(menu))}</strong></td><td><span class="status ${menuStockForDate(menu)>0?"success":"inactive"}">${menuStockForDate(menu)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
 }
 function renderPartnerSales() {
   const monthSales = getPartnerMonthSales();
@@ -4079,9 +4317,10 @@ function attachPageEvents() {
 
 function addToCart(menuId, focusSearch = false) {
   const menu = store.menus.find(item => item.id === menuId);
-  if (!menu || Number(menu.stock || 0) < 1) return toast("Stok menu habis.", "error");
+  const availableStock = menuStockForDate(menu);
+  if (!menu || availableStock < 1) return toast("Stok menu habis.", "error");
   const current = cart.get(menuId);
-  if (current && current.qty >= Number(menu.stock)) return toast("Jumlah melebihi stok yang tersedia.", "error");
+  if (current && current.qty >= availableStock) return toast("Jumlah melebihi stok yang tersedia.", "error");
   cart.set(menuId, { menuId, name: menu.name, price: Number(menu.price), qty: (current?.qty || 0) + 1 });
   renderPage();
   if (focusSearch) { const input = $("#pos-menu-search"); input?.focus(); input?.select(); }
@@ -4092,7 +4331,7 @@ function changeCart(menuId, delta) {
   if (!row || !menu) return;
   const next = row.qty + delta;
   if (next <= 0) cart.delete(menuId);
-  else if (next > Number(menu.stock || 0)) return toast("Jumlah melebihi stok yang tersedia.", "error");
+  else if (next > menuStockForDate(menu)) return toast("Jumlah melebihi stok yang tersedia.", "error");
   else row.qty = next;
   renderPage();
 }
@@ -4308,11 +4547,12 @@ async function closeBusinessDay(button) {
   const existingDay = store.dailyClosings.find(row => row.id === dateKey);
   if (existingDay?.status === "closed") return toast("Closing hari ini sudah selesai.", "error");
   if (existingDay?.status === "closing") return toast("Closing sedang diproses. Tunggu sampai proses selesai.", "error");
-  const ok = await kalapConfirm(`Tutup penjualan KALAP untuk ${formatDate(dateFromKey(dateKey),{day:"numeric",month:"long",year:"numeric"})}?\n\nSetelah ditutup, kasir tidak dapat membuat transaksi baru untuk tanggal ini. Stok sisa tetap dibawa sebagai stok awal besok, bukan dihapus.`, {title:"Closing harian", confirmText:"Tutup hari ini", danger:true});
+  const ok = await kalapConfirm(`Tutup penjualan KALAP untuk ${formatDate(dateFromKey(dateKey),{day:"numeric",month:"long",year:"numeric"})}?\n\nSetelah ditutup, kasir tidak dapat membuat transaksi baru untuk tanggal ini. Sisa stok mitra akan dikosongkan menjadi 0; mitra dapat mengirim stok baru pada hari berikutnya. Riwayat sisa stok tetap tersimpan pada ringkasan closing.`, {title:"Closing harian", confirmText:"Tutup hari ini", danger:true});
   if (!ok) return;
   setBusy(button, true, "Menutup hari...");
   const headerRef = doc(db, "dailyClosings", dateKey);
   try {
+    await rolloverPartnerStocksForDate(dateKey);
     await runTransaction(db, async tx => {
       const current = await tx.get(headerRef);
       if (current.exists() && ["closing", "closed"].includes(current.data().status)) {
@@ -4347,7 +4587,7 @@ async function closeBusinessDay(button) {
       const menuMovements = movements.filter(row => row.menuId === menu.id);
       const soldQty = menuMovements.filter(row => row.type === "sale").reduce((sum,row)=>sum+Number(row.qty||0),0) - menuMovements.filter(row => row.type === "sale_cancel").reduce((sum,row)=>sum+Number(row.qty||0),0);
       const receivedQty = menuMovements.filter(row => row.type === "in").reduce((sum,row)=>sum+Number(row.qty||0),0);
-      const remainingStock = Math.max(0, Number(menu.stock || 0));
+      const remainingStock = menuStockForDate(menu, dateKey, false);
       group.totalRemaining += remainingStock;
       group.items.push({ menuId: menu.id, menuName: menu.name || "Menu", barcode: menu.barcode || "", price: Number(menu.price||0), active: menu.active !== false, soldQty, receivedQty, remainingStock });
     }
@@ -4386,6 +4626,15 @@ async function closeBusinessDay(button) {
       totalRemaining, partnerCount: groups.length, updatedAt: serverTimestamp()
     });
     await batch.commit();
+    // Riwayat sisa sudah tersimpan pada ringkasan; saldo operasional Mitra dikosongkan.
+    const partnerMenuDocs = menusSnap.docs.filter(item => Boolean(item.data().partnerId));
+    for (let i = 0; i < partnerMenuDocs.length; i += 450) {
+      const stockResetBatch = writeBatch(db);
+      partnerMenuDocs.slice(i, i + 450).forEach(item => stockResetBatch.update(item.ref, {
+        stock: 0, stockBusinessDate: "closed", updatedAt: serverTimestamp()
+      }));
+      await stockResetBatch.commit();
+    }
     selectedClosingDateKey = dateKey;
     closingSearchQuery = "";
     closingHistoryPage = 1;
@@ -4759,7 +5008,7 @@ function filterMenuRows() {
 function exportMenusCsv() {
   if(!["superadmin","spv"].includes(profile?.role)) return;
   const catalogOnly = profile.role === "superadmin";
-  const rows=[catalogOnly ? ["Nama menu","Mitra","Harga jual","ID QR","Status"] : ["Nama menu","Mitra","Harga jual","Stok","ID QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>catalogOnly ? [menu.name,menu.partnerName||"",menu.price,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"] : [menu.name,menu.partnerName||"",menu.price,menu.stock,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"])];
+  const rows=[catalogOnly ? ["Nama menu","Mitra","Harga jual","ID QR","Status"] : ["Nama menu","Mitra","Harga jual","Stok","ID QR","Status"],...store.menus.filter(menu=>menu.deleted!==true).map(menu=>catalogOnly ? [menu.name,menu.partnerName||"",menu.price,menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"] : [menu.name,menu.partnerName||"",menu.price,menuStockForDate(menu),menuQrPayload(menu),menu.active===false?"Nonaktif":"Aktif"])];
   const csv=rows.map(row=>row.map(value=>`"${String(value??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`KALAP-daftar-menu-${jakartaDateKey(new Date())}.csv`;a.click();URL.revokeObjectURL(url);
 }
@@ -5281,7 +5530,7 @@ async function openManualStockInputModal() {
     lookup.value = `${menu.name} · ${menuQrPayload(menu)}`;
     results.innerHTML = "";
     selected.classList.add("show");
-    selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong><br><small>Mitra: ${escapeHtml(menu.partnerName || "—")} · Stok sekarang: ${integer(menu.stock)} unit · QR ID: ${escapeHtml(menuQrPayload(menu))}</small>`;
+    selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong><br><small>Mitra: ${escapeHtml(menu.partnerName || "—")} · Stok sekarang: ${integer(menuStockForDate(menu))} unit · QR ID: ${escapeHtml(menuQrPayload(menu))}</small>`;
     quantityFields.classList.add("hidden");
     pendingBox.classList.add("hidden");
     pendingBox.innerHTML = "";
@@ -5318,7 +5567,7 @@ async function openManualStockInputModal() {
     if (!q) { results.innerHTML = ""; return; }
     const matches = store.menus.filter(menu => menu.active !== false
       && [menu.name, menuBarcode(menu), menuQrPayload(menu), menu.barcode, menu.partnerName].some(value => String(value || "").toLowerCase().includes(q))).slice(0, 8);
-    results.innerHTML = matches.map(menu => `<button type="button" data-manual-stock-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><br><small>${escapeHtml(menu.partnerName || "—")} · stok ${integer(menu.stock)} · QR ${escapeHtml(menuQrPayload(menu))}</small></button>`).join("")
+    results.innerHTML = matches.map(menu => `<button type="button" data-manual-stock-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><br><small>${escapeHtml(menu.partnerName || "—")} · stok ${integer(menuStockForDate(menu))} · QR ${escapeHtml(menuQrPayload(menu))}</small></button>`).join("")
       || `<div class="helper-text">Menu tidak ditemukan. Pastikan menu sudah didaftarkan di Menu Baru.</div>`;
     results.querySelectorAll("[data-manual-stock-select]").forEach(button => button.addEventListener("click", () => selectMenu(store.menus.find(menu => menu.id === button.dataset.manualStockSelect))));
   };
@@ -5339,7 +5588,10 @@ async function openManualStockInputModal() {
     const data = Object.fromEntries(new FormData(form));
     const menu = store.menus.find(row => row.id === data.menuId);
     if (!menu) return toast("Pilih menu terlebih dahulu.", "error");
-    const localPending = store.stockRequests.filter(row => row.menuId === menu.id && ["pending", "revised"].includes(row.status));
+    const businessDate = jakartaDateKey(new Date());
+    const localPending = store.stockRequests.filter(row => row.menuId === menu.id
+      && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === businessDate
+      && ["pending", "revised"].includes(String(row.status || "pending").toLowerCase()));
     if (localPending.length) {
       pendingBox.classList.remove("hidden");
       quantityFields.classList.add("hidden");
@@ -5449,14 +5701,14 @@ function initStockRequestMenuSearch() {
     const q = input.value.trim().toLowerCase();
     if (!q) { results.innerHTML = ""; return; }
     const matches = menus.filter(menu => `${menu.name || ""} ${menu.partnerName || ""}`.toLowerCase().includes(q)).slice(0, 8);
-    results.innerHTML = matches.length ? matches.map(menu => `<button type="button" data-stock-request-menu-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span class="muted"> · Stok saat ini ${integer(menu.stock)} unit</span></button>`).join("")
+    results.innerHTML = matches.length ? matches.map(menu => `<button type="button" data-stock-request-menu-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span class="muted"> · Stok saat ini ${integer(menuStockForDate(menu))} unit</span></button>`).join("")
       : `<div class="muted request-extra">Menu tidak ditemukan pada daftar menu aktif Anda.</div>`;
     results.querySelectorAll("[data-stock-request-menu-select]").forEach(button => button.addEventListener("click", () => {
       const menu = menus.find(item => item.id === button.dataset.stockRequestMenuSelect);
       if (!menu) return;
       hidden.value = menu.id;
       input.value = menu.name;
-      selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · Stok saat ini ${integer(menu.stock)} unit`;
+      selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · Stok saat ini ${integer(menuStockForDate(menu))} unit`;
       selected.classList.add("show");
       results.innerHTML = "";
     }));
@@ -5506,7 +5758,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.7", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.8", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -5575,8 +5827,18 @@ setInterval(() => {
     stockDailyDateKey = currentDay;
     stockDailySearchQuery = "";
     stockDailyCurrentPage = 1;
-    if (profile) subscribeStockDailyDate(currentDay);
-    if (profile && ["dashboard", "transactions", "partnerHome", "closing", "pos", "requests", "partners"].includes(activePage)) renderPage();
+    requestCurrentPage = 1;
+    requestSelectAll = false;
+    if (profile) {
+      subscribeStockDailyDate(currentDay);
+      if (["superadmin", "spv", "cashier"].includes(profile.role)) subscribeTodayClosing(currentDay);
+      updateRequestNavBadge();
+      if (["superadmin", "spv"].includes(profile.role)) {
+        rolloverPartnerStocksForDate(currentDay).catch(error => console.warn("Reset stok mitra saat pergantian hari gagal:", error));
+        expireStaleStockRequestsForDate(currentDay).catch(error => console.warn("Pengajuan hari sebelumnya gagal ditutup:", error));
+      }
+    }
+    if (profile && ["dashboard", "transactions", "partnerHome", "partnerMenu", "closing", "pos", "requests", "partners", "stock"].includes(activePage)) renderPage();
     if (profile && currentMonth !== monthKey) subscribeMonthData(currentMonth);
   }
 }, 60000);
