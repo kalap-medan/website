@@ -1,11 +1,11 @@
-# KALAP Management System v2.2.9
+# KALAP Management System v2.2.10
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: Firebase Firestore Security Rules terbaru. Rules v2.2.9 kompatibel dengan Rules v2.2.8; hanya perlu dipublikasikan jika Rules v2.2.8 belum dipasang di Firebase.
+- `firestore.rules`: Firebase Firestore Security Rules v2.2.10. Wajib dipublikasikan karena skema otorisasi Reset Harian ditambah `menuIds` dan jalur validasi batch dioptimalkan.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
-- `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.9.
+- `manifest.webmanifest`: identitas PWA. Folder `icons/` dipertahankan dari repository yang sudah ada (tidak disertakan ulang di ZIP ini).
+- `service-worker.js`: cache shell versi 2.2.10.
 
 
 ## Perubahan v2.2.9 — perbaikan otorisasi Reset Harian
@@ -121,17 +121,27 @@
 - **Cache PWA:** nama cache dinaikkan ke `kalap-shell-v2.2.4` agar pembaruan tampilan dimuat oleh browser dan aplikasi terpasang.
 - **Firestore:** tidak ada perubahan pada `firestore.rules` maupun `firestore.indexes.json` di versi ini. Persyaratan publikasi Rules dari v2.2.3 tetap berlaku.
 
+## Perubahan v2.2.10 — perbaikan permission-denied Reset Harian
+- Reset memperbarui saldo menu dan membuat catatan movement bertipe `reset` secara berpasangan agar riwayat audit stok tetap tersedia.
+- Otorisasi reset berisi daftar ID menu, movement reset, transaksi, dan dokumen stok/pengajuan yang akan diubah atau dihapus. Firestore Rules menggunakan daftar tersebut, bukan melakukan pembacaan silang ke transaksi/menu/movement unik untuk setiap item dalam batch.
+- Pengecekan lintas-dokumen untuk cashflow dan partner sales dihapus pada jalur reset karena ID keduanya sudah dipilih dari transaksi pada tanggal yang sama dan tercatat di dokumen otorisasi. Penghapusan biasa di luar Reset Harian tetap mengikuti aturan semula.
+- Dokumen otorisasi ditulis dengan merge untuk kompatibilitas dengan catatan audit dari versi sebelumnya.
+- Pesan error menampilkan kode dan pesan Firebase asli agar mudah ditelusuri jika ada penolakan berikutnya.
+- Cache PWA dinaikkan ke `kalap-shell-v2.2.10`.
+
+**Penting:** publikasikan `firestore.rules` dari paket v2.2.10 ke Firebase project yang sama sebelum menggunakan Reset Harian. Versi ini menambahkan `menuIds` dan `resetMovementIds` ke skema otorisasi reset, serta mengoptimalkan validasi delete/update agar tidak membutuhkan pembacaan silang per item.
+
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.9.
+2. Ekstrak ZIP v2.2.10.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.9 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.10 mengambil file terbaru.
 
 ## Firestore Rules
-Versi v2.2.8 **mengubah** `firestore.rules`. Jika Rules v2.2.8 belum pernah dipublikasikan, buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket v2.2.9, lalu klik **Publish**. Jika Rules v2.2.8 sudah aktif, v2.2.9 tidak membutuhkan perubahan Rules tambahan.
+Untuk v2.2.10, buka Firebase Console pada project yang sama dengan aplikasi → **Firestore Database → Rules**, ganti seluruh isi Rules dengan file `firestore.rules` dari paket ini, lalu klik **Publish**. Publikasi Rules v2.2.10 wajib dilakukan, sekalipun Rules v2.2.9 sebelumnya sudah aktif, karena versi ini menambahkan daftar `menuIds` dan mengoptimalkan otorisasi Reset Harian.
 
-Rules v2.2.8 di dalam paket ini juga mempertahankan izin untuk fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian dari pembaruan sebelumnya. Tidak ada indeks komposit tambahan yang diperlukan pada versi ini.
+Rules v2.2.10 tetap mempertahankan izin fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian. Tidak ada indeks komposit tambahan yang diperlukan pada versi ini.
 
 ## Catatan penting
 - Reset tanggal historis hanya bisa dilakukan jika pembalikan stok aman. Bila stok dari tanggal tersebut sudah terpakai pada tanggal berikutnya sehingga tidak cukup untuk membalikkan stok masuk, sistem akan membatalkan reset dan menampilkan alasannya; jangan menghapus dokumen secara manual.

@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.9">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.10">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.9">
-  <title>KALAP Management System v2.2.9</title>
+  <meta name="application-version" content="2.2.10">
+  <title>KALAP Management System v2.2.10</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.9</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.10</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -2546,6 +2546,8 @@ async function callApi(name, payload = {}) {
   }
 
   if (name === "resetDailyOperations") {
+    let resetPhase = "memeriksa profil akun di Firestore";
+    try {
     // Gunakan profil terbaru dari server, bukan hanya profil lokal/cache UI.
     // Rules Firestore mengotorisasi berdasarkan users/{uid}.active dan .role.
     if (!actorUid) throw new Error("Sesi akun tidak ditemukan. Silakan login kembali.");
@@ -2564,10 +2566,48 @@ async function callApi(name, payload = {}) {
     const selectedDate = dateFromKey(dateKey);
     if (Number.isNaN(selectedDate.getTime()) || jakartaDateKey(selectedDate) !== dateKey) throw new Error("Tanggal reset tidak valid.");
     if (dateKey > jakartaDateKey(new Date())) throw new Error("Reset tidak dapat dilakukan untuk tanggal yang akan datang.");
-    if (dateKey === jakartaDateKey(new Date())) await rolloverPartnerStocksForDate(dateKey);
+
+    // Pulihkan penanda otorisasi dari percobaan lama yang terputus setelah
+    // batch selesai/gagal. Hanya pemilik percobaan yang sama dan catatan yang
+    // lebih tua dari 10 menit yang boleh direkonsiliasi otomatis.
+    const resetAuthRef = doc(db, "dailyResetAuthorizations", "active");
+    resetPhase = "memeriksa otorisasi reset sebelumnya";
+    const previousAuthorization = await getDoc(resetAuthRef);
+    if (previousAuthorization.exists() && previousAuthorization.data().status === "running") {
+      const previousData = previousAuthorization.data();
+      const previousStartedAt = asDate(previousData.createdAt);
+      const previousAge = previousStartedAt ? Date.now() - previousStartedAt.getTime() : 0;
+      if (previousData.requestedBy === actorUid && previousAge > 10 * 60 * 1000) {
+        await updateDoc(resetAuthRef, {
+          status: "failed", failedAt: serverTimestamp(),
+          failureMessage: "Otorisasi lama dipulihkan otomatis karena proses sebelumnya terputus lebih dari 10 menit."
+        });
+      } else {
+        throw new Error("Masih ada proses Reset Harian yang tercatat berjalan. Tunggu proses aktif selesai; catatan yang sudah terputus akan dipulihkan otomatis setelah 10 menit.");
+      }
+    }
+
+    if (dateKey === jakartaDateKey(new Date())) {
+      resetPhase = "menyelaraskan saldo stok mitra hari berjalan";
+      await rolloverPartnerStocksForDate(dateKey);
+    }
 
     const closingRef = doc(db, "dailyClosings", dateKey);
     let closingLockMode = "none";
+    resetPhase = "memeriksa kunci closing yang tertinggal";
+    const priorClosingSnap = await getDoc(closingRef);
+    if (priorClosingSnap.exists() && priorClosingSnap.data().status === "closing") {
+      const priorClosing = priorClosingSnap.data();
+      const priorStartedAt = asDate(priorClosing.startedAt);
+      const priorAge = priorStartedAt ? Date.now() - priorStartedAt.getTime() : 0;
+      if (priorClosing.startedByUid === actorUid && priorAge > 10 * 60 * 1000) {
+        await updateDoc(closingRef, {
+          status: "open", failedAt: serverTimestamp(),
+          failureMessage: "Kunci closing dipulihkan otomatis karena proses sebelumnya terputus lebih dari 10 menit."
+        });
+      }
+    }
+    resetPhase = "mengunci tanggal closing";
     await runTransaction(db, async tx => {
       const closingSnap = await tx.get(closingRef);
       if (closingSnap.exists() && closingSnap.data().status === "closing") throw new Error("Tanggal ini sedang diproses oleh closing lain. Tunggu hingga proses tersebut selesai.");
@@ -2591,6 +2631,7 @@ async function callApi(name, payload = {}) {
     let resetAuthorizationRef = null;
     let resetBatchCommitted = false;
     try {
+      resetPhase = "membaca data transaksi, stok, pengajuan, dan closing";
       const startDate = dateFromKey(dateKey);
       const endDate = new Date(startDate.getTime() + 86400000);
       const startTs = Timestamp.fromDate(startDate), endTs = Timestamp.fromDate(endDate);
@@ -2768,16 +2809,15 @@ async function callApi(name, payload = {}) {
         + payoutRefs.length + summaryRefs.length + (closingSnap.exists() ? 1 : 0);
       if (operationCount > 450) throw new Error(`Reset memiliki ${integer(operationCount)} perubahan, melebihi batas aman satu proses. Hubungi pengelola sistem untuk penanganan tanggal ini tanpa memecah saldo stok.`);
 
-      const authRef = doc(db, "dailyResetAuthorizations", "active");
-      const previousAuthorization = await getDoc(authRef);
-      if (previousAuthorization.exists() && previousAuthorization.data().status === "running") {
-        throw new Error("Reset tanggal lain sedang berjalan. Tunggu hingga proses itu selesai sebelum memulai reset baru.");
-      }
+      const authRef = resetAuthRef;
       resetAuthorizationRef = authRef;
+      resetPhase = "mendaftarkan otorisasi reset";
       await setDoc(authRef, {
         dateKey, startAt: startTs, endAt: endTs,
         status: "running", requestedBy: actorUid, requestedByName: actorName,
         createdAt: serverTimestamp(), transactionIds,
+        menuIds: menuPlans.map(plan => plan.menuId),
+        resetMovementIds: menuPlans.map(plan => plan.movementRef.id),
         stockMovementIds: movementRefs.map(ref => ref.id),
         cashflowIds: cashflowRefs.map(ref => ref.id),
         partnerSaleIds: partnerSaleRefs.map(ref => ref.id),
@@ -2786,12 +2826,20 @@ async function callApi(name, payload = {}) {
         stockRequestParentIds: [...requestParentUpdates.keys()],
         payoutIds: payoutRefs.map(ref => ref.id),
         closingSummaryIds: summaryRefs.map(ref => ref.id)
-      });
+      }, { merge: true });
 
       const batch = writeBatch(db);
       const now = serverTimestamp();
+      // Perubahan saldo dan catatan reset tetap ditulis berpasangan. Rules
+      // memvalidasi keduanya melalui daftar ID pada otorisasi reset yang sama,
+      // bukan getAfter() ke dokumen menu/movement unik pada setiap operasi.
       menuPlans.forEach(plan => {
-        batch.update(plan.menuRef, { stock: plan.stockAfter, ...(plan.menu.partnerId ? { stockBusinessDate: dateKey } : {}), updatedAt: now, lastMovementId: plan.movementRef.id });
+        batch.update(plan.menuRef, {
+          stock: plan.stockAfter,
+          ...(plan.menu.partnerId ? { stockBusinessDate: dateKey } : {}),
+          updatedAt: now,
+          lastMovementId: plan.movementRef.id
+        });
         batch.set(plan.movementRef, {
           type: "reset", qty: Math.abs(plan.delta), adjustmentDelta: plan.delta, businessDate: dateKey,
           changeType: plan.delta > 0 ? "ditambah" : "dikurang",
@@ -2818,8 +2866,10 @@ async function callApi(name, payload = {}) {
       // Selesaikan perubahan data dahulu selagi dokumen otorisasi masih berstatus
       // running. Seluruh aturan penghapusan membaca status running tersebut.
       // Setelah batch utama berhasil, tutup otorisasi dalam update terpisah.
+      resetPhase = "memperbarui saldo menu dan menghapus aktivitas tanggal terpilih";
       await batch.commit();
       resetBatchCommitted = true;
+      resetPhase = "menyelesaikan catatan otorisasi reset";
       await updateDoc(authRef, {
         status: "completed", completedAt: serverTimestamp(),
         transactionCount: transactionIds.length, stockMovementCount: movementRefs.length,
@@ -2838,6 +2888,10 @@ async function callApi(name, payload = {}) {
         }).catch(() => {});
       }
       throw error;
+    }
+    } catch (outerError) {
+      try { outerError.kalapResetPhase = resetPhase; } catch (_) {}
+      throw outerError;
     }
   }
 
@@ -5694,8 +5748,11 @@ async function resetDailyOperations(dateKey, button) {
     if (activePage === "closing") subscribeClosingSummaries(dateKey);
     renderPage();
   } catch (error) {
+    console.error("Reset Harian gagal", { code: error?.code || "unknown", message: error?.message || String(error), error });
     if (error?.code === "permission-denied") {
-      toast("Firestore menolak operasi Reset Harian. Login Superadmin di aplikasi belum otomatis membuktikan Rules server sudah sesuai. Pastikan Rules KALAP v2.2.9 dipublikasikan pada project Firebase yang sama, lalu coba lagi.", "error");
+      const detail = String(error?.message || "Missing or insufficient permissions.").slice(0, 160);
+      const stage = String(error?.kalapResetPhase || "tahap tidak diketahui");
+      toast(`Reset ditolak Firestore pada tahap ${stage} (${error.code}): ${detail}.`, "error");
     } else {
       toast(friendlyError(error), "error");
     }
