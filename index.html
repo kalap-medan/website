@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.8">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.9">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.8">
-  <title>KALAP Management System v2.2.8</title>
+  <meta name="application-version" content="2.2.9">
+  <title>KALAP Management System v2.2.9</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.8</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.9</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1601,7 +1601,7 @@ function friendlyError(error) {
   if (code.includes("auth/weak-password")) return "Kata sandi terlalu lemah. Gunakan minimal 8 karakter.";
   if (code.includes("auth/requires-recent-login")) return "Sesi perlu diverifikasi ulang. Keluar lalu login kembali, kemudian coba ganti kata sandi.";
   if (code.includes("auth/too-many-requests")) return "Terlalu banyak percobaan. Coba lagi beberapa saat.";
-  if (code.includes("permission-denied")) return "Firebase menolak tindakan ini. Pastikan akun aktif memiliki role yang sesuai dan Firestore Rules versi terbaru sudah dipublikasikan.";
+  if (code.includes("permission-denied")) return "Firestore menolak salah satu operasi. Ini belum tentu masalah role login; periksa profil users/{UID} (active: true, role: superadmin) dan pastikan Firestore Rules yang aktif sesuai dengan paket aplikasi.";
   if (code.includes("failed-precondition")) return error.message || "Tindakan tidak dapat diproses karena kondisi belum terpenuhi.";
   if (code.includes("already-exists")) return "Email akun tersebut sudah digunakan.";
   if (code.includes("unavailable")) return "Layanan Firebase sedang tidak tersedia. Periksa koneksi internet.";
@@ -2546,7 +2546,19 @@ async function callApi(name, payload = {}) {
   }
 
   if (name === "resetDailyOperations") {
-    requireRole("superadmin", "spv");
+    // Gunakan profil terbaru dari server, bukan hanya profil lokal/cache UI.
+    // Rules Firestore mengotorisasi berdasarkan users/{uid}.active dan .role.
+    if (!actorUid) throw new Error("Sesi akun tidak ditemukan. Silakan login kembali.");
+    const liveProfileSnap = await getDocFromServer(doc(db, "users", actorUid));
+    if (!liveProfileSnap.exists()) throw new Error("Profil akun tidak ditemukan di Firestore. Hubungi Admin.");
+    const liveProfile = liveProfileSnap.data();
+    if (liveProfile.active !== true) throw new Error("Akun Superadmin tidak aktif pada profil Firestore. Periksa users/{UID}.active.");
+    if (!["superadmin", "spv"].includes(String(liveProfile.role || ""))) {
+      throw new Error(`Role pada profil Firestore adalah "${String(liveProfile.role || "kosong")}", bukan Superadmin/SPV. Periksa users/{UID}.role.`);
+    }
+    if (profile?.role !== liveProfile.role || profile?.active !== liveProfile.active) {
+      profile = { uid: actorUid, ...liveProfile };
+    }
     const dateKey = String(payload.dateKey || "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new Error("Tanggal reset tidak valid.");
     const selectedDate = dateFromKey(dateKey);
@@ -2577,6 +2589,7 @@ async function callApi(name, payload = {}) {
     });
 
     let resetAuthorizationRef = null;
+    let resetBatchCommitted = false;
     try {
       const startDate = dateFromKey(dateKey);
       const endDate = new Date(startDate.getTime() + 86400000);
@@ -2752,7 +2765,7 @@ async function callApi(name, payload = {}) {
 
       const operationCount = menuPlans.length * 2 + transactionIds.length + movementRefs.length
         + cashflowRefs.length + partnerSaleRefs.length + requestsToDelete.length + requestParentUpdates.size + lockRefs.length
-        + payoutRefs.length + summaryRefs.length + (closingSnap.exists() ? 1 : 0) + 1;
+        + payoutRefs.length + summaryRefs.length + (closingSnap.exists() ? 1 : 0);
       if (operationCount > 450) throw new Error(`Reset memiliki ${integer(operationCount)} perubahan, melebihi batas aman satu proses. Hubungi pengelola sistem untuk penanganan tanggal ini tanpa memecah saldo stok.`);
 
       const authRef = doc(db, "dailyResetAuthorizations", "active");
@@ -2802,18 +2815,24 @@ async function callApi(name, payload = {}) {
       payoutRefs.forEach(ref => batch.delete(ref));
       summaryRefs.forEach(ref => batch.delete(ref));
       if (closingSnap.exists()) batch.delete(closingRef);
-      batch.update(authRef, {
-        status: "completed", completedAt: now,
+      // Selesaikan perubahan data dahulu selagi dokumen otorisasi masih berstatus
+      // running. Seluruh aturan penghapusan membaca status running tersebut.
+      // Setelah batch utama berhasil, tutup otorisasi dalam update terpisah.
+      await batch.commit();
+      resetBatchCommitted = true;
+      await updateDoc(authRef, {
+        status: "completed", completedAt: serverTimestamp(),
         transactionCount: transactionIds.length, stockMovementCount: movementRefs.length,
         stockRequestCount: requestsToDelete.length, adjustedMenuCount: menuPlans.length
       });
-      await batch.commit();
       return { dateKey, transactionCount: transactionIds.length, stockMovementCount: movementRefs.length, stockRequestCount: requestsToDelete.length, adjustedMenuCount: menuPlans.length };
     } catch (error) {
-      if (resetAuthorizationRef) {
+      // Jangan menandai otorisasi sebagai gagal atau membuka kembali tanggal
+      // setelah batch utama sukses; data reset sudah telanjur diterapkan.
+      if (resetAuthorizationRef && !resetBatchCommitted) {
         await updateDoc(resetAuthorizationRef, { status: "failed", failedAt: serverTimestamp(), failureMessage: String(error?.message || error).slice(0, 300) }).catch(() => {});
       }
-      if (closingLockMode === "locked-existing" || closingLockMode === "locked-new") {
+      if (!resetBatchCommitted && (closingLockMode === "locked-existing" || closingLockMode === "locked-new")) {
         await updateDoc(closingRef, {
           status: "open", failedAt: serverTimestamp(), failureMessage: String(error?.message || error).slice(0, 300)
         }).catch(() => {});
@@ -5674,7 +5693,13 @@ async function resetDailyOperations(dateKey, button) {
     subscribeStockDailyDate(dateKey);
     if (activePage === "closing") subscribeClosingSummaries(dateKey);
     renderPage();
-  } catch (error) { toast(friendlyError(error), "error"); }
+  } catch (error) {
+    if (error?.code === "permission-denied") {
+      toast("Firestore menolak operasi Reset Harian. Login Superadmin di aplikasi belum otomatis membuktikan Rules server sudah sesuai. Pastikan Rules KALAP v2.2.9 dipublikasikan pada project Firebase yang sama, lalu coba lagi.", "error");
+    } else {
+      toast(friendlyError(error), "error");
+    }
+  }
   finally { setBusy(button, false); }
 }
 
@@ -5758,7 +5783,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.8", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.9", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});

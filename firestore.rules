@@ -1,3 +1,4 @@
+// KALAP Firestore Rules — compatible with application v2.2.9 (same permission schema as v2.2.8).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {

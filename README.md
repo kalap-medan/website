@@ -1,12 +1,20 @@
-# KALAP Management System v2.2.8
+# KALAP Management System v2.2.9
 
 ## Isi paket
 - `index.html`: seluruh HTML, CSS, dan JavaScript aplikasi dalam satu file.
-- `firestore.rules`: Firebase Firestore Security Rules terbaru. Wajib dipublikasikan untuk v2.2.8.
+- `firestore.rules`: Firebase Firestore Security Rules terbaru. Rules v2.2.9 kompatibel dengan Rules v2.2.8; hanya perlu dipublikasikan jika Rules v2.2.8 belum dipasang di Firebase.
 - `firestore.indexes.json`: konfigurasi indeks Firestore (tidak ada indeks tambahan untuk perubahan ini).
 - `manifest.webmanifest`, `icons/`: identitas PWA dan ikon aplikasi.
-- `service-worker.js`: cache shell versi 2.2.8.
+- `service-worker.js`: cache shell versi 2.2.9.
 
+
+## Perubahan v2.2.9 — perbaikan otorisasi Reset Harian
+- **Verifikasi role dari server:** sebelum reset dijalankan, aplikasi membaca ulang `users/{UID}` dari Firestore Server dan memastikan `active == true` serta `role` bernilai `superadmin` atau `spv`. Jadi tampilan role dari cache tidak lagi menjadi satu-satunya dasar pemeriksaan.
+- **Pemisahan otorisasi reset:** status otorisasi `running` dipertahankan selama batch penghapusan/perubahan data berlangsung. Setelah batch utama berhasil, status diperbarui menjadi `completed` melalui operasi terpisah agar aturan penghapusan tidak bergantung pada perubahan status di batch yang sama.
+- **Pesan error lebih tepat:** penolakan Firestore tidak langsung menyalahkan role login; pesan mengarahkan pemeriksaan profil server dan Firestore Rules pada project yang benar.
+- **Ruang operasi batch:** hitungan operasi disesuaikan karena penutupan dokumen otorisasi sekarang dilakukan terpisah.
+- **Rules:** tidak ada perubahan izin baru dibanding Rules v2.2.8. Jika Rules v2.2.8 sudah dipublikasikan, tidak perlu menggantinya lagi untuk perbaikan ini. Jika belum, publikasikan `firestore.rules` dari paket ini.
+- **Cache PWA:** versi cache dinaikkan menjadi `kalap-shell-v2.2.9`.
 
 ## Perubahan v2.2.8 — stok mitra kembali 0 setiap hari
 - **Stok mitra per hari:** saldo menu mitra memiliki penanda tanggal bisnis. Ketika tanggal berganti, saldo kemarin tidak dibawa ke hari baru. Saldo awal hari dibangun ulang dari pergerakan stok hari itu (stok masuk, penjualan, pembatalan, dan penyesuaian), sehingga input hari sebelumnya tidak ikut menambah stok baru.
@@ -115,13 +123,13 @@
 
 ## Cara memperbarui GitHub Pages
 1. Cadangkan repository yang sedang berjalan.
-2. Ekstrak ZIP v2.2.8.
+2. Ekstrak ZIP v2.2.9.
 3. Upload seluruh isi folder ke root repository GitHub Pages dan replace file lama. Pertahankan folder `icons/`, file tersembunyi `.nojekyll`, dan `.gitignore`.
 4. Pastikan GitHub Pages mengarah ke branch dan folder publikasi yang benar.
-5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.8 mengambil file terbaru.
+5. Lakukan hard refresh (`Ctrl + Shift + R`). Untuk PWA yang terpasang, tutup lalu buka kembali aplikasi agar service worker v2.2.9 mengambil file terbaru.
 
 ## Firestore Rules
-Versi v2.2.8 **mengubah** `firestore.rules`. Publikasikan Rules v2.2.8 dari paket ini sebelum menggunakan aplikasi versi ini. Buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket ini, lalu klik **Publish**.
+Versi v2.2.8 **mengubah** `firestore.rules`. Jika Rules v2.2.8 belum pernah dipublikasikan, buka Firebase Console → **Firestore Database → Rules**, ganti seluruh isinya dengan `firestore.rules` dari paket v2.2.9, lalu klik **Publish**. Jika Rules v2.2.8 sudah aktif, v2.2.9 tidak membutuhkan perubahan Rules tambahan.
 
 Rules v2.2.8 di dalam paket ini juga mempertahankan izin untuk fitur Tolak, edit/hapus stok, arsip menu/mitra, dan reset harian dari pembaruan sebelumnya. Tidak ada indeks komposit tambahan yang diperlukan pada versi ini.
 
