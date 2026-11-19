@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.15 (Superadmin-only full operational reset).
+// KALAP Firestore Rules — application v2.2.16 (Superadmin-only full operational reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -252,6 +252,20 @@ service cloud.firestore {
         || (isPartner() && resource.data.partnerId == myProfile().partnerId);
       allow create: if validNewMenu(menuId);
       allow update: if (isStaff()
+          // Sinkronisasi saldo harian berjalan sebagai operasi khusus yang dibatasi
+          // ke menu Mitra dan tiga field saldo/tanggal/waktu saja. Letakkan di awal
+          // agar evaluasi tidak melewati cabang reset/movement yang lebih mahal.
+          && resource.data.get('partnerId', null) is string
+          && resource.data.partnerId.size() > 0
+          && request.resource.data.stock is int
+          && request.resource.data.stock >= 0
+          && request.resource.data.stockBusinessDate is string
+          && (request.resource.data.stockBusinessDate == 'closed'
+            || request.resource.data.stockBusinessDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+          && request.resource.data.stockBusinessDate != resource.data.get('stockBusinessDate', '')
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt']))
+        || (isStaff()
           && resetAuthorizationContains('menuIds', menuId)
           && request.resource.data.stock is int
           && request.resource.data.stock >= 0
@@ -292,18 +306,7 @@ service cloud.firestore {
           && request.resource.data.stock is int
           && request.resource.data.stock >= 0
           && request.resource.data.updatedAt == request.time
-          && (linkedMovement(menuId) || deletedStockBatchLinked(menuId)))
-        || (isStaff()
-          && resource.data.get('partnerId', null) is string
-          && resource.data.partnerId.size() > 0
-          && request.resource.data.stock is int
-          && request.resource.data.stock >= 0
-          && request.resource.data.stockBusinessDate is string
-          && (request.resource.data.stockBusinessDate == 'closed'
-            || request.resource.data.stockBusinessDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
-          && request.resource.data.stockBusinessDate != resource.data.get('stockBusinessDate', '')
-          && request.resource.data.updatedAt == request.time
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt']));
+          && (linkedMovement(menuId) || deletedStockBatchLinked(menuId)));
       allow delete: if isSuperadmin()
         && existsAfter(/databases/$(database)/documents/menuArchives/$(menuId))
         && getAfter(/databases/$(database)/documents/menuArchives/$(menuId)).data.originalMenuId == menuId

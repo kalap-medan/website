@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.15">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.16">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.15">
-  <title>KALAP Management System v2.2.15</title>
+  <meta name="application-version" content="2.2.16">
+  <title>KALAP Management System v2.2.16</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.15</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.16</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1421,6 +1421,8 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
   if (stockRolloverDayKey === dateKey) return { reset: 0, currentDayStock: 0 };
   if (stockRolloverPromise) return stockRolloverPromise;
   stockRolloverPromise = (async () => {
+    let rolloverPhase = "membaca status closing harian";
+    try {
     // Jangan membangun ulang saldo jika tanggal yang diminta sudah masuk proses closing.
     // Tanpa pemeriksaan ini, sesi baru yang dibuka setelah closing dapat menulis kembali
     // saldo dari pergerakan hari yang sudah ditutup.
@@ -1429,6 +1431,7 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
       stockRolloverDayKey = dateKey;
       return { reset: 0, currentDayStock: 0, locked: true };
     }
+    rolloverPhase = "membaca daftar menu";
     const start = dateFromKey(dateKey);
     const end = new Date(start.getTime() + 86400000);
     const menusQuery = query(collection(db, "menus"), orderBy("name", "asc"), limit(3000));
@@ -1437,6 +1440,7 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
       where("createdAt", "<", Timestamp.fromDate(end)), limit(10000));
     const businessDateMovementsQuery = query(collection(db, "stockMovements"),
       where("businessDate", "==", dateKey), limit(10000));
+    rolloverPhase = "membaca catatan pergerakan stok";
     const [menusSnap, movementSnaps] = await Promise.all([
       getDocsFromServer(menusQuery),
       Promise.all([getDocsFromServer(todayMovementsQuery), getDocsFromServer(businessDateMovementsQuery)])
@@ -1464,13 +1468,22 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
       if (oldStock !== todayStock) reset += 1;
       currentDayStock += todayStock;
     }
-    for (let i = 0; i < updates.length; i += 450) {
+    // Security Rules membaca profil aktif saat setiap dokumen diperbarui. Batch besar
+    // dapat melampaui batas document-access-call Firestore (20 untuk atomic batch),
+    // sehingga gunakan kelompok kecil yang tetap atomik.
+    const rolloverBatchSize = 8;
+    for (let i = 0; i < updates.length; i += rolloverBatchSize) {
+      rolloverPhase = `memperbarui saldo menu (kelompok ${Math.floor(i / rolloverBatchSize) + 1})`;
       const batch = writeBatch(db);
-      updates.slice(i, i + 450).forEach(item => batch.update(item.ref, item.data));
+      updates.slice(i, i + rolloverBatchSize).forEach(item => batch.update(item.ref, item.data));
       await batch.commit();
     }
     stockRolloverDayKey = dateKey;
     return { reset, currentDayStock };
+    } catch (error) {
+      try { error.kalapRolloverPhase = rolloverPhase; } catch (_) {}
+      throw error;
+    }
   })().finally(() => { stockRolloverPromise = null; });
   return stockRolloverPromise;
 }
@@ -1684,7 +1697,8 @@ function friendlyError(error) {
 function stockFirestoreError(action, error) {
   if (error?.code === "permission-denied" && error?.kalapStockPhase) {
     const phase = String(error.kalapStockPhase);
-    return `${action} ditolak Firestore pada tahap: ${phase}. Pastikan Firestore Rules v2.2.15 sudah dipublikasikan. Jika sudah, periksa users/{UID}: active harus bernilai boolean true dan role harus sesuai akun. Detail: ${error.message || "Missing or insufficient permissions."}`;
+    const rolloverPhase = error?.kalapRolloverPhase ? `; rincian sinkronisasi: ${error.kalapRolloverPhase}` : "";
+    return `${action} ditolak Firestore pada tahap: ${phase}${rolloverPhase}. Pastikan Firestore Rules v2.2.16 sudah dipublikasikan. Detail: ${error.message || "Missing or insufficient permissions."}`;
   }
   return friendlyError(error);
 }
@@ -6310,7 +6324,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.15", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.16", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
