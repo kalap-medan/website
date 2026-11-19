@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.16 (Superadmin-only full operational reset).
+// KALAP Firestore Rules — application v2.2.17 (approved stock batch deletion compatibility).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -474,7 +474,10 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'received'
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('requestType', 'stock') != 'adjustment'
-          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', null) == null
+          // Dokumen pengajuan lama dapat menyimpan penanda koreksi sebagai string kosong.
+          // Kode aplikasi memperlakukan nilai kosong, null, dan field yang tidak ada sebagai belum dikoreksi.
+          && (get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', null) == null
+            || get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', '') == '')
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.movementId == movementId
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.menuId == resource.data.menuId
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
@@ -792,7 +795,8 @@ service cloud.firestore {
               && resetAuthorizationContains('stockMovementIds', resource.data.movementId))))
         || (isStaff() && resource.data.status == 'received'
           && resource.data.get('requestType', 'stock') != 'adjustment'
-          && resource.data.get('latestAdjustmentRequestId', null) == null
+          && (resource.data.get('latestAdjustmentRequestId', null) == null
+            || resource.data.get('latestAdjustmentRequestId', '') == '')
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
           && resource.data.get('movementId', null) is string
           && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
@@ -800,7 +804,8 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId)
         || (isStaff() && resource.data.status == 'received'
           && resource.data.get('requestType', 'stock') != 'adjustment'
-          && resource.data.get('latestAdjustmentRequestId', null) == null
+          && (resource.data.get('latestAdjustmentRequestId', null) == null
+            || resource.data.get('latestAdjustmentRequestId', '') == '')
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
           && resource.data.get('movementId', null) is string
           && exists(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))

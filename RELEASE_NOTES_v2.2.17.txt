@@ -1,0 +1,13 @@
+KALAP Management System v2.2.17
+
+Perbaikan terfokus:
+- Memperbaiki penolakan Firestore saat menghapus batch stok masuk dari pengajuan Mitra yang sudah disetujui.
+- Firestore Rules kini menerima `latestAdjustmentRequestId` yang kosong sebagai belum memiliki riwayat koreksi, sama seperti validasi JavaScript. Field yang tidak ada, null, dan string kosong diperlakukan konsisten.
+- Pemeriksaan penghapusan tetap dibatasi untuk pengajuan berstatus received, batch dan pengajuan yang saling cocok, tidak ada pengajuan aktif, dan batch sumber disembunyikan bersamaan dengan pembalikan saldo serta penghapusan pengajuan terkait.
+
+Tidak ada perubahan pada alur input stok manual, hitung saldo, UI, atau fitur lain.
+
+Pemasangan:
+1. Ganti index.html dan service-worker.js di hosting.
+2. Publikasikan firestore.rules v2.2.17 ke Firebase Console project kalap-63628.
+3. Hard refresh dan pastikan versi aplikasi v2.2.17.
