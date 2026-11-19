@@ -1,12 +1,12 @@
-# KALAP Management System v2.2.13
+# KALAP Management System v2.2.14
 
 ## Isi paket
 - `index.html`: aplikasi KALAP satu berkas.
-- `firestore.rules`: Firestore Rules v2.2.13 dengan otorisasi reset seluruh sistem khusus Superadmin aktif.
+- `firestore.rules`: Firestore Rules v2.2.14 dengan otorisasi reset seluruh sistem khusus Superadmin aktif.
 - `firestore.indexes.json`: konfigurasi indeks yang sudah ada.
 - `manifest.webmanifest`: identitas PWA.
-- `service-worker.js`: cache shell v2.2.13.
-- `RELEASE_NOTES_v2.2.13.txt`: rincian pembaruan.
+- `service-worker.js`: cache shell v2.2.14.
+- `RELEASE_NOTES_v2.2.14.txt`: rincian pembaruan.
 
 ## Reset Seluruh Sistem
 Tombol tersedia pada halaman **Menu & Persediaan** untuk Superadmin aktif. Pengguna harus mengetik `RESET SEMUA` untuk mengonfirmasi. Data operasional transaksi, keuangan, penjualan mitra, pergerakan stok, pengajuan dan lock, payout, closing, serta ringkasan closing dihapus. Saldo operasional menu diatur menjadi 0, tetapi katalog menu tetap dipertahankan. Data mitra dan akun login juga dipertahankan. Arsip katalog tetap disimpan.

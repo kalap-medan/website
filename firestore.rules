@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.13 (Superadmin-only full operational reset).
+// KALAP Firestore Rules — application v2.2.14 (Superadmin-only full operational reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -390,6 +390,13 @@ service cloud.firestore {
               && existsAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.lastMovementId == movementId
               && getAfter(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.stock == request.resource.data.stockAfter)
+          || (request.resource.data.type == 'in' && isStaff()
+              && request.resource.data.get('scheduledForFuture', false) == true
+              && request.resource.data.source == 'manual'
+              && request.resource.data.businessDate is string
+              && request.resource.data.stockAfter - request.resource.data.stockBefore == request.resource.data.qty
+              && exists(/databases/$(database)/documents/menus/$(request.resource.data.menuId))
+              && get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.get('active', true) == true)
           || (request.resource.data.type == 'sale_cancel' && isPOSUser()
               && request.resource.data.stockAfter - request.resource.data.stockBefore == request.resource.data.qty
               && request.resource.data.transactionId is string
