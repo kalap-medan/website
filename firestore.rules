@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.17 (approved stock batch deletion compatibility).
+// KALAP Firestore Rules — application v2.2.18 (authorized stock-batch cancellation with retained audit).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -481,7 +481,8 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.movementId == movementId
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.menuId == resource.data.menuId
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
-          && !existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided'
           && request.resource.data.hiddenFromDaily == true
           && request.resource.data.hiddenAt == request.time
           && request.resource.data.hiddenBy == request.auth.uid
@@ -744,11 +745,15 @@ service cloud.firestore {
                 && resetAuthorizationContains('stockMovementIds', resource.data.movementId)
                 && resetTransactionOrStockMovementBelongsToTargetDay(resource.data.movementId))
               || (resource.data.status == 'received'
+                && resource.data.get('requestType', 'stock') != 'adjustment'
+                && (resource.data.get('latestAdjustmentRequestId', null) == null
+                  || resource.data.get('latestAdjustmentRequestId', '') == '')
                 && resource.data.get('movementId', null) is string
                 && existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.menuId == resource.data.menuId
-                && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.voided == true)))
+                && (getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.voided == true
+                  || getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenFromDaily == true))))
           || (isStaff()
             && resetAuthorizationContains('stockRequestParentIds', requestId)
             && resource.data.status == 'received'
