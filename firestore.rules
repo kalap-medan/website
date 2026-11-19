@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.18 (authorized stock-batch cancellation with retained audit).
+// KALAP Firestore Rules — application v2.2.19 (authorized stock-batch cancellation with retained audit).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -95,6 +95,21 @@ service cloud.firestore {
         ? request.resource.data.partnerId is string
           && get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId)).data.active == true
         : request.resource.data.partnerId == null);
+    }
+
+    // Saat batch dibatalkan, semua koreksi yang telah diterima pada rantainya
+    // harus ikut ditandai voided. Dokumen movement koreksi dipertahankan utuh
+    // sebagai audit; daftar operasional menyaringnya berdasarkan status request.
+    function latestCorrectionIsVoided(requestId) {
+      let basePath = /databases/$(database)/documents/stockRequests/$(requestId);
+      let rawLatestId = get(basePath).data.get('latestAdjustmentRequestId', '');
+      let latestId = rawLatestId is string && rawLatestId.size() > 0 ? rawLatestId : '__none__';
+      let correctionPath = /databases/$(database)/documents/stockRequests/$(latestId);
+      return rawLatestId == null || rawLatestId == ''
+        || (rawLatestId is string
+          && existsAfter(correctionPath)
+          && getAfter(correctionPath).data.status == 'voided'
+          && getAfter(correctionPath).data.baseRequestId == requestId);
     }
 
     function linkedMovement(menuId) {
@@ -476,13 +491,52 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('requestType', 'stock') != 'adjustment'
           // Dokumen pengajuan lama dapat menyimpan penanda koreksi sebagai string kosong.
           // Kode aplikasi memperlakukan nilai kosong, null, dan field yang tidak ada sebagai belum dikoreksi.
-          && (get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', null) == null
-            || get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.get('latestAdjustmentRequestId', '') == '')
+          && latestCorrectionIsVoided(resource.data.requestId)
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.movementId == movementId
           && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.menuId == resource.data.menuId
           && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
           && existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
           && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided'
+          && request.resource.data.hiddenFromDaily == true
+          && request.resource.data.hiddenAt == request.time
+          && request.resource.data.hiddenBy == request.auth.uid
+          && request.resource.data.hiddenByName is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
+          ]))
+        || (isStaff()
+          && resource.data.type == 'adjustment'
+          && resource.data.source == 'partner_stock_adjustment'
+          && resource.data.get('requestId', null) is string
+          && exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'received'
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.requestType == 'adjustment'
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.movementId == movementId
+          && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId is string
+          && exists(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId))
+          && get(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId)).data.status == 'received'
+          && get(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId)).data.latestAdjustmentRequestId == resource.data.requestId
+          && !exists(/databases/$(database)/documents/stockRequestLocks/$(resource.data.menuId))
+          && existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+          && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided'
+          && existsAfter(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId))
+          && getAfter(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId)).data.status == 'voided'
+          && request.resource.data.hiddenFromDaily == true
+          && request.resource.data.hiddenAt == request.time
+          && request.resource.data.hiddenBy == request.auth.uid
+          && request.resource.data.hiddenByName is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'hiddenFromDaily', 'hiddenAt', 'hiddenBy', 'hiddenByName'
+          ]))
+        || (isStaff()
+          && resource.data.type == 'adjustment'
+          && resource.data.source == 'stock_daily_edit'
+          && resource.data.sourceMovementId is string
+          && existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.sourceMovementId))
+          && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.sourceMovementId)).data.hiddenFromDaily == true
+          && (resource.data.get('requestId', null) == null
+            || (existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+              && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.status == 'voided'))
           && request.resource.data.hiddenFromDaily == true
           && request.resource.data.hiddenAt == request.time
           && request.resource.data.hiddenBy == request.auth.uid
@@ -630,7 +684,8 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.status == 'received'
             && get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.partnerId == myProfile().partnerId
             && get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.menuId == request.resource.data.menuId
-            && get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.get('latestAdjustmentRequestId', null) == null
+            && (get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.get('latestAdjustmentRequestId', null) == null
+              || get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.get('latestAdjustmentRequestId', '') == '')
             && request.resource.data.previousQty == get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.get('receivedQty', get(/databases/$(database)/documents/stockRequests/$(request.resource.data.baseRequestId)).data.qty)
             && request.resource.data.deltaQty is int
             && request.resource.data.deltaQty == request.resource.data.qty - request.resource.data.previousQty
@@ -712,7 +767,8 @@ service cloud.firestore {
           ||
           // Setelah koreksi disetujui, tandai batch sebelumnya agar tidak dikoreksi dua kali.
           (resource.data.status == 'received'
-            && resource.data.get('latestAdjustmentRequestId', null) == null
+            && (resource.data.get('latestAdjustmentRequestId', null) == null
+              || resource.data.get('latestAdjustmentRequestId', '') == '')
             && request.resource.data.latestAdjustmentRequestId is string
             && request.resource.data.adjustmentAcceptedAt == request.time
             && request.resource.data.adjustmentAcceptedBy == request.auth.uid
@@ -746,14 +802,26 @@ service cloud.firestore {
                 && resetTransactionOrStockMovementBelongsToTargetDay(resource.data.movementId))
               || (resource.data.status == 'received'
                 && resource.data.get('requestType', 'stock') != 'adjustment'
-                && (resource.data.get('latestAdjustmentRequestId', null) == null
-                  || resource.data.get('latestAdjustmentRequestId', '') == '')
                 && resource.data.get('movementId', null) is string
                 && existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
                 && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.menuId == resource.data.menuId
-                && (getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.voided == true
-                  || getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenFromDaily == true))))
+                && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.hiddenFromDaily == true
+                && latestCorrectionIsVoided(requestId))
+              || (resource.data.status == 'received'
+                && resource.data.get('requestType', 'stock') == 'adjustment'
+                && resource.data.get('baseRequestId', null) is string
+                && exists(/databases/$(database)/documents/stockRequests/$(resource.data.baseRequestId))
+                && get(/databases/$(database)/documents/stockRequests/$(resource.data.baseRequestId)).data.status == 'received'
+                && get(/databases/$(database)/documents/stockRequests/$(resource.data.baseRequestId)).data.latestAdjustmentRequestId == requestId
+                && resource.data.get('movementId', null) is string
+                && existsAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId))
+                && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.requestId == requestId
+                && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.type == 'adjustment'
+                && getAfter(/databases/$(database)/documents/stockMovements/$(resource.data.movementId)).data.menuId == resource.data.menuId
+                && existsAfter(/databases/$(database)/documents/stockRequests/$(resource.data.baseRequestId))
+                && getAfter(/databases/$(database)/documents/stockRequests/$(resource.data.baseRequestId)).data.status == 'voided'
+                && latestCorrectionIsVoided(requestId))))
           || (isStaff()
             && resetAuthorizationContains('stockRequestParentIds', requestId)
             && resource.data.status == 'received'

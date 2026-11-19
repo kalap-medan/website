@@ -1,0 +1,20 @@
+KALAP v2.2.19 — Perbaikan penghapusan batch dan revisi koreksi
+
+1. Penghapusan batch yang sudah memiliki koreksi diterima sekarang mengikuti pointer latestAdjustmentRequestId sampai akhir rantai koreksi.
+2. Transaksi tidak lagi memanggil Transaction.get() dengan Query koleksi; setiap dokumen koreksi dan movement dibaca melalui DocumentReference.
+3. Saldo yang dikurangi dihitung dari editedQty/jumlah batch efektif ditambah seluruh adjustmentDelta koreksi yang diterima. Satu movement pembalikan menetralkan seluruh rantai secara tepat satu kali.
+4. Batch asli disembunyikan dari daftar operasional, dokumen pengajuan sumber dan koreksi ditandai voided, sedangkan movement edit/koreksi tetap dipertahankan sebagai jejak audit.
+5. Daftar Stok Masuk Disetujui tidak menampilkan movement koreksi yang request-nya sudah voided atau movement edit milik batch yang dibatalkan.
+6. Revisi koreksi mempertahankan previousQty yang tersimpan persis agar pemeriksaan equality Firestore konsisten pada data lama.
+7. Rules menyamakan perlakuan latestAdjustmentRequestId kosong, null, dan tidak ada; koreksi turunan harus ikut voided saat batch sumber dibatalkan.
+8. Kewenangan tetap dibatasi ke Superadmin/SPV aktif. Tidak ada perubahan fitur lain yang disengaja.
+
+Pemeriksaan lokal:
+- Sintaks JavaScript inline dan service worker.
+- Struktur JSON manifest dan Firestore indexes.
+- Keseimbangan delimiter Firestore Rules dan pemeriksaan cabang terkait.
+- Simulasi aritmetika pembalikan batch untuk data edit dan satu atau beberapa koreksi.
+
+Batasan:
+- Tidak ada akses untuk memublikasikan Rules atau menjalankan transaksi terhadap Firebase project kalap-63628.
+- Firestore Rules belum dijalankan melalui Firebase Emulator pada lingkungan ini.

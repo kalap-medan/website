@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.18">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.19">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.18">
-  <title>KALAP Management System v2.2.18</title>
+  <meta name="application-version" content="2.2.19">
+  <title>KALAP Management System v2.2.19</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.18</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.19</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1698,7 +1698,7 @@ function stockFirestoreError(action, error) {
   if (error?.code === "permission-denied" && error?.kalapStockPhase) {
     const phase = String(error.kalapStockPhase);
     const rolloverPhase = error?.kalapRolloverPhase ? `; rincian sinkronisasi: ${error.kalapRolloverPhase}` : "";
-    return `${action} ditolak Firestore pada tahap: ${phase}${rolloverPhase}. Pastikan Firestore Rules v2.2.18 sudah dipublikasikan. Detail: ${error.message || "Missing or insufficient permissions."}`;
+    return `${action} ditolak Firestore pada tahap: ${phase}${rolloverPhase}. Pastikan Firestore Rules v2.2.19 sudah dipublikasikan. Detail: ${error.message || "Missing or insufficient permissions."}`;
   }
   return friendlyError(error);
 }
@@ -2323,32 +2323,62 @@ async function callApi(name, payload = {}) {
     }
   }
   if (name === "reviseStockRequest") {
+    let revisionPhase = "memeriksa akun dan pengajuan koreksi";
+    try {
+    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
     requireRole("superadmin", "spv");
-    const requestId = String(payload.requestId || "");
+    const requestId = String(payload.requestId || "").trim();
     const qty = Number(payload.qty);
     const revisionNote = String(payload.note || "").trim().slice(0, 160);
     if (!requestId || !Number.isInteger(qty) || qty < 1 || qty > 100000) throw new Error("Jumlah revisi harus berupa bilangan bulat lebih dari 0.");
-    const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", requestId), limit(1)));
-    if (!adjustmentHistory.empty) throw new Error("Catatan ini memiliki riwayat koreksi. Riwayat batch dipertahankan agar jejak koreksi tidak terputus.");
+    revisionPhase = "memvalidasi hubungan koreksi dengan batch sumber";
     await runTransaction(db, async tx => {
       const requestRef = doc(db, "stockRequests", requestId);
       const requestSnap = await tx.get(requestRef);
       if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
       const requestData = requestSnap.data();
-      if (!["pending", "revised"].includes(requestData.status)) throw new Error("Pengajuan ini sudah diproses.");
+      if (!["pending", "revised"].includes(requestData.status)) throw new Error("Hanya pengajuan yang masih menunggu keputusan yang dapat direvisi.");
       const oldRequestedQty = Number(requestData.qty || 0);
       const isAdjustment = requestData.requestType === "adjustment";
-      const baselineQty = isAdjustment ? Number(requestData.previousQty || 0) : oldRequestedQty;
+      const baselineQty = isAdjustment ? Number(requestData.previousQty) : oldRequestedQty;
+      if (!Number.isSafeInteger(baselineQty) || baselineQty < 1) throw new Error("Jumlah dasar pengajuan tidak valid. Periksa riwayat stok sumber.");
+      // Pertahankan nilai dasar persis seperti tersimpan agar cocok dengan
+      // pemeriksaan equality Firestore untuk dokumen lama (termasuk tipe angka lama).
+      const preservedPreviousQty = isAdjustment ? requestData.previousQty : requestData.qty;
+      if (isAdjustment) {
+        revisionPhase = "memeriksa batch sumber dan pengunci koreksi";
+        const baseRequestId = String(requestData.baseRequestId || "").trim();
+        if (!baseRequestId) throw new Error("Riwayat stok sumber untuk koreksi ini tidak ditemukan.");
+        const baseSnap = await tx.get(doc(db, "stockRequests", baseRequestId));
+        if (!baseSnap.exists()) throw new Error("Riwayat stok sumber sudah tidak tersedia.");
+        const base = baseSnap.data();
+        if (base.status !== "received" || base.menuId !== requestData.menuId || base.partnerId !== requestData.partnerId) {
+          throw new Error("Koreksi tidak lagi terhubung dengan batch stok yang diterima.");
+        }
+        if (base.latestAdjustmentRequestId && base.latestAdjustmentRequestId !== requestId) {
+          throw new Error("Batch sumber sudah memiliki koreksi lain yang diterima.");
+        }
+        const lockSnap = await tx.get(doc(db, "stockRequestLocks", String(requestData.menuId || "")));
+        if (lockSnap.exists() && lockSnap.data().requestId !== requestId) {
+          throw new Error("Menu sedang dikunci oleh pengajuan stok lain. Selesaikan pengajuan tersebut terlebih dahulu.");
+        }
+      }
       if (isAdjustment && qty === baselineQty) throw new Error("Jumlah koreksi tidak boleh sama dengan jumlah stok sebelumnya.");
       const changeType = qty > baselineQty ? "ditambah" : qty < baselineQty ? "dikurang" : "diedit";
+      revisionPhase = "menyimpan jumlah revisi dan delta koreksi di Firestore";
+      const changedAt = serverTimestamp();
       tx.update(requestRef, {
-        previousQty: baselineQty, qty, status: "revised", revisionNote, changeType,
+        previousQty: preservedPreviousQty, qty, status: "revised", revisionNote, changeType,
         changeQty: Math.abs(qty - baselineQty), ...(isAdjustment ? { deltaQty: qty - baselineQty } : {}),
-        changedAt: serverTimestamp(), changedBy: actorUid,
-        revisedAt: serverTimestamp(), revisedBy: actorUid, revisedByName: actorName
+        changedAt, changedBy: actorUid,
+        revisedAt: changedAt, revisedBy: actorUid, revisedByName: actorName
       });
     });
     return { requestId, qty };
+    } catch (error) {
+      try { error.kalapStockPhase = revisionPhase; } catch (_) {}
+      throw error;
+    }
   }
 
   if (name === "rejectStockRequest") {
@@ -2647,131 +2677,183 @@ async function callApi(name, payload = {}) {
   if (name === "deleteDailyStockMovement") {
     let stockPhase = "memvalidasi akun dan batch stok";
     try {
-    stockPhase = "memverifikasi profil Superadmin/SPV di server";
-    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
-    requireRole("superadmin", "spv");
-    const movementId = String(payload.movementId || "").trim();
-    if (!movementId) throw new Error("Batch stok harian tidak valid.");
-    const movementRef = doc(db, "stockMovements", movementId);
-    const firstSnap = await getDoc(movementRef);
-    if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
-    const firstData = firstSnap.data();
-    const businessDate = jakartaDateKey(new Date());
-    if (firstData.scheduledForFuture === true && movementBusinessDate(firstData) !== businessDate) {
-      throw new Error("Stok terjadwal baru dapat dihapus saat tanggal jadwalnya dimulai.");
-    }
-    if (firstData.partnerId && movementBusinessDate(firstData) !== businessDate) {
-      throw new Error("Batch stok mitra berasal dari hari sebelumnya. Riwayat lama tidak boleh mengurangi saldo operasional hari ini.");
-    }
-    if (firstData.partnerId) {
-      stockPhase = "menyelaraskan saldo stok mitra hari berjalan";
-      await rolloverPartnerStocksForDate(businessDate);
-    }
-    if (firstData.requestId) {
-      stockPhase = "memeriksa riwayat koreksi pengajuan mitra";
-      const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
-      if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Selesaikan pemeriksaan koreksi tersebut sebelum membatalkan penerimaan.");
-    }
-
-    // Satu transaksi: saldo dikurangi melalui movement koreksi, batch asli disembunyikan,
-    // dan pengajuan terkait ditandai voided agar daftar aktif bersih, tetapi audit tetap utuh.
-    // Movement asli sengaja tidak di-void agar rekonstruksi saldo harian tetap menghitung
-    // stok masuk + movement koreksi negatif (tanpa double-subtract saat rollover berikutnya).
-    const reversalMovementRef = doc(collection(db, "stockMovements"));
-    stockPhase = "membatalkan saldo dan menyimpan catatan koreksi";
-    return await runTransaction(db, async tx => {
-      const movementSnap = await tx.get(movementRef);
-      const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
-      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
-        throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diubah lagi.");
-      }
-      if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
-      const movement = movementSnap.data();
-      if (movement.type !== "in" || movement.voided === true || movement.hiddenFromDaily === true) {
-        throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dibatalkan.");
-      }
-      const menuRef = doc(db, "menus", String(movement.menuId || ""));
-      const menuSnap = await tx.get(menuRef);
-      if (!menuSnap.exists()) throw new Error("Menu sudah tidak ditemukan dalam katalog aktif.");
-      const menu = menuSnap.data();
-      const lockRef = doc(db, "stockRequestLocks", String(movement.menuId || ""));
-      const lockSnap = await tx.get(lockRef);
-      if (lockSnap.exists()) throw new Error("Batch tidak dapat dibatalkan saat menu memiliki pengajuan lain yang masih menunggu keputusan.");
-
-      let requestRef = null, requestSnap = null;
-      if (movement.requestId) {
-        requestRef = doc(db, "stockRequests", movement.requestId);
-        requestSnap = await tx.get(requestRef);
-        if (!requestSnap.exists() || requestSnap.data().status !== "received" || requestSnap.data().movementId !== movementId) {
-          throw new Error("Pengajuan yang terkait dengan batch stok ini tidak cocok atau belum berstatus diterima.");
-        }
-        if (requestSnap.data().latestAdjustmentRequestId) {
-          throw new Error("Batch ini sudah memiliki riwayat koreksi. Riwayat koreksi harus diselesaikan terlebih dahulu.");
-        }
-      }
-      if (movement.scheduledForFuture === true && movementBusinessDate(movement) !== businessDate) {
+      stockPhase = "memverifikasi profil Superadmin/SPV di server";
+      await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
+      requireRole("superadmin", "spv");
+      const movementId = String(payload.movementId || "").trim();
+      if (!movementId) throw new Error("Batch stok harian tidak valid.");
+      const movementRef = doc(db, "stockMovements", movementId);
+      const firstSnap = await getDoc(movementRef);
+      if (!firstSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
+      const firstData = firstSnap.data();
+      const businessDate = jakartaDateKey(new Date());
+      if (firstData.scheduledForFuture === true && movementBusinessDate(firstData) !== businessDate) {
         throw new Error("Stok terjadwal baru dapat dihapus saat tanggal jadwalnya dimulai.");
       }
-      if (menu.partnerId && movementBusinessDate(movement) !== businessDate) {
-        throw new Error("Batch stok mitra dari hari sebelumnya tidak dapat mengurangi saldo hari ini.");
+      if (firstData.partnerId && movementBusinessDate(firstData) !== businessDate) {
+        throw new Error("Batch stok mitra berasal dari hari sebelumnya. Riwayat lama tidak boleh mengurangi saldo operasional hari ini.");
+      }
+      if (firstData.partnerId) {
+        stockPhase = "menyelaraskan saldo stok mitra hari berjalan";
+        await rolloverPartnerStocksForDate(businessDate);
       }
 
-      const qtyToRemove = Number(movement.editedQty || movement.qty || 0);
-      const stockBefore = menuStockForDate(menu, businessDate, false);
-      if (!Number.isSafeInteger(qtyToRemove) || qtyToRemove < 1) {
-        throw new Error("Jumlah batch stok tidak valid. Periksa catatan stok sebelum mencoba lagi.");
-      }
-      if (stockBefore < qtyToRemove) {
-        const usedQty = qtyToRemove - stockBefore;
-        throw new Error(`Batch ${integer(qtyToRemove)} unit tidak dapat dibatalkan seluruhnya karena saldo tersedia hanya ${integer(stockBefore)} unit. Sekitar ${integer(usedQty)} unit sudah terpakai. Batalkan transaksi penjualan terkait atau lakukan rekonsiliasi stok terlebih dahulu agar saldo tidak menjadi negatif.`);
-      }
+      // Riwayat edit tetap disimpan sebagai audit dan dihitung melalui editedQty.
+      // Tidak perlu menulis ulang movement edit satu per satu saat batch dibatalkan.
 
-      const stockAfter = stockBefore - qtyToRemove;
-      const now = serverTimestamp();
-      tx.update(menuRef, {
-        stock: stockAfter,
-        ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}),
-        updatedAt: now,
-        lastMovementId: reversalMovementRef.id
+      const reversalMovementRef = doc(collection(db, "stockMovements"));
+      stockPhase = "membaca batch, saldo, dan rantai koreksi terkait";
+      return await runTransaction(db, async tx => {
+        const movementSnap = await tx.get(movementRef);
+        const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
+        if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+          throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diubah lagi.");
+        }
+        if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
+        const movement = movementSnap.data();
+        if (movement.type !== "in" || movement.voided === true || movement.hiddenFromDaily === true) {
+          throw new Error("Hanya batch stok masuk yang masih aktif yang dapat dibatalkan.");
+        }
+        if (movement.scheduledForFuture === true && movementBusinessDate(movement) !== businessDate) {
+          throw new Error("Stok terjadwal baru dapat dihapus saat tanggal jadwalnya dimulai.");
+        }
+        if (movement.partnerId && movementBusinessDate(movement) !== businessDate) {
+          throw new Error("Batch stok mitra dari hari sebelumnya tidak dapat mengurangi saldo hari ini.");
+        }
+
+        const menuRef = doc(db, "menus", String(movement.menuId || ""));
+        const menuSnap = await tx.get(menuRef);
+        if (!menuSnap.exists()) throw new Error("Menu sudah tidak ditemukan dalam katalog aktif.");
+        const menu = menuSnap.data();
+        const lockRef = doc(db, "stockRequestLocks", String(movement.menuId || ""));
+        const lockSnap = await tx.get(lockRef);
+        if (lockSnap.exists()) throw new Error("Batch tidak dapat dibatalkan saat menu memiliki pengajuan stok lain yang masih menunggu keputusan.");
+
+        let rootRequestRef = null;
+        let rootRequestSnap = null;
+        let rootRequestData = null;
+        if (movement.requestId) {
+          rootRequestRef = doc(db, "stockRequests", String(movement.requestId));
+          rootRequestSnap = await tx.get(rootRequestRef);
+          if (!rootRequestSnap.exists()) throw new Error("Pengajuan yang terkait dengan batch stok ini tidak ditemukan.");
+          rootRequestData = rootRequestSnap.data();
+          if (rootRequestData.status !== "received" || rootRequestData.requestType === "adjustment"
+            || rootRequestData.movementId !== movementId || rootRequestData.menuId !== movement.menuId) {
+            throw new Error("Pengajuan sumber tidak cocok dengan batch stok yang diterima.");
+          }
+        }
+
+        // Ikuti pointer latestAdjustmentRequestId yang ditulis saat koreksi diterima.
+        // Dengan cara ini transaksi hanya membaca DocumentReference, bukan Query.
+        // Pengajuan koreksi yang masih pending/revised ditahan oleh stockRequestLocks.
+        const acceptedCorrections = [];
+        const correctionMovementSnaps = [];
+        const visitedRequestIds = new Set();
+        let parentRequestId = movement.requestId ? String(movement.requestId) : "";
+        let parentRequestData = rootRequestData;
+        let nextCorrectionId = String(parentRequestData?.latestAdjustmentRequestId || "").trim();
+        while (parentRequestId && nextCorrectionId) {
+          if (visitedRequestIds.has(nextCorrectionId)) {
+            throw new Error("Rantai riwayat koreksi mengandung hubungan berulang. Penghapusan dihentikan untuk melindungi saldo stok.");
+          }
+          if (acceptedCorrections.length >= 20) {
+            throw new Error("Rantai koreksi melebihi 20 tingkat. Periksa riwayat stok sebelum melanjutkan penghapusan.");
+          }
+          visitedRequestIds.add(nextCorrectionId);
+
+          const childRef = doc(db, "stockRequests", nextCorrectionId);
+          const childSnap = await tx.get(childRef);
+          if (!childSnap.exists()) throw new Error("Dokumen koreksi terakhir tidak ditemukan. Penghapusan dihentikan agar saldo tidak salah.");
+          const childData = childSnap.data();
+          if (childData.status !== "received" || childData.requestType !== "adjustment"
+            || childData.baseRequestId !== parentRequestId
+            || childData.menuId !== movement.menuId
+            || childData.partnerId !== rootRequestData?.partnerId) {
+            throw new Error("Hubungan koreksi dengan batch sumber tidak cocok. Periksa riwayat koreksi sebelum menghapus stok.");
+          }
+
+          const childMovementId = String(childData.movementId || "").trim();
+          if (!childMovementId) throw new Error("Catatan pergerakan untuk koreksi yang diterima tidak ditemukan.");
+          const childMovementRef = doc(db, "stockMovements", childMovementId);
+          const childMovementSnap = await tx.get(childMovementRef);
+          if (!childMovementSnap.exists()) throw new Error("Catatan pergerakan koreksi tidak ditemukan. Penghapusan dihentikan agar saldo tidak salah.");
+          const childMovement = childMovementSnap.data();
+          const movementDelta = Number(childMovement.adjustmentDelta);
+          const requestDelta = Number(childData.deltaQty);
+          if (childMovement.type !== "adjustment" || childMovement.source !== "partner_stock_adjustment"
+            || childMovement.requestId !== nextCorrectionId || childMovement.menuId !== movement.menuId
+            || !Number.isSafeInteger(movementDelta) || !Number.isSafeInteger(requestDelta)
+            || movementDelta !== requestDelta || childMovement.voided === true
+            || childMovement.hiddenFromDaily === true) {
+            throw new Error("Catatan pergerakan koreksi tidak cocok dengan pengajuan yang diterima. Penghapusan dihentikan agar saldo tidak salah.");
+          }
+
+          acceptedCorrections.push({ id: nextCorrectionId, ref: childRef, data: childData });
+          correctionMovementSnaps.push({ id: childMovementId, ref: childMovementRef, data: childMovement });
+          parentRequestId = nextCorrectionId;
+          parentRequestData = childData;
+          nextCorrectionId = String(parentRequestData.latestAdjustmentRequestId || "").trim();
+        }
+
+        // Movement edit dipertahankan sebagai jejak audit. Jumlah akhirnya sudah
+        // tercermin pada movement.editedQty sehingga tidak perlu dibalik terpisah.
+
+        const baseEffectiveQty = Number(movement.editedQty ?? movement.qty ?? 0);
+        const correctionDelta = correctionMovementSnaps.reduce((sum, item) => sum + Number(item.data.adjustmentDelta || 0), 0);
+        const qtyToRemove = baseEffectiveQty + correctionDelta;
+        if (!Number.isSafeInteger(baseEffectiveQty) || baseEffectiveQty < 1 || !Number.isSafeInteger(qtyToRemove) || qtyToRemove < 1) {
+          throw new Error("Jumlah bersih batch dan koreksinya tidak valid. Periksa catatan stok sebelum mencoba lagi.");
+        }
+        const stockBefore = menuStockForDate(menu, businessDate, false);
+        if (stockBefore < qtyToRemove) {
+          const usedQty = qtyToRemove - stockBefore;
+          throw new Error(`Saldo bersih batch dan koreksinya ${integer(qtyToRemove)} unit, sedangkan stok tersedia ${integer(stockBefore)} unit. Sekitar ${integer(usedQty)} unit sudah terpakai. Batalkan transaksi penjualan terkait atau lakukan rekonsiliasi stok terlebih dahulu agar saldo tidak negatif.`);
+        }
+
+        const stockAfter = stockBefore - qtyToRemove;
+        // Semua validasi/read sudah selesai; tahap berikut adalah penulisan transaksi.
+        stockPhase = "membalik saldo dan membatalkan batch beserta rantai koreksi";
+        const now = serverTimestamp();
+        const hiddenFields = { hiddenFromDaily: true, hiddenAt: now, hiddenBy: actorUid, hiddenByName: actorName };
+        tx.update(menuRef, {
+          stock: stockAfter,
+          ...(menu.partnerId ? { stockBusinessDate: businessDate } : {}),
+          updatedAt: now,
+          lastMovementId: reversalMovementRef.id
+        });
+        tx.set(reversalMovementRef, {
+          type: "adjustment", qty: qtyToRemove, adjustmentDelta: -qtyToRemove,
+          changeType: "dikurang", businessDate,
+          menuId: movement.menuId, menuName: movement.menuName || menu.name || "Menu",
+          partnerId: movement.partnerId || menu.partnerId || null,
+          partnerName: movement.partnerName || menu.partnerName || "—",
+          stockBefore, stockAfter, source: "stock_daily_delete",
+          reversesMovementId: movementId,
+          relatedRequestId: movement.requestId || null,
+          correctionRequestIds: acceptedCorrections.map(item => item.id),
+          note: `Pembatalan batch stok ${integer(qtyToRemove)} unit setelah memperhitungkan ${acceptedCorrections.length} koreksi yang telah diterima.`,
+          actorUid, actorName, createdAt: now
+        });
+        tx.update(movementRef, hiddenFields);
+        // Movement koreksi/edit tetap utuh sebagai audit. Daftar operasional
+        // menyembunyikannya berdasarkan status voided dan batch sumber yang hidden.
+        if (rootRequestRef && rootRequestSnap?.exists()) {
+          tx.update(rootRequestRef, {
+            status: "voided", voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
+            voidReason: "Penerimaan stok dan seluruh koreksi yang diterima dibatalkan oleh Superadmin/SPV."
+          });
+        }
+        for (const item of acceptedCorrections) {
+          tx.update(item.ref, {
+            status: "voided", voidedAt: now, voidedBy: actorUid, voidedByName: actorName,
+            voidReason: "Batch sumber dihapus oleh Superadmin/SPV."
+          });
+        }
+        return {
+          movementId, reversalMovementId: reversalMovementRef.id,
+          qty: qtyToRemove, stockBefore, stockAfter, correctionCount: acceptedCorrections.length
+        };
       });
-      tx.set(reversalMovementRef, {
-        type: "adjustment",
-        qty: qtyToRemove,
-        adjustmentDelta: -qtyToRemove,
-        changeType: "dikurang",
-        businessDate,
-        menuId: movement.menuId,
-        menuName: movement.menuName || menu.name || "Menu",
-        partnerId: movement.partnerId || menu.partnerId || null,
-        partnerName: movement.partnerName || menu.partnerName || "—",
-        stockBefore,
-        stockAfter,
-        source: "stock_daily_delete",
-        reversesMovementId: movementId,
-        relatedRequestId: movement.requestId || null,
-        note: `Pembatalan penerimaan stok ${integer(qtyToRemove)} unit untuk koreksi saldo.`,
-        actorUid,
-        actorName,
-        createdAt: now
-      });
-      tx.update(movementRef, {
-        hiddenFromDaily: true,
-        hiddenAt: now,
-        hiddenBy: actorUid,
-        hiddenByName: actorName
-      });
-      // Jangan menghapus dokumen pengajuan secara permanen. Tandai voided dalam
-      // transaksi yang sama; daftar aktif memang menyembunyikan status ini,
-      // sedangkan riwayat audit tetap utuh.
-      if (requestSnap?.exists()) tx.update(requestRef, {
-        status: "voided",
-        voidedAt: now,
-        voidedBy: actorUid,
-        voidedByName: actorName,
-        voidReason: "Penerimaan stok dibatalkan oleh Superadmin/SPV."
-      });
-      return { movementId, reversalMovementId: reversalMovementRef.id, qty: qtyToRemove, stockBefore, stockAfter };
-    });
     } catch (error) {
       try { error.kalapStockPhase = stockPhase; } catch (_) {}
       throw error;
@@ -4427,10 +4509,16 @@ function stockRequestStatusLabel(status) {
 
 function renderDailyStockLedger() {
   const selectedDate = stockDailyDateKey;
+  const hiddenBatchIds = new Set(store.dailyStockMovements
+    .filter(row => row.type === "in" && row.hiddenFromDaily === true).map(row => row.id));
+  const voidedRequestIds = new Set(store.stockRequests
+    .filter(row => row.status === "voided").map(row => row.id));
   const allRows = store.dailyStockMovements.filter(row =>
     movementBusinessDate(row) === selectedDate
     && !row.hiddenFromDaily
     && !row.voided
+    && !(row.requestId && voidedRequestIds.has(row.requestId))
+    && !(row.source === "stock_daily_edit" && hiddenBatchIds.has(String(row.sourceMovementId || "")))
     && ["in", "adjustment"].includes(row.type)
   );
   const q = stockDailySearchQuery.trim().toLowerCase();
@@ -4453,13 +4541,32 @@ function renderDailyStockLedger() {
       : row.source === "stock_daily_delete" ? "Penghapusan batch stok"
       : "Pencatatan stok";
     const relatedRequest = row.requestId ? store.stockRequests.find(request => request.id === row.requestId) : null;
-    const hasAdjustmentHistory = Boolean(row.requestId && (relatedRequest?.latestAdjustmentRequestId
-      || store.stockRequests.some(request => request.baseRequestId === row.requestId)));
+    const relatedRequestIds = new Set(row.requestId ? [row.requestId] : []);
+    let expandedCorrectionTree = true;
+    while (expandedCorrectionTree && relatedRequestIds.size) {
+      expandedCorrectionTree = false;
+      for (const request of store.stockRequests) {
+        if (request.requestType === "adjustment" && request.baseRequestId
+          && relatedRequestIds.has(request.baseRequestId) && !relatedRequestIds.has(request.id)) {
+          relatedRequestIds.add(request.id);
+          expandedCorrectionTree = true;
+        }
+      }
+    }
+    const descendantCorrections = store.stockRequests.filter(request => request.requestType === "adjustment"
+      && relatedRequestIds.has(request.baseRequestId));
+    const hasAcceptedCorrection = Boolean(row.requestId && (relatedRequest?.latestAdjustmentRequestId
+      || descendantCorrections.some(request => request.status === "received")));
+    const hasPendingCorrection = descendantCorrections.some(request => ["pending", "revised"].includes(String(request.status || "")));
     const isFutureSchedule = row.scheduledForFuture === true && movementBusinessDate(row) > jakartaDateKey(new Date());
-    const canEditBatch = ["superadmin", "spv"].includes(profile.role) && row.type === "in" && !hasAdjustmentHistory && !isFutureSchedule;
-    const actions = canEditBatch
-      ? `<div class="daily-stock-actions"><button type="button" class="btn btn-light btn-compact" data-edit-daily-stock="${row.id}">Edit</button><button type="button" class="btn btn-danger btn-compact" data-delete-daily-stock="${row.id}">Hapus</button></div>`
-      : isFutureSchedule ? `<span class="muted">Terjadwal</span>` : adjustment ? `<span class="muted">Penyesuaian stok</span>` : "—";
+    const canManageBatch = ["superadmin", "spv"].includes(profile.role) && row.type === "in" && !isFutureSchedule;
+    const canEditBatch = canManageBatch && !hasAcceptedCorrection && !hasPendingCorrection;
+    const canDeleteBatch = canManageBatch && !hasPendingCorrection;
+    const actions = canManageBatch && !hasPendingCorrection
+      ? `<div class="daily-stock-actions">${canEditBatch ? `<button type="button" class="btn btn-light btn-compact" data-edit-daily-stock="${row.id}">Edit</button>` : `<span class="muted">${hasAcceptedCorrection ? "Memiliki riwayat koreksi" : ""}</span>`}<button type="button" class="btn btn-danger btn-compact" data-delete-daily-stock="${row.id}">Hapus</button></div>`
+      : isFutureSchedule ? `<span class="muted">Terjadwal</span>`
+      : hasPendingCorrection ? `<span class="muted">Koreksi menunggu keputusan</span>`
+      : adjustment ? `<span class="muted">Penyesuaian stok</span>` : "—";
     const editedNote = Number.isInteger(Number(row.editedQty)) && Number(row.editedQty) > 0
       ? `<div class="muted">Jumlah akhir batch: ${integer(row.editedQty)} unit</div>` : "";
     const dateCell = isFutureSchedule
@@ -4481,7 +4588,7 @@ function renderDailyStockLedger() {
     <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 14px"><div class="stat-card"><div class="stat-top">Barang masuk / tambahan</div><div class="stat-value">${integer(incomingQty)} unit</div></div><div class="stat-card"><div class="stat-top">Koreksi pengurangan</div><div class="stat-value">${integer(reducedQty)} unit</div></div></div>
     <div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Jenis</th><th>Jumlah / sumber</th><th>Sisa setelah catatan</th><th>Catatan</th><th>Tanggal / petugas</th><th>Aksi</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="table-empty">Belum ada stok yang disetujui atau koreksi pada tanggal ini.</td></tr>`}</tbody></table></div>
     <div class="pagination-row"><span class="helper-text">${integer(filtered.length)} item · halaman ${stockDailyCurrentPage} dari ${pages}</span><div class="page-buttons"><button type="button" data-stock-daily-page="prev" ${stockDailyCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-stock-daily-page="next" ${stockDailyCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>
-    ${staff ? `<div class="helper-text">Edit atau hapus hanya berlaku untuk batch stok masuk biasa. Hapus akan mengurangi saldo, menyembunyikan batch asli dari daftar, dan menyimpan catatan koreksi audit. Penghapusan ditolak jika stok tidak mencukupi atau batch memiliki riwayat koreksi.</div>` : ""}
+    ${staff ? `<div class="helper-text">Hapus membatalkan batch beserta seluruh koreksi yang telah diterima, mengurangi saldo bersih satu kali, dan mempertahankan jejak audit. Penghapusan ditolak jika masih ada pengajuan lain yang menunggu atau saldo tidak mencukupi.</div>` : ""}
   </section>`;
 }
 
@@ -5945,7 +6052,7 @@ function openReviseStockRequestModal(requestId) {
       await callApi("reviseStockRequest", { requestId, qty: Number(data.qty), note: data.note || "" });
       root.innerHTML = "";
       toast("Jumlah pengajuan berhasil direvisi. Pengajuan tetap menunggu persetujuan.", "success");
-    } catch (error) { toast(friendlyError(error), "error"); }
+    } catch (error) { toast(stockFirestoreError("Revisi koreksi stok", error), "error"); }
     finally { setBusy(button, false); }
   });
   root.querySelectorAll("[data-request-modal-close], [data-request-modal-backdrop]").forEach(item => item.addEventListener("click", event => {
@@ -6177,7 +6284,7 @@ async function deleteDailyStockMovement(movementId, button) {
   const effectiveQty = Number(movement.editedQty || movement.qty || 0);
   const dateLabel = formatDate(movement.createdAt, { day: "numeric", month: "long", year: "numeric" });
   const ok = await kalapConfirm(
-    `Batalkan penerimaan stok ${movement.menuName || "menu"} sebanyak ${integer(effectiveQty)} unit tanggal ${dateLabel}? Saldo stok akan dikurangi dengan catatan koreksi audit. Batch asli akan disembunyikan dari daftar, pengajuan terkait ditandai dibatalkan, dan jejak audit tetap tersimpan. Jika sebagian stok sudah terpakai sehingga saldo tidak cukup, tindakan akan ditolak agar stok tidak negatif.`,
+    `Batalkan penerimaan stok ${movement.menuName || "menu"} (jumlah batch saat ini ${integer(effectiveQty)} unit) tanggal ${dateLabel}? Saldo yang dikurangi dihitung dari jumlah akhir batch setelah edit dan seluruh koreksi yang telah diterima. Batch asli disembunyikan dari daftar operasional, pengajuan terkait ditandai dibatalkan, dan catatan audit tetap disimpan. Jika saldo tidak cukup, tindakan ditolak agar stok tidak negatif.`,
     { title: "Hapus stok masuk", confirmText: "Hapus stok", danger: true }
   );
   if (!ok) return;
@@ -6333,7 +6440,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.18", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.19", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
