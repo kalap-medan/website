@@ -1,4 +1,4 @@
-// KALAP Firestore Rules — application v2.2.14 (Superadmin-only full operational reset).
+// KALAP Firestore Rules — application v2.2.15 (Superadmin-only full operational reset).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -98,38 +98,40 @@ service cloud.firestore {
     }
 
     function linkedMovement(menuId) {
-      let movementId = request.resource.data.lastMovementId;
+      let movementId = request.resource.data.get('lastMovementId', '');
       let movementPath = /databases/$(database)/documents/stockMovements/$(movementId);
-      let movement = getAfter(movementPath).data;
-      let isPartnerMenu = resource.data.get('partnerId', null) is string;
-      let movementDate = movement.get('businessDate', '');
+      let movementDate = existsAfter(movementPath)
+        ? getAfter(movementPath).data.get('businessDate', '') : '';
+      let isPartnerMenu = resource.data.get('partnerId', null) is string
+        && resource.data.partnerId.size() > 0;
       let previousStock = isPartnerMenu
         ? (resource.data.get('stockBusinessDate', '') == movementDate ? resource.data.stock : 0)
         : resource.data.stock;
       return movementId is string
+        && movementId.size() > 0
         && existsAfter(movementPath)
-        && movement.menuId == menuId
-        && movement.actorUid == request.auth.uid
-        && movement.stockBefore == previousStock
-        && movement.stockAfter == request.resource.data.stock
+        && getAfter(movementPath).data.menuId == menuId
+        && getAfter(movementPath).data.actorUid == request.auth.uid
+        && getAfter(movementPath).data.stockBefore == previousStock
+        && getAfter(movementPath).data.stockAfter == request.resource.data.stock
         && (!isPartnerMenu || (movementDate is string
           && movementDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
           && request.resource.data.stockBusinessDate == movementDate))
-        && ((movement.type == 'sale' && isPOSUser()
-              && movement.qty == previousStock - request.resource.data.stock)
-          || (movement.type == 'in' && isStaff()
-              && movement.qty == request.resource.data.stock - previousStock)
-          || (movement.type == 'sale_cancel' && isPOSUser()
-              && movement.qty == request.resource.data.stock - previousStock
-              && getAfter(/databases/$(database)/documents/transactions/$(movement.transactionId)).data.status == 'cancelled'
-              && getAfter(/databases/$(database)/documents/transactions/$(movement.transactionId)).data.cancelMovementIds.hasAny([movementId]))
-          || (movement.type in ['adjustment', 'reset'] && isStaff()
-              && movement.adjustmentDelta is int
-              && movement.adjustmentDelta != 0
-              && movement.stockAfter - movement.stockBefore == movement.adjustmentDelta
-              && (movement.adjustmentDelta > 0
-                ? movement.qty == movement.adjustmentDelta && movement.changeType == 'ditambah'
-                : movement.qty == 0 - movement.adjustmentDelta && movement.changeType == 'dikurang')));
+        && ((getAfter(movementPath).data.type == 'sale' && isPOSUser()
+              && getAfter(movementPath).data.qty == previousStock - request.resource.data.stock)
+          || (getAfter(movementPath).data.type == 'in' && isStaff()
+              && getAfter(movementPath).data.qty == request.resource.data.stock - previousStock)
+          || (getAfter(movementPath).data.type == 'sale_cancel' && isPOSUser()
+              && getAfter(movementPath).data.qty == request.resource.data.stock - previousStock
+              && getAfter(/databases/$(database)/documents/transactions/$(getAfter(movementPath).data.transactionId)).data.status == 'cancelled'
+              && getAfter(/databases/$(database)/documents/transactions/$(getAfter(movementPath).data.transactionId)).data.cancelMovementIds.hasAny([movementId]))
+          || (getAfter(movementPath).data.type in ['adjustment', 'reset'] && isStaff()
+              && getAfter(movementPath).data.adjustmentDelta is int
+              && getAfter(movementPath).data.adjustmentDelta != 0
+              && getAfter(movementPath).data.stockAfter - getAfter(movementPath).data.stockBefore == getAfter(movementPath).data.adjustmentDelta
+              && (getAfter(movementPath).data.adjustmentDelta > 0
+                ? getAfter(movementPath).data.qty == getAfter(movementPath).data.adjustmentDelta && getAfter(movementPath).data.changeType == 'ditambah'
+                : getAfter(movementPath).data.qty == 0 - getAfter(movementPath).data.adjustmentDelta && getAfter(movementPath).data.changeType == 'dikurang')));
     }
 
     // Validasi penghapusan batch stok yang benar-benar mengurangi saldo menu.
@@ -137,9 +139,11 @@ service cloud.firestore {
     function deletedStockBatchLinked(menuId) {
       let movementId = request.resource.data.get('lastMovementId', '');
       let movementPath = /databases/$(database)/documents/stockMovements/$(movementId);
-      let movement = get(movementPath).data;
-      let isPartnerMenu = resource.data.get('partnerId', null) is string;
-      let movementDate = movement.get('businessDate', resource.data.get('stockBusinessDate', ''));
+      let movementDate = exists(movementPath)
+        ? get(movementPath).data.get('businessDate', resource.data.get('stockBusinessDate', ''))
+        : resource.data.get('stockBusinessDate', '');
+      let isPartnerMenu = resource.data.get('partnerId', null) is string
+        && resource.data.partnerId.size() > 0;
       let previousStock = isPartnerMenu
         ? (resource.data.get('stockBusinessDate', '') == movementDate ? resource.data.stock : 0)
         : resource.data.stock;
@@ -148,16 +152,16 @@ service cloud.firestore {
         && movementId.size() > 0
         && exists(movementPath)
         && !existsAfter(movementPath)
-        && movement.menuId == menuId
-        && movement.type == 'in'
-        && movement.get('voided', false) == false
-        && movement.get('editedQty', movement.qty) is int
-        && movement.get('editedQty', movement.qty) > 0
-        && request.resource.data.stock == previousStock - movement.get('editedQty', movement.qty)
+        && get(movementPath).data.menuId == menuId
+        && get(movementPath).data.type == 'in'
+        && get(movementPath).data.get('voided', false) == false
+        && get(movementPath).data.get('editedQty', get(movementPath).data.qty) is int
+        && get(movementPath).data.get('editedQty', get(movementPath).data.qty) > 0
+        && request.resource.data.stock == previousStock - get(movementPath).data.get('editedQty', get(movementPath).data.qty)
         && (!isPartnerMenu || request.resource.data.stockBusinessDate == movementDate)
         && request.resource.data.updatedAt == request.time
-        && (movement.get('requestId', null) == null
-          || !existsAfter(/databases/$(database)/documents/stockRequests/$(movement.requestId)));
+        && (get(movementPath).data.get('requestId', null) == null
+          || !existsAfter(/databases/$(database)/documents/stockRequests/$(get(movementPath).data.requestId)));
     }
 
     function validNewMenu(menuId) {
@@ -255,6 +259,7 @@ service cloud.firestore {
           && request.resource.data.lastMovementId is string
           && resetAuthorizationContains('resetMovementIds', request.resource.data.lastMovementId)
           && ((resource.data.get('partnerId', null) is string
+              && resource.data.partnerId.size() > 0
               && request.resource.data.stockBusinessDate == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt', 'lastMovementId']))
             || ((resource.data.get('partnerId', null) == null
@@ -290,6 +295,7 @@ service cloud.firestore {
           && (linkedMovement(menuId) || deletedStockBatchLinked(menuId)))
         || (isStaff()
           && resource.data.get('partnerId', null) is string
+          && resource.data.partnerId.size() > 0
           && request.resource.data.stock is int
           && request.resource.data.stock >= 0
           && request.resource.data.stockBusinessDate is string

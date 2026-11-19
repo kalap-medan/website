@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.14">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.15">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.14">
-  <title>KALAP Management System v2.2.14</title>
+  <meta name="application-version" content="2.2.15">
+  <title>KALAP Management System v2.2.15</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1191,7 +1191,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.14</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.15</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1681,6 +1681,13 @@ function friendlyError(error) {
   if (code.includes("unavailable")) return "Layanan Firebase sedang tidak tersedia. Periksa koneksi internet.";
   return error?.message || "Terjadi kesalahan. Silakan coba kembali.";
 }
+function stockFirestoreError(action, error) {
+  if (error?.code === "permission-denied" && error?.kalapStockPhase) {
+    const phase = String(error.kalapStockPhase);
+    return `${action} ditolak Firestore pada tahap: ${phase}. Pastikan Firestore Rules v2.2.15 sudah dipublikasikan. Jika sudah, periksa users/{UID}: active harus bernilai boolean true dan role harus sesuai akun. Detail: ${error.message || "Missing or insufficient permissions."}`;
+  }
+  return friendlyError(error);
+}
 function setBusy(button, state, label = "Memproses...") {
   if (!button) return;
   if (state) {
@@ -1696,6 +1703,22 @@ function requireRole(...roles) {
   if (!profile || !roles.includes(profile.role)) {
     throw new Error("Akun ini tidak memiliki izin untuk melakukan tindakan tersebut.");
   }
+}
+async function verifyLiveStaffProfile(actorUid, allowedRoles = ["superadmin", "spv"]) {
+  if (!actorUid) throw new Error("Sesi akun tidak ditemukan. Silakan login kembali.");
+  const snapshot = await getDocFromServer(doc(db, "users", actorUid));
+  if (!snapshot.exists()) throw new Error("Profil akun tidak ditemukan di Firestore. Periksa dokumen users/{UID}.");
+  const liveProfile = snapshot.data();
+  if (liveProfile.active !== true) {
+    throw new Error("Profil Firestore tidak aktif: users/{UID}.active harus bernilai boolean true.");
+  }
+  if (!allowedRoles.includes(String(liveProfile.role || ""))) {
+    throw new Error(`Role profil Firestore tidak sesuai. Ditemukan: ${String(liveProfile.role || "kosong")}. Diizinkan: ${allowedRoles.join(" / ")}.`);
+  }
+  if (profile?.uid !== actorUid || profile?.role !== liveProfile.role || profile?.active !== true) {
+    profile = { uid: actorUid, ...liveProfile };
+  }
+  return profile;
 }
 function transactionCode() {
   const date = jakartaDateKey(new Date()).replaceAll("-", "").slice(2);
@@ -2135,6 +2158,10 @@ async function callApi(name, payload = {}) {
   }
 
   if (name === "receiveStock") {
+    let stockPhase = "memvalidasi tanggal dan akun";
+    try {
+    stockPhase = "memverifikasi profil Superadmin/SPV di server";
+    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
     requireRole("superadmin", "spv");
     const todayKey = jakartaDateKey(new Date());
     const businessDate = String(payload.businessDate || todayKey).trim();
@@ -2146,7 +2173,9 @@ async function callApi(name, payload = {}) {
     if (businessDate < todayKey) throw new Error("Input stok tidak dapat dilakukan untuk tanggal yang sudah lewat.");
     const isFutureSchedule = businessDate > todayKey;
     if (!isFutureSchedule) {
+      stockPhase = "menyelaraskan saldo stok mitra hari berjalan";
       await rolloverPartnerStocksForDate(businessDate);
+      stockPhase = "memeriksa pengajuan stok yang kedaluwarsa";
       await expireStaleStockRequestsForDate(businessDate);
     }
     const closingRef = doc(db, "dailyClosings", businessDate);
@@ -2159,12 +2188,16 @@ async function callApi(name, payload = {}) {
     const lockRef = doc(db, "stockRequestLocks", menuId);
     const movementRef = doc(collection(db, "stockMovements"));
     if (!requestId) {
+      stockPhase = "memeriksa pengajuan lain untuk menu yang dipilih";
       // Pengajuan yang menunggu pada tanggal target tetap mencegah stok ganda.
       const legacyRequests = await getDocs(query(collection(db, "stockRequests"), where("menuId", "==", menuId)));
       const legacyPending = legacyRequests.docs.find(snapshot => ["pending", "revised"].includes(snapshot.data().status)
         && String(snapshot.data().businessDate || dayKeyFromTimestamp(snapshot.data().createdAt)) === businessDate);
       if (legacyPending) throw new Error(`Menu ini masih memiliki pengajuan ${Number(legacyPending.data().qty || 0)} unit yang menunggu persetujuan. Setujui atau tolak pengajuan tersebut, bukan input manual.`);
     }
+    stockPhase = isFutureSchedule
+      ? "menyimpan jadwal stok mendatang"
+      : "menyimpan saldo menu dan catatan stok masuk";
     return await runTransaction(db, async tx => {
       const reads = [tx.get(closingRef), tx.get(menuRef), tx.get(lockRef)];
       const scheduledMovementsQuery = isFutureSchedule
@@ -2270,8 +2303,11 @@ async function callApi(name, payload = {}) {
       }
       return { menuName: menu.name, stockBefore, stockAfter, qty, stockDelta, requestId, adjustmentType, businessDate, scheduledForFuture: isFutureSchedule };
     });
+    } catch (error) {
+      try { error.kalapStockPhase = stockPhase; } catch (_) {}
+      throw error;
+    }
   }
-
   if (name === "reviseStockRequest") {
     requireRole("superadmin", "spv");
     const requestId = String(payload.requestId || "");
@@ -2595,6 +2631,10 @@ async function callApi(name, payload = {}) {
   }
 
   if (name === "deleteDailyStockMovement") {
+    let stockPhase = "memvalidasi akun dan batch stok";
+    try {
+    stockPhase = "memverifikasi profil Superadmin/SPV di server";
+    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
     requireRole("superadmin", "spv");
     const movementId = String(payload.movementId || "").trim();
     if (!movementId) throw new Error("Batch stok harian tidak valid.");
@@ -2609,8 +2649,12 @@ async function callApi(name, payload = {}) {
     if (firstData.partnerId && movementBusinessDate(firstData) !== businessDate) {
       throw new Error("Batch stok mitra berasal dari hari sebelumnya. Riwayat lama tidak boleh mengurangi saldo operasional hari ini.");
     }
-    if (firstData.partnerId) await rolloverPartnerStocksForDate(businessDate);
+    if (firstData.partnerId) {
+      stockPhase = "menyelaraskan saldo stok mitra hari berjalan";
+      await rolloverPartnerStocksForDate(businessDate);
+    }
     if (firstData.requestId) {
+      stockPhase = "memeriksa riwayat koreksi pengajuan mitra";
       const adjustmentHistory = await getDocs(query(collection(db, "stockRequests"), where("baseRequestId", "==", firstData.requestId), limit(1)));
       if (!adjustmentHistory.empty) throw new Error("Batch ini memiliki riwayat koreksi mitra. Selesaikan pemeriksaan koreksi tersebut sebelum membatalkan penerimaan.");
     }
@@ -2620,6 +2664,7 @@ async function callApi(name, payload = {}) {
     // Movement asli sengaja tidak di-void agar rekonstruksi saldo harian tetap menghitung
     // stok masuk + movement koreksi negatif (tanpa double-subtract saat rollover berikutnya).
     const reversalMovementRef = doc(collection(db, "stockMovements"));
+    stockPhase = "membatalkan saldo dan menyimpan catatan koreksi";
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
       const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
@@ -2704,8 +2749,11 @@ async function callApi(name, payload = {}) {
       if (requestSnap?.exists()) tx.delete(requestRef);
       return { movementId, reversalMovementId: reversalMovementRef.id, qty: qtyToRemove, stockBefore, stockAfter };
     });
+    } catch (error) {
+      try { error.kalapStockPhase = stockPhase; } catch (_) {}
+      throw error;
+    }
   }
-
   if (name === "resetDailyOperations") {
     let resetPhase = "memeriksa profil akun di Firestore";
     try {
@@ -3195,7 +3243,7 @@ async function callApi(name, payload = {}) {
       resetPhase = "menyelesaikan catatan reset";
       await updateDoc(authRef, {
         status: "completed", completedAt: serverTimestamp(),
-        completedChunks: committedChunks, totalOperations,
+        committedChunks, totalOperations,
         counts
       });
       return { resetDateKey, totalOperations, committedChunks, counts };
@@ -6067,7 +6115,7 @@ async function openManualStockInputModal() {
       } else {
         toast(`Stok ${result.menuName} bertambah ${integer(result.qty)} unit.`, "success");
       }
-    } catch (error) { toast(friendlyError(error), "error"); }
+    } catch (error) { toast(stockFirestoreError("Input stok manual", error), "error"); }
     finally { setBusy(button, false); }
   });
   lookup.focus();
@@ -6115,7 +6163,7 @@ async function deleteDailyStockMovement(movementId, button) {
     beginDestructiveMutation();
     const result = await callApi("deleteDailyStockMovement", { movementId });
     toast(`Penerimaan stok berhasil dibatalkan. Saldo disesuaikan dari ${integer(result.stockBefore)} menjadi ${integer(result.stockAfter)} unit dan catatan koreksi disimpan.`, "success");
-  } catch (error) { toast(friendlyError(error), "error"); }
+  } catch (error) { toast(stockFirestoreError("Penghapusan stok", error), "error"); }
   finally { setBusy(button, false); }
 }
 
@@ -6262,7 +6310,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.14", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.15", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});

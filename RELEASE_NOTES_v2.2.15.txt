@@ -1,0 +1,23 @@
+KALAP Management System v2.2.15
+
+Perbaikan fokus pada penolakan operasi Firestore:
+
+1. Memperbaiki ketidakcocokan nama field penyelesaian Reset Seluruh Sistem. Aplikasi sekarang menulis `committedChunks`, sama dengan field yang diizinkan Firestore Rules. Ini mencegah notifikasi permission-denied setelah batch reset selesai.
+2. Menyamakan pemeriksaan menu Mitra di JavaScript dan Firestore Rules. `partnerId` hanya dianggap sebagai ID Mitra jika berupa string tidak kosong. Ini menjaga konsistensi saldo pada menu lama yang memiliki `partnerId` kosong.
+3. Membuat pemeriksaan dokumen movement di Firestore Rules aman ketika `lastMovementId` belum tersedia; Rules memeriksa keberadaan dokumen sebelum membaca data movement.
+4. Input stok manual dan penghapusan stok memverifikasi ulang profil `users/{UID}` dari server. Akun harus memiliki `active` bertipe boolean `true` dan role `superadmin` atau `spv`.
+5. Jika Firestore menolak input atau penghapusan stok, pesan aplikasi sekarang menunjukkan tahap operasi yang ditolak, bukan hanya pesan umum tentang role.
+
+File yang diperbarui:
+- `index.html`
+- `firestore.rules`
+- `service-worker.js`
+- `README.md`
+
+Pemasangan:
+1. Publikasikan `firestore.rules` ke project Firebase yang digunakan aplikasi.
+2. Ganti `index.html` dan `service-worker.js` pada hosting.
+3. Pertahankan `manifest.webmanifest`, `firestore.indexes.json`, folder `icons/`, dan berkas konfigurasi hosting yang sudah ada.
+4. Lakukan hard refresh (`Ctrl + Shift + R`) dan pastikan versi yang tampil adalah v2.2.15.
+
+Verifikasi lokal: sintaks JavaScript dan integritas paket diperiksa. Akses ke Firebase produksi tidak tersedia dari lingkungan penyuntingan ini; hasil akhir harus diuji setelah Rules dipublikasikan pada project Firebase yang benar.
