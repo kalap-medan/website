@@ -9,6 +9,14 @@ service cloud.firestore {
     function activeUser() { return hasProfile() && myProfile().active == true; }
     function roleIs(role) { return activeUser() && myProfile().role == role; }
     function isSuperadmin() { return roleIs('superadmin'); }
+    // Beberapa menu lama tidak memiliki partnerId, tetapi masih memiliki partnerName.
+    // Untuk saldo stok harian, keduanya tetap dikategorikan sebagai menu Mitra.
+    function isPartnerStockMenuData(data) {
+      return (data.get('partnerId', null) is string && data.get('partnerId', '').size() > 0)
+        || (data.get('partnerName', null) is string
+          && data.get('partnerName', '').size() > 0
+          && !(data.get('partnerName', '') in ['—', '-', '–', 'N/A']));
+    }
     function isSpv() { return roleIs('spv'); }
     function isCashier() { return roleIs('cashier'); }
     function isPartner() { return roleIs('partner'); }
@@ -117,8 +125,7 @@ service cloud.firestore {
       let movementPath = /databases/$(database)/documents/stockMovements/$(movementId);
       let movementDate = existsAfter(movementPath)
         ? getAfter(movementPath).data.get('businessDate', '') : '';
-      let isPartnerMenu = resource.data.get('partnerId', null) is string
-        && resource.data.partnerId.size() > 0;
+      let isPartnerMenu = isPartnerStockMenuData(resource.data);
       let previousStock = isPartnerMenu
         ? (resource.data.get('stockBusinessDate', '') == movementDate ? resource.data.stock : 0)
         : resource.data.stock;
@@ -147,6 +154,36 @@ service cloud.firestore {
               && (getAfter(movementPath).data.adjustmentDelta > 0
                 ? getAfter(movementPath).data.qty == getAfter(movementPath).data.adjustmentDelta && getAfter(movementPath).data.changeType == 'ditambah'
                 : getAfter(movementPath).data.qty == 0 - getAfter(movementPath).data.adjustmentDelta && getAfter(movementPath).data.changeType == 'dikurang')));
+    }
+
+    // Perubahan jumlah batch oleh Superadmin harus terikat pada catatan edit
+    // stock_daily_edit yang dibuat dalam transaksi yang sama.
+    function superadminStockEditLinked(menuId) {
+      let movementId = request.resource.data.get('lastMovementId', '');
+      let movementPath = /databases/$(database)/documents/stockMovements/$(movementId);
+      let movementDate = existsAfter(movementPath)
+        ? getAfter(movementPath).data.get('businessDate', '') : '';
+      let isPartnerMenu = isPartnerStockMenuData(resource.data);
+      let previousStock = isPartnerMenu
+        ? (resource.data.get('stockBusinessDate', '') == movementDate ? resource.data.get('stock', 0) : 0)
+        : resource.data.get('stock', 0);
+      return isSuperadmin()
+        && movementId is string && movementId.size() > 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt', 'lastMovementId'])
+        && request.resource.data.stock is int && request.resource.data.stock >= 0
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(movementPath)
+        && getAfter(movementPath).data.type == 'adjustment'
+        && getAfter(movementPath).data.source == 'stock_daily_edit'
+        && getAfter(movementPath).data.menuId == menuId
+        && getAfter(movementPath).data.actorUid == request.auth.uid
+        && getAfter(movementPath).data.stockBefore == previousStock
+        && getAfter(movementPath).data.stockAfter == request.resource.data.stock
+        && getAfter(movementPath).data.adjustmentDelta is int
+        && getAfter(movementPath).data.stockAfter - getAfter(movementPath).data.stockBefore == getAfter(movementPath).data.adjustmentDelta
+        && (!isPartnerMenu || (movementDate is string
+          && movementDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.stockBusinessDate == movementDate));
     }
 
     // Validasi penghapusan batch stok yang benar-benar mengurangi saldo menu.
@@ -279,18 +316,19 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.menuId == menuId
           && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.actorUid == request.auth.uid
           && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMovementId)).data.stockAfter == request.resource.data.stock)
+        || superadminStockEditLinked(menuId)
         || (isStaff()
-          // Sinkronisasi saldo harian berjalan sebagai operasi khusus yang dibatasi
-          // ke menu Mitra dan tiga field saldo/tanggal/waktu saja. Letakkan di awal
-          // agar evaluasi tidak melewati cabang reset/movement yang lebih mahal.
-          && resource.data.get('partnerId', null) is string
-          && resource.data.partnerId.size() > 0
+          // Sinkronisasi saldo harian untuk menu Mitra, termasuk data lama yang
+          // hanya memiliki partnerName. Perbaikan jumlah pada tanggal yang sama
+          // juga diizinkan bila saldo dokumen berbeda dari buku pergerakan.
+          && isPartnerStockMenuData(resource.data)
           && request.resource.data.stock is int
           && request.resource.data.stock >= 0
           && request.resource.data.stockBusinessDate is string
           && (request.resource.data.stockBusinessDate == 'closed'
             || request.resource.data.stockBusinessDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
-          && request.resource.data.stockBusinessDate != resource.data.get('stockBusinessDate', '')
+          && (request.resource.data.stockBusinessDate != resource.data.get('stockBusinessDate', '')
+            || request.resource.data.stock != resource.data.get('stock', 0))
           && request.resource.data.updatedAt == request.time
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt']))
         || (isStaff()
@@ -300,19 +338,17 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time
           && request.resource.data.lastMovementId is string
           && resetAuthorizationContains('resetMovementIds', request.resource.data.lastMovementId)
-          && ((resource.data.get('partnerId', null) is string
-              && resource.data.partnerId.size() > 0
+          && ((isPartnerStockMenuData(resource.data)
               && request.resource.data.stockBusinessDate == get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt', 'lastMovementId']))
-            || ((resource.data.get('partnerId', null) == null
-                || (resource.data.get('partnerId', null) is string && resource.data.partnerId.size() == 0))
+            || (!isPartnerStockMenuData(resource.data)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId']))))
         || (isSuperadmin()
           && fullSystemResetContains('menuIds', menuId)
           && request.resource.data.stock == 0
           && request.resource.data.lastMovementId == null
           && request.resource.data.updatedAt == request.time
-          && ((resource.data.get('partnerId', null) is string && resource.data.partnerId.size() > 0)
+          && (isPartnerStockMenuData(resource.data)
             ? request.resource.data.stockBusinessDate == get(/databases/$(database)/documents/systemResetAuthorizations/active).data.resetDateKey
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'stockBusinessDate', 'updatedAt', 'lastMovementId'])
             : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt', 'lastMovementId'])))
@@ -518,6 +554,47 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'editedQty', 'editedFromQty', 'editedAt', 'editedBy', 'editedByName', 'editNote'
           ]))
+        // Jalur edit batch yang dikelola Superadmin: mendukung revisi berulang,
+        // termasuk nilai tambahan yang menandai jumlah batch sebagai nilai bersih.
+        || (isSuperadmin()
+          && resource.data.type == 'in'
+          && resource.data.get('voided', false) == false
+          && request.resource.data.editedQty is int
+          && request.resource.data.editedQty > 0
+          && request.resource.data.editedFromQty is int
+          && request.resource.data.editedAsNetTotal == true
+          && request.resource.data.unappliedEditDecreaseQty is int
+          && request.resource.data.unappliedEditDecreaseQty >= 0
+          && request.resource.data.editedAt == request.time
+          && request.resource.data.editedBy == request.auth.uid
+          && request.resource.data.editedByName is string
+          && request.resource.data.editNote is string
+          && request.resource.data.menuId == resource.data.menuId
+          && request.resource.data.get('requestId', null) == resource.data.get('requestId', null)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'editedQty', 'editedAsNetTotal', 'editedFromQty', 'unappliedEditDecreaseQty',
+            'editedAt', 'editedBy', 'editedByName', 'editNote'
+          ]))
+        // Penanda audit pada koreksi yang sudah digabung ke nilai akhir batch.
+        || (isSuperadmin()
+          && resource.data.type == 'adjustment'
+          && resource.data.source in ['stock_daily_edit', 'partner_stock_adjustment']
+          && request.resource.data.supersededBySuperadminEdit == true
+          && request.resource.data.supersededByBatchMovementId is string
+          && request.resource.data.supersededAt == request.time
+          && request.resource.data.supersededBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'supersededBySuperadminEdit', 'supersededByBatchMovementId', 'supersededAt', 'supersededBy'
+          ])
+          && ((resource.data.source == 'stock_daily_edit'
+              && resource.data.sourceMovementId == request.resource.data.supersededByBatchMovementId)
+            || (resource.data.source == 'partner_stock_adjustment'
+              && resource.data.get('requestId', null) is string
+              && exists(/databases/$(database)/documents/stockRequests/$(resource.data.requestId))
+              && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.requestType == 'adjustment'
+              && get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId is string
+              && exists(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId))
+              && get(/databases/$(database)/documents/stockRequests/$(get(/databases/$(database)/documents/stockRequests/$(resource.data.requestId)).data.baseRequestId)).data.movementId == request.resource.data.supersededByBatchMovementId)))
         || (isStaff()
           && resource.data.type == 'in'
           && resource.data.get('voided', false) == false
@@ -933,6 +1010,23 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'qty', 'previousQty', 'receivedQty', 'editedAt', 'editedBy', 'editedByName', 'editNote'
             ]))
+          || (isSuperadmin()
+            && resource.data.status == 'received'
+            && request.resource.data.status == 'received'
+            && resource.data.menuId == request.resource.data.menuId
+            && resource.data.get('movementId', null) is string
+            && resource.data.movementId == request.resource.data.get('movementId', null)
+            && request.resource.data.qty is int
+            && request.resource.data.qty > 0
+            && request.resource.data.qty <= 100000
+            && request.resource.data.receivedQty == request.resource.data.qty
+            && request.resource.data.editedAt == request.time
+            && request.resource.data.editedBy == request.auth.uid
+            && request.resource.data.editedByName is string
+            && request.resource.data.editNote is string
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'qty', 'receivedQty', 'editedAt', 'editedBy', 'editedByName', 'editNote'
+            ]))
         ))
         || (((isStaff()) || (isPartner() && resource.data.partnerId == myProfile().partnerId))
           && resource.data.status in ['pending', 'revised']
@@ -1266,10 +1360,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Bypass operasional penuh khusus Superadmin aktif.
-    // isSuperadmin() tetap memeriksa users/{auth.uid}.active == true
-    // dan users/{auth.uid}.role == 'superadmin'. Semua role lain tetap
-    // mengikuti aturan spesifik koleksinya masing-masing.
+    // Superadmin aktif memiliki akses baca/tulis penuh ke seluruh dokumen.
+    // Tidak ada pembatasan per-koleksi untuk Superadmin; akun lain tetap memakai
+    // Rules spesifik koleksinya masing-masing.
     match /{document=**} {
       allow read, write: if isSuperadmin();
     }
