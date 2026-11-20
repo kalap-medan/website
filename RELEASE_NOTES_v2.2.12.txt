@@ -1,9 +1,0 @@
-KALAP Management System v2.2.12
-
-Perbaikan tombol Hapus pada bagian Stok masuk disetujui
-- Jalur yang diperbaiki adalah deleteDailyStockMovement yang dipanggil tabel Stok masuk disetujui; ini berbeda dari deleteReceivedStockRequest pada riwayat pengajuan.
-- Pembatalan batch kini atomik: saldo menu dikurangi, movement asli ditandai hiddenFromDaily, pengajuan terkait dihapus bila ada, dan satu movement adjustment negatif direkam sebagai audit.
-- Movement asli tidak di-void dan tidak dihapus: rollover harian tetap menjumlahkan input asli dengan movement koreksi negatif, sehingga tidak terjadi pengurangan ganda saat hari berikutnya.
-- Firestore Rules menambah izin staf aktif untuk menyembunyikan movement manual tanpa requestId. Movement dari pengajuan mitra memakai aturan pencocokan request/movement yang sudah ada.
-- Apabila saldo tersedia kurang dari jumlah batch, operasi dihentikan dengan pesan jelas agar saldo tidak negatif.
-- Publish Firestore Rules v2.2.12 dan deploy index.html + service-worker.js v2.2.12. Pertahankan folder icons.
