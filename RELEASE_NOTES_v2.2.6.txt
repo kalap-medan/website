@@ -1,8 +1,0 @@
-KALAP v2.2.6 — Koreksi stok harian dan grafik dashboard
-
-1. Stok masuk Dashboard Superadmin hanya menghitung penerimaan dari pengajuan Mitra yang disetujui Admin/SPV pada tanggal tersebut.
-2. Stok terjual tetap mengikuti transaksi selesai pada tanggal yang sama; sisa stok harian dihitung dari stok pengajuan yang disetujui hari itu dikurangi penjualan pada hari itu, per menu.
-3. Angka stok di Dashboard dan detail grafik ditampilkan tanpa satuan "unit".
-4. Grafik Dashboard Superadmin kembali menampilkan penjualan per tanggal dengan pemilih rentang tanggal Dari/Sampai. Pemilih rentang tetap hanya mengatur data grafik; kartu ringkasan tetap mengikuti hari berjalan WIB.
-5. Klik tanggal pada grafik kembali membuka rincian tanggal tersebut. Query historis stok berukuran besar dihilangkan sehingga detail memakai data transaksi dan pergerakan pada rentang tanggal yang sudah dimuat.
-6. Perubahan dibatasi pada Dashboard Superadmin, detail grafik, versi aplikasi, dan cache PWA. Firestore Rules dan indeks tidak berubah.
