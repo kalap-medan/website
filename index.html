@@ -1138,6 +1138,12 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
   .receipt-grand-total,.receipt-grand-total strong { font-size:17px !important; }
 }
 
+
+/* Dashboard Mitra: lima ringkasan tetap rapi di desktop dan responsif di layar kecil. */
+.stats-grid.partner-dashboard-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.partner-sales-date-range { width: 100%; justify-content: flex-start; }
+@media (max-width: 1100px) { .stats-grid.partner-dashboard-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .stats-grid.partner-dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .partner-sales-date-range { align-items: stretch; } .partner-sales-date-range label, .partner-sales-date-range input, .partner-sales-date-range button { width: 100%; } }
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -1308,6 +1314,10 @@ let menuStatusFilter = "all";
 let menuListCurrentPage = 1;
 let partnerListSearchQuery = "";
 let partnerListCurrentPage = 1;
+let partnerSalesFromDate = `${jakartaMonthKey(new Date())}-01`;
+let partnerSalesToDate = jakartaDateKey(new Date());
+let partnerSalesCurrentPage = 1;
+const partnerSalesPageSize = 10;
 let accountsSearchQuery = "";
 let accountsCurrentPage = 1;
 const accountsPageSize = 7;
@@ -1581,7 +1591,14 @@ function initMoneyInputs(root = document) {
 }
 function integer(value) { return new Intl.NumberFormat("id-ID").format(Number(value || 0)); }
 function paymentMethodLabel(value) {
-  return ({ cash: "TUNAI", qris: "QRIS", transfer: "TRANSFER", kalap_operational: "DITANGGUNG KALAP · BEBAN OPERASIONAL" })[String(value || "").toLowerCase()] || String(value || "—").toUpperCase();
+  return ({ cash: "TUNAI", qris: "QRIS", transfer: "TRANSFER", kalap_operational: "OPERASIONAL" })[String(value || "").toLowerCase()] || String(value || "—").toUpperCase();
+}
+function operationalCategoryLabel(value) {
+  const text = String(value || "Pengeluaran");
+  return /^(?:beban\s+)?operasional\s*-\s*penjualan$/i.test(text) ? "Operasional" : text;
+}
+function operationalNoteLabel(value) {
+  return String(value || "").replace(/\s+ditanggung\s+KALAP$/i, "");
 }
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
@@ -2406,8 +2423,8 @@ async function callApi(name, payload = {}) {
       tx.set(cashflowRef, {
         type: isKalapOperational ? "expense" : "income",
         amount: total,
-        category: isKalapOperational ? "Beban operasional - penjualan" : "Penjualan",
-        note: isKalapOperational ? `Operasional: ${operationalNote} · Penjualan ${code} ditanggung KALAP` : `Penjualan ${code}`,
+        category: isKalapOperational ? "Operasional" : "Penjualan",
+        note: isKalapOperational ? `Operasional: ${operationalNote} · Penjualan ${code}` : `Penjualan ${code}`,
         source: isKalapOperational ? "operational_sale" : "sale",
         transactionId: saleRef.id, transactionCode: code, status: "posted",
         createdAt, createdBy: actorUid, createdByName: actorName
@@ -4369,6 +4386,10 @@ function partnerNetAmount(row) {
 function sumPartnerNetSales(rows) { return rows.reduce((sum, row) => sum + partnerNetAmount(row), 0); }
 function sumPartnerGrossSales(rows) { return rows.reduce((sum, row) => sum + partnerGrossAmount(row), 0); }
 function sumPartnerCommission(rows) { return rows.reduce((sum, row) => sum + partnerCommissionAmount(row), 0); }
+function partnerSaleBusinessDate(row) {
+  const key = String(row?.businessDate || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : dayKeyFromTimestamp(row?.createdAt);
+}
 function pendingStockRequestCount(dateKey = jakartaDateKey(new Date())) {
   // Badge adalah notifikasi hari berjalan; riwayat tanggal sebelumnya tetap dapat dibuka lewat filter tanggal.
   const active = store.stockRequests.filter(row =>
@@ -4377,7 +4398,20 @@ function pendingStockRequestCount(dateKey = jakartaDateKey(new Date())) {
   );
   return new Set(active.map(row => String(row.menuId || row.id || "").trim()).filter(Boolean)).size;
 }
-function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && dayKeyFromTimestamp(item.createdAt).startsWith(monthKey)); }
+function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && partnerSaleBusinessDate(item).startsWith(monthKey)); }
+function getPartnerTodaySales(dateKey = jakartaDateKey(new Date())) {
+  return store.partnerSales.filter(item => item.status !== "cancelled" && partnerSaleBusinessDate(item) === dateKey);
+}
+function getPartnerSalesForRange(fromKey = partnerSalesFromDate, toKey = partnerSalesToDate) {
+  let from = String(fromKey || "");
+  let to = String(toKey || from);
+  if (from > to) [from, to] = [to, from];
+  return sortNewest(store.partnerSales.filter(item => {
+    if (item.status === "cancelled") return false;
+    const saleDate = partnerSaleBusinessDate(item);
+    return saleDate && saleDate >= from && saleDate <= to;
+  }));
+}
 function sortNewest(rows, field = "createdAt") { return rows.slice().sort((a,b) => (asDate(b[field])?.getTime() || 0) - (asDate(a[field])?.getTime() || 0)); }
 function sumBy(list, key) { return list.reduce((sum, item) => sum + Number(item[key] || 0), 0); }
 function sumTransactionItems(transactions, key) { return transactions.reduce((sum, sale) => sum + (sale.items || []).reduce((inner, item) => inner + Number(item[key] || 0), 0), 0); }
@@ -4551,7 +4585,7 @@ async function openDashboardDayDetail(dateKey) {
       <div class="stat-card"><div class="stat-top">Total penjualan</div><div class="stat-value">${money(salesTotal)}</div></div>
       <div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div>
     </div>
-    <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row => `<div class="operational-item-row"><span>${escapeHtml(row.category || "Pengeluaran")} · ${escapeHtml(row.note || row.transactionCode || "")}</span><strong>${money(row.amount)}</strong></div>`).join("") || `<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size ? `<div class="operational-items-list"><h4>Menu yang ditanggung KALAP</h4>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}</div>
+    <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row => `<div class="operational-item-row"><span>${escapeHtml(operationalCategoryLabel(row.category))} · ${escapeHtml(operationalNoteLabel(row.note || row.transactionCode || ""))}</span><strong>${money(row.amount)}</strong></div>`).join("") || `<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size ? `<div class="operational-items-list"><h4>Menu operasional</h4>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}</div>
     <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-light" data-dashboard-detail-close>Tutup</button></div>`;
     const modal = root.querySelector(".modal");
     if (!modal) return;
@@ -4854,17 +4888,17 @@ function renderFinancePage() {
       ${statCard("Omzet penjualan", money(omzet), "↗", `${integer(txs.length)} transaksi selesai`)}
       ${statCard("Unit terjual", `${integer(soldQty)} unit`, "▣", "Jumlah semua item transaksi" )}
       ${statCard("Pemasukan tercatat", money(totalIn), "＋", "Penerimaan yang masuk ke arus kas")}
-      ${statCard("Pengeluaran tercatat", money(totalOut), "−", "Termasuk penjualan yang ditanggung KALAP")}
+      ${statCard("Pengeluaran tercatat", money(totalOut), "−", "Termasuk transaksi dengan metode Operasional")}
       ${statCard("Saldo arus kas", money(totalIn - totalOut), "◉", "Pemasukan dikurangi pengeluaran")}
       ${statCard("Bagian KALAP dari menu mitra", money(partnerCommission), "％", "Perhitungan komisi 20% dari penjualan menu mitra")}
       ${profitCard}
       ${statCard("Menu terjual", integer(menuSales.size), "▤", "Jumlah jenis menu yang terjual")}
     </section>
     <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="text" name="amount" inputmode="numeric" data-money-input required placeholder="Contoh: 150.000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
-      <section class="panel">${panelHeader("Rincian pembayaran", `Metode pembayaran pada ${dateText}`)}<div class="summary-list"><div class="summary-row"><span>Tunai</span><strong>${money(paymentBreakdown.cash)}</strong></div><div class="summary-row"><span>QRIS</span><strong>${money(paymentBreakdown.qris)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${money(paymentBreakdown.transfer)}</strong></div><div class="summary-row"><span>Operasional KALAP</span><strong>${money(paymentBreakdown.kalap_operational)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Penjualan menu milik KALAP (kotor)</span><strong>${money(kalapOwnedSales)}</strong></div><div class="summary-row"><span>Bagian KALAP dari menu mitra</span><strong>${money(partnerCommission)}</strong></div></div><div class="profile-security-note" style="margin-top:12px">Laba bersih belum dapat dihitung karena harga modal / HPP tiap menu belum disimpan. Saldo arus kas di atas bukan angka laba bersih.</div></section></div>
+      <section class="panel">${panelHeader("Rincian pembayaran", `Metode pembayaran pada ${dateText}`)}<div class="summary-list"><div class="summary-row"><span>Tunai</span><strong>${money(paymentBreakdown.cash)}</strong></div><div class="summary-row"><span>QRIS</span><strong>${money(paymentBreakdown.qris)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${money(paymentBreakdown.transfer)}</strong></div><div class="summary-row"><span>Operasional</span><strong>${money(paymentBreakdown.kalap_operational)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Penjualan menu milik KALAP (kotor)</span><strong>${money(kalapOwnedSales)}</strong></div><div class="summary-row"><span>Bagian KALAP dari menu mitra</span><strong>${money(partnerCommission)}</strong></div></div><div class="profile-security-note" style="margin-top:12px">Laba bersih belum dapat dihitung karena harga modal / HPP tiap menu belum disimpan. Saldo arus kas di atas bukan angka laba bersih.</div></section></div>
     <section class="panel">${panelHeader("Rincian penjualan", `${integer(txs.length)} transaksi · ${integer(menuSales.size)} jenis menu pada ${dateText}`)}${renderTransactionTable(sortNewest(txs), true)}</section>
     <section class="panel">${panelHeader("Penjualan dan pergerakan stok per menu", "Stok saat ini mengikuti saldo terbaru; masuk dan terjual mengikuti tanggal laporan.")}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Stok masuk</th><th>Terjual</th><th>Stok kembali</th><th>Koreksi</th><th>Omzet</th><th>Stok saat ini</th></tr></thead><tbody>${stockRows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.qty)}</td><td>${integer(row.returned)}</td><td>${row.adjustment > 0 ? "+" : ""}${integer(row.adjustment)}</td><td><strong>${money(row.amount)}</strong></td><td>${row.currentStock === null ? "—" : `${integer(row.currentStock)} unit`}</td></tr>`).join("") || `<tr><td colspan="7" class="table-empty">Tidak ada penjualan atau pergerakan stok pada tanggal ini.</td></tr>`}</tbody></table></div></section>
-    <section class="panel">${panelHeader("Rincian pengeluaran", `${integer(expenseRows.length)} catatan pengeluaran pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenseRows.map(row => `<tr><td>${formatTime(row.createdAt)} WIB</td><td>${escapeHtml(row.category || "Pengeluaran")}</td><td>${escapeHtml(row.note || row.transactionCode || "—")}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Tidak ada pengeluaran pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
+    <section class="panel">${panelHeader("Rincian pengeluaran", `${integer(expenseRows.length)} catatan pengeluaran pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenseRows.map(row => `<tr><td>${formatTime(row.createdAt)} WIB</td><td>${escapeHtml(operationalCategoryLabel(row.category))}</td><td>${escapeHtml(operationalNoteLabel(row.note || row.transactionCode || "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Tidak ada pengeluaran pada tanggal ini.</td></tr>`}</tbody></table></div></section>`;
 }
 
 function renderClosingPage() {
@@ -4886,8 +4920,8 @@ function renderClosingPage() {
   return `${pageHeading("Closing harian", "Tutup penjualan hari ini dan pilih tanggal untuk melihat laporan closing sebelumnya.", `<input type="date" id="closing-date-select" value="${selectedClosingDateKey}" aria-label="Pilih tanggal closing">${closeAction}`)}
     <section class="stats-grid">${statCard("Total penjualan",money(selectedHeader?.salesTotal||0),"↗",selectedHeader?selectedDateText:"Pilih tanggal yang sudah closing")}${statCard("Stok terjual",integer(selectedHeader?.soldQty||0),"▣","Total unit terjual")}${statCard("Sisa stok",integer(selectedHeader?.totalRemaining||0),"▤","Stok pada saat closing")}${statCard("Total transaksi",integer(selectedHeader?.transactionCount||0),"▦","Transaksi pada tanggal terpilih")}</section>
     <section class="panel" style="margin-bottom:15px">${panelHeader("Metode pembayaran",`Rincian penerimaan dan beban pada ${selectedDateText}`)}
-      <div class="daily-payment-grid"><div class="daily-payment-card"><small>Cash / Tunai</small><strong>${money(payments.cash||0)}</strong></div><div class="daily-payment-card"><small>QRIS</small><strong>${money(payments.qris||0)}</strong></div><div class="daily-payment-card"><small>Transfer</small><strong>${money(payments.transfer||0)}</strong></div><div class="daily-payment-card"><small>Operasional KALAP</small><strong>${money(payments.kalap_operational||0)}</strong></div></div>
-      <div class="operational-items-list"><h4>Rincian menu yang dioperasionalkan KALAP</h4>${operationalItems.map(item=>`<div class="operational-item-row"><span>${escapeHtml(item.name)} · ${integer(item.qty)} unit</span><strong>${money(item.amount)}</strong></div>`).join("")||`<div class="muted">Tidak ada transaksi dengan metode Operasional KALAP pada tanggal ini.</div>`}</div>
+      <div class="daily-payment-grid"><div class="daily-payment-card"><small>Cash / Tunai</small><strong>${money(payments.cash||0)}</strong></div><div class="daily-payment-card"><small>QRIS</small><strong>${money(payments.qris||0)}</strong></div><div class="daily-payment-card"><small>Transfer</small><strong>${money(payments.transfer||0)}</strong></div><div class="daily-payment-card"><small>Operasional</small><strong>${money(payments.kalap_operational||0)}</strong></div></div>
+      <div class="operational-items-list"><h4>Rincian menu operasional</h4>${operationalItems.map(item=>`<div class="operational-item-row"><span>${escapeHtml(item.name)} · ${integer(item.qty)} unit</span><strong>${money(item.amount)}</strong></div>`).join("")||`<div class="muted">Tidak ada transaksi dengan metode Operasional pada tanggal ini.</div>`}</div>
     </section>
     <section class="panel" style="margin-bottom:15px">${panelHeader("Riwayat closing",`${integer(closedDays.length)} hari tersimpan`)}
       <div class="table-toolbar"><input id="closing-history-search" type="search" placeholder="Cari tanggal atau nama petugas..." value="${escapeHtml(closingHistorySearchQuery||"")}"></div>
@@ -5121,6 +5155,8 @@ async function markPartnerPayoutPaid(partnerId,button) {
 function renderPartnerHome() {
   const sales = getPartnerMonthSales();
   const totalSales = sumPartnerNetSales(sales);
+  const todaySales = getPartnerTodaySales(jakartaDateKey(new Date()));
+  const todayNetIncome = sumPartnerNetSales(todaySales);
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
   const activeMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const stock = activeMenus.reduce((sum,menu)=>sum+menuStockForDate(menu),0);
@@ -5137,7 +5173,7 @@ function renderPartnerHome() {
     </section>` : "";
   return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau menu terdaftar, stok, dan penjualan produk milik Anda saja.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
     ${closingPanel}
-    <section class="stats-grid">${statCard("Pendapatan bersih bulan ini", money(totalSales), "↗", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
+    <section class="stats-grid partner-dashboard-stats">${statCard("Pendapatan hari ini", money(todayNetIncome), "↗", `${integer(todaySales.length)} transaksi · sudah dipotong 20%`)}${statCard("Pendapatan bersih bulan ini", money(totalSales), "◷", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
     <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
       <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menuStockForDate(menu))} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
     </article><article class="panel">${panelHeader("Aktivitas terbaru", "", `<span class="status success">LIVE</span>`)}
@@ -5162,11 +5198,33 @@ function renderPartnerMenu() {
     <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.filter(menu=>menu.deleted!==true).length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.filter(menu=>menu.deleted!==true).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menuStockForDate(menu))}</strong></td><td><span class="status ${menuStockForDate(menu)>0?"success":"inactive"}">${menuStockForDate(menu)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
 }
 function renderPartnerSales() {
-  const monthSales = getPartnerMonthSales();
-  const total = sumPartnerNetSales(monthSales);
-  return `${pageHeading("Penjualan saya", "Pendapatan yang diterima setelah potongan 20% untuk KALAP.", selectedMonthControl())}
-    <section class="stats-grid">${statCard("Pendapatan bersih", money(total), "↗", `Periode ${monthKey} · sudah dipotong 20%`)}${statCard("Jumlah transaksi", integer(monthSales.length), "▣", "Transaksi yang memuat produk Anda")}${statCard("Unit terjual", integer(monthSales.reduce((s,r)=>s+Number(r.qty||0),0)), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
-    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(monthSales.length)} catatan pada bulan ${monthKey} · nominal bersih mitra`)}<div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Pendapatan bersih (80%)</th></tr></thead><tbody>${monthSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Belum ada penjualan untuk periode ini.</td></tr>`}</tbody></table></div></section>`;
+  const rangeSales = getPartnerSalesForRange(partnerSalesFromDate, partnerSalesToDate);
+  const total = sumPartnerNetSales(rangeSales);
+  const totalUnits = rangeSales.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+  const pages = Math.max(1, Math.ceil(rangeSales.length / partnerSalesPageSize));
+  partnerSalesCurrentPage = Math.min(Math.max(1, partnerSalesCurrentPage), pages);
+  const start = (partnerSalesCurrentPage - 1) * partnerSalesPageSize;
+  const visibleSales = rangeSales.slice(start, start + partnerSalesPageSize);
+  const pageNumbers = pages <= 7
+    ? Array.from({ length: pages }, (_, index) => index + 1)
+    : [...new Set([1, Math.max(2, partnerSalesCurrentPage - 1), partnerSalesCurrentPage, Math.min(pages - 1, partnerSalesCurrentPage + 1), pages])].sort((a, b) => a - b);
+  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === partnerSalesCurrentPage ? "active-page" : ""}" data-partner-sales-page-number="${page}" aria-current="${page === partnerSalesCurrentPage ? "page" : "false"}">${page}</button>`).join("");
+  const firstItem = rangeSales.length ? start + 1 : 0;
+  const lastItem = Math.min(start + partnerSalesPageSize, rangeSales.length);
+  const dateLabel = `${formatDate(dateFromKey(partnerSalesFromDate))} – ${formatDate(dateFromKey(partnerSalesToDate))}`;
+  return `${pageHeading("Penjualan saya", "Riwayat penjualan dan pendapatan bersih setelah potongan 20% untuk KALAP.")}
+    <section class="stats-grid">${statCard("Pendapatan bersih", money(total), "↗", dateLabel)}${statCard("Jumlah transaksi", integer(rangeSales.length), "▣", "Transaksi pada rentang tanggal")}${statCard("Unit terjual", integer(totalUnits), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
+    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(rangeSales.length)} catatan · nominal bersih mitra`)}
+      <div class="table-toolbar">
+        <div class="date-range-control partner-sales-date-range">
+          <label>Dari tanggal<input type="date" id="partner-sales-from" value="${escapeHtml(partnerSalesFromDate)}"></label>
+          <label>Sampai tanggal<input type="date" id="partner-sales-to" value="${escapeHtml(partnerSalesToDate)}"></label>
+          <button type="button" class="btn btn-primary" id="apply-partner-sales-range">Terapkan</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Pendapatan bersih (80%)</th></tr></thead><tbody>${visibleSales.map(row=>`<tr><td>${formatDate(dateFromKey(partnerSaleBusinessDate(row)))} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Tidak ada penjualan pada rentang tanggal ini.</td></tr>`}</tbody></table></div>
+      <div class="pagination-row"><span class="helper-text">Menampilkan ${firstItem}–${lastItem} dari ${integer(rangeSales.length)} catatan · halaman ${partnerSalesCurrentPage} dari ${pages} · ${partnerSalesPageSize} per halaman</span><div class="page-buttons"><button type="button" data-partner-sales-page="prev" ${partnerSalesCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-partner-sales-page="next" ${partnerSalesCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div>
+    </section>`;
 }
 
 async function newMenuPageSubmit(event) {
@@ -5226,6 +5284,26 @@ function attachPageEvents() {
     if (!/^\d{4}-\d{2}$/.test(value)) return;
     subscribeMonthData(value);
   });
+  $("#apply-partner-sales-range")?.addEventListener("click", () => {
+    const from = $("#partner-sales-from")?.value || "";
+    const to = $("#partner-sales-to")?.value || "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return toast("Pilih tanggal awal dan tanggal akhir terlebih dahulu.", "error");
+    }
+    if (from > to) return toast("Tanggal awal tidak boleh melewati tanggal akhir.", "error");
+    partnerSalesFromDate = from;
+    partnerSalesToDate = to;
+    partnerSalesCurrentPage = 1;
+    renderPage();
+  });
+  $$('[data-partner-sales-page]').forEach(button => button.addEventListener("click", () => {
+    partnerSalesCurrentPage += button.dataset.partnerSalesPage === "next" ? 1 : -1;
+    renderPage();
+  }));
+  $$('[data-partner-sales-page-number]').forEach(button => button.addEventListener("click", () => {
+    partnerSalesCurrentPage = Number(button.dataset.partnerSalesPageNumber);
+    renderPage();
+  }));
   $("#chart-days")?.addEventListener("input", event => {
     chartDays = Number(event.target.value);
     $("#chart-days-label").textContent = `${chartDays} hari`;
@@ -5376,7 +5454,7 @@ function openPaymentModal() {
   const cartItems=[...cart.values()];
   const total=cartItems.reduce((sum,row)=>sum+row.price*row.qty,0);
   const root=$("#modal-root");
-  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">${PAYMENT_ICONS.cash}</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">${PAYMENT_ICONS.qris}</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">${PAYMENT_ICONS.transfer}</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">${PAYMENT_ICONS.kalap_operational}</span><span>Operasional KALAP</span></button></div><div id="cash-tender-step"></div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
+  root.innerHTML=`<div class="modal-backdrop" data-payment-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-title"><div class="modal-head"><div><h2 id="payment-title">Pilih metode pembayaran</h2><p>Total transaksi: <strong>${money(total)}</strong></p></div><button class="modal-close" data-payment-cancel aria-label="Tutup">×</button></div><div class="payment-choice-grid"><button type="button" class="payment-choice" data-pay-method="cash"><span class="payment-symbol">${PAYMENT_ICONS.cash}</span><span>Tunai</span></button><button type="button" class="payment-choice" data-pay-method="qris"><span class="payment-symbol">${PAYMENT_ICONS.qris}</span><span>QRIS</span></button><button type="button" class="payment-choice" data-pay-method="transfer"><span class="payment-symbol">${PAYMENT_ICONS.transfer}</span><span>Transfer</span></button><button type="button" class="payment-choice operational-choice" data-pay-method="kalap_operational"><span class="payment-symbol">${PAYMENT_ICONS.kalap_operational}</span><span>Operasional</span></button></div><div id="cash-tender-step"></div><div class="form-actions"><button type="button" class="btn btn-light" data-payment-cancel>Kembali</button></div></section></div>`;
   root.querySelectorAll('[data-pay-method]').forEach(button=>button.addEventListener('click',()=>{
     const method=button.dataset.payMethod;
     if(method==='kalap_operational'){
