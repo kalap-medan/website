@@ -1981,7 +1981,10 @@ async function deleteDailyStockMovementAsSuperadmin(movementId, actorUid, actorN
             rejectedAt: now, rejectedBy: actorUid, rejectedByName: actorName
           });
         }
-        if (lockSnap.exists()) tx.delete(lockRef);
+        if (lockSnap.exists()) {
+          phase = "melepas pengunci pengajuan stok";
+          tx.delete(lockRef);
+        }
         return { movementId: normalizedId, reversalMovementId: null, qty: 0, stockBefore: 0, stockAfter: 0, correctionCount: 0, scheduledCancelled: true };
       }
 
@@ -2531,10 +2534,15 @@ async function callApi(name, payload = {}) {
     let stockPhase = "memvalidasi tanggal dan akun";
     try {
     stockPhase = "memverifikasi profil Superadmin/SPV di server";
-    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
+    const liveStaffProfile = await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
     requireRole("superadmin", "spv");
+    const isSuperadminActor = liveStaffProfile.role === "superadmin";
+    const requestId = payload.requestId ? String(payload.requestId) : null;
     const todayKey = jakartaDateKey(new Date());
-    const businessDate = String(payload.businessDate || todayKey).trim();
+    // Penerimaan oleh Superadmin selalu dicatat pada hari berjalan, walaupun
+    // pengajuan Mitra berasal dari tanggal sebelumnya atau sudah kedaluwarsa.
+    const businessDate = requestId && isSuperadminActor
+      ? todayKey : String(payload.businessDate || todayKey).trim();
     const selectedDate = dateFromKey(businessDate);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)
       || Number.isNaN(selectedDate.getTime()) || jakartaDateKey(selectedDate) !== businessDate) {
@@ -2545,14 +2553,15 @@ async function callApi(name, payload = {}) {
     if (!isFutureSchedule) {
       stockPhase = "menyelaraskan saldo stok mitra hari berjalan dari catatan pergerakan";
       await rolloverPartnerStocksForDate(businessDate);
-      stockPhase = "memeriksa pengajuan stok yang kedaluwarsa";
-      await expireStaleStockRequestsForDate(businessDate);
+      if (!(requestId && isSuperadminActor)) {
+        stockPhase = "memeriksa pengajuan stok yang kedaluwarsa";
+        await expireStaleStockRequestsForDate(businessDate);
+      }
     }
     const closingRef = doc(db, "dailyClosings", businessDate);
     const menuId = String(payload.menuId || "");
     const requestedQty = Number(payload.qty);
     if (!menuId || !Number.isInteger(requestedQty) || requestedQty < 1 || requestedQty > 100000) throw new Error("Jumlah stok tidak valid.");
-    const requestId = payload.requestId ? String(payload.requestId) : null;
     if (isFutureSchedule && requestId) throw new Error("Pengajuan Mitra hanya dapat disetujui pada tanggal pengajuan. Untuk tanggal mendatang, gunakan input manual.");
     const menuRef = doc(db, "menus", menuId);
     const lockRef = doc(db, "stockRequestLocks", menuId);
@@ -2575,12 +2584,13 @@ async function callApi(name, payload = {}) {
         : null;
       if (scheduledMovementsQuery) reads.push(tx.get(scheduledMovementsQuery));
       const [closingSnap, menuSnap, lockSnap, scheduledMovementsSnap] = await Promise.all(reads);
-      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))
+        && !isSuperadminActor) {
         throw new Error("Closing harian sudah dilakukan. Input stok baru tersedia setelah tanggal closing dibuka.");
       }
       if (!menuSnap.exists()) throw new Error("Menu tidak ditemukan.");
       const menu = menuSnap.data();
-      if (menu.active === false) throw new Error("Menu ini sudah nonaktif dan tidak dapat menerima stok.");
+      if (menu.active === false && !isSuperadminActor) throw new Error("Menu ini sudah nonaktif dan tidak dapat menerima stok.");
       if (isFutureSchedule && !isPartnerStockMenu(menu)) {
         throw new Error("Penjadwalan stok mendatang hanya tersedia untuk menu mitra agar saldo otomatis aktif pada tanggal yang dipilih.");
       }
@@ -2595,11 +2605,15 @@ async function callApi(name, payload = {}) {
         const requestSnap = await tx.get(doc(db, "stockRequests", requestId));
         if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
         requestData = requestSnap.data();
-        if (String(requestData.businessDate || dayKeyFromTimestamp(requestData.createdAt)) !== businessDate) {
+        const requestBusinessDate = String(requestData.businessDate || dayKeyFromTimestamp(requestData.createdAt));
+        const requestStillOpen = ["pending", "revised"].includes(requestData.status)
+          || (isSuperadminActor && requestData.status === "expired");
+        if (requestBusinessDate !== businessDate && !isSuperadminActor) {
           throw new Error("Pengajuan dari hari sebelumnya sudah kedaluwarsa. Mitra perlu membuat pengajuan baru.");
         }
-        if (!["pending", "revised"].includes(requestData.status) || requestData.menuId !== menuId
-          || requestData.partnerId !== menu.partnerId || (lockSnap.exists() && lockSnap.data().requestId !== requestId)) {
+        if (!requestStillOpen || requestData.menuId !== menuId
+          || (!isSuperadminActor && requestData.partnerId !== menu.partnerId)
+          || (!isSuperadminActor && lockSnap.exists() && lockSnap.data().requestId !== requestId)) {
           throw new Error("Pengajuan stok sudah diproses atau datanya tidak cocok.");
         }
         qty = Number(requestData.qty);
@@ -2610,13 +2624,15 @@ async function callApi(name, payload = {}) {
           adjustmentBaseRef = doc(db, "stockRequests", baseRequestId);
           const baseRequestSnap = await tx.get(adjustmentBaseRef);
           if (!baseRequestSnap.exists() || baseRequestSnap.data().status !== "received"
-            || baseRequestSnap.data().latestAdjustmentRequestId) {
+            || (!isSuperadminActor && baseRequestSnap.data().latestAdjustmentRequestId)) {
             throw new Error("Riwayat stok sumber sudah tidak tersedia atau sudah dikoreksi melalui pengajuan lain.");
           }
-          if (baseRequestSnap.data().menuId !== menuId || baseRequestSnap.data().partnerId !== requestData.partnerId) {
+          if (baseRequestSnap.data().menuId !== menuId
+            || (!isSuperadminActor && baseRequestSnap.data().partnerId !== requestData.partnerId)) {
             throw new Error("Riwayat koreksi tidak cocok dengan menu dan mitra.");
           }
-          if (String(baseRequestSnap.data().businessDate || dayKeyFromTimestamp(baseRequestSnap.data().receivedAt || baseRequestSnap.data().createdAt)) !== businessDate) {
+          const baseBusinessDate = String(baseRequestSnap.data().businessDate || dayKeyFromTimestamp(baseRequestSnap.data().receivedAt || baseRequestSnap.data().createdAt));
+          if (baseBusinessDate !== businessDate && !isSuperadminActor) {
             throw new Error("Koreksi stok dari hari sebelumnya tidak dapat diterapkan ke stok hari ini. Buat pengajuan stok baru.");
           }
           stockDelta = Number(requestData.deltaQty);
@@ -2647,8 +2663,10 @@ async function callApi(name, payload = {}) {
       }
       const createdAt = serverTimestamp();
       if (!isFutureSchedule) {
+        stockPhase = "memperbarui saldo menu untuk penerimaan pengajuan";
         tx.update(menuRef, { stock: stockAfter, ...(isPartnerStockMenu(menu) ? { stockBusinessDate: businessDate } : {}), updatedAt: createdAt, lastMovementId: movementRef.id });
       }
+      stockPhase = "membuat catatan pergerakan penerimaan stok";
       tx.set(movementRef, {
         type: movementType, qty: movementQty, businessDate,
         ...(isFutureSchedule ? { scheduledForFuture: true } : {}),
@@ -2660,16 +2678,21 @@ async function callApi(name, payload = {}) {
         requestId, actorUid, actorName, createdAt
       });
       if (requestId) {
+        stockPhase = "mengubah status pengajuan menjadi diterima";
         tx.update(doc(db, "stockRequests", requestId), {
           status: "received", receivedAt: createdAt, receivedBy: actorUid,
           receivedByName: actorName, receivedQty: qty, receivedDelta: stockDelta, movementId: movementRef.id
         });
         if (adjustmentBaseRef) {
+          stockPhase = "memperbarui hubungan batch dengan koreksi yang diterima";
           tx.update(adjustmentBaseRef, {
             latestAdjustmentRequestId: requestId, adjustmentAcceptedAt: createdAt, adjustmentAcceptedBy: actorUid
           });
         }
-        if (lockSnap.exists()) tx.delete(lockRef);
+        if (lockSnap.exists() && String(lockSnap.data().requestId || "") === requestId) {
+          stockPhase = "melepas pengunci pengajuan yang diterima";
+          tx.delete(lockRef);
+        }
       }
       return { menuName: menu.name, stockBefore, stockAfter, qty, stockDelta, requestId, adjustmentType, businessDate, scheduledForFuture: isFutureSchedule };
     });
@@ -2681,8 +2704,9 @@ async function callApi(name, payload = {}) {
   if (name === "reviseStockRequest") {
     let revisionPhase = "memeriksa akun dan pengajuan koreksi";
     try {
-    await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
+    const liveStaffProfile = await verifyLiveStaffProfile(actorUid, ["superadmin", "spv"]);
     requireRole("superadmin", "spv");
+    const isSuperadminActor = liveStaffProfile.role === "superadmin";
     const requestId = String(payload.requestId || "").trim();
     const qty = Number(payload.qty);
     const revisionNote = String(payload.note || "").trim().slice(0, 160);
@@ -2693,7 +2717,10 @@ async function callApi(name, payload = {}) {
       const requestSnap = await tx.get(requestRef);
       if (!requestSnap.exists()) throw new Error("Pengajuan stok tidak ditemukan.");
       const requestData = requestSnap.data();
-      if (!["pending", "revised"].includes(requestData.status)) throw new Error("Hanya pengajuan yang masih menunggu keputusan yang dapat direvisi.");
+      if (!["pending", "revised"].includes(requestData.status)
+        && !(isSuperadminActor && requestData.status === "expired")) {
+        throw new Error("Hanya pengajuan yang masih menunggu keputusan yang dapat direvisi.");
+      }
       const oldRequestedQty = Number(requestData.qty || 0);
       const isAdjustment = requestData.requestType === "adjustment";
       const baselineQty = isAdjustment ? Number(requestData.previousQty) : oldRequestedQty;
@@ -2708,16 +2735,17 @@ async function callApi(name, payload = {}) {
         const baseSnap = await tx.get(doc(db, "stockRequests", baseRequestId));
         if (!baseSnap.exists()) throw new Error("Riwayat stok sumber sudah tidak tersedia.");
         const base = baseSnap.data();
-        if (base.status !== "received" || base.menuId !== requestData.menuId || base.partnerId !== requestData.partnerId) {
+        if (base.status !== "received" || base.menuId !== requestData.menuId
+          || (!isSuperadminActor && base.partnerId !== requestData.partnerId)) {
           throw new Error("Koreksi tidak lagi terhubung dengan batch stok yang diterima.");
         }
-        // Superadmin aktif boleh merevisi pengajuan yang sedang terkunci atau
-        // memiliki koreksi terdahulu; SPV tetap mengikuti pengunci operasional.
-        if (profile?.role !== "superadmin" && base.latestAdjustmentRequestId && base.latestAdjustmentRequestId !== requestId) {
+        // Superadmin aktif boleh merevisi pengajuan yang sudah kedaluwarsa,
+        // sedang terkunci, atau memiliki koreksi terdahulu; SPV tetap mengikuti pengunci operasional.
+        if (!isSuperadminActor && base.latestAdjustmentRequestId && base.latestAdjustmentRequestId !== requestId) {
           throw new Error("Batch sumber sudah memiliki koreksi lain yang diterima.");
         }
         const lockSnap = await tx.get(doc(db, "stockRequestLocks", String(requestData.menuId || "")));
-        if (profile?.role !== "superadmin" && lockSnap.exists() && lockSnap.data().requestId !== requestId) {
+        if (!isSuperadminActor && lockSnap.exists() && lockSnap.data().requestId !== requestId) {
           throw new Error("Menu sedang dikunci oleh pengajuan stok lain. Selesaikan pengajuan tersebut terlebih dahulu.");
         }
       }
@@ -5007,7 +5035,8 @@ function renderRequestsPage() {
   const actionHeader = staffCanReceive ? `<button type="button" class="btn btn-primary" id="open-manual-stock-input">＋ Input</button>` : "";
   const rows = visible.map(row => {
     const status = row.status || "pending";
-    const canProcess = staffCanReceive && ["pending", "revised"].includes(status);
+    const canProcess = staffCanReceive && (["pending", "revised"].includes(status)
+      || (profile.role === "superadmin" && status === "expired"));
     const isAdjustment = row.requestType === "adjustment";
     const previousQty = Number(row.previousQty || 0);
     const changeLabel = row.changeType === "ditambah" ? "Ditambah"
@@ -6351,7 +6380,8 @@ async function stockRequestSubmit(event) {
 }
 async function acceptStockRequest(requestId, button) {
   const request = store.stockRequests.find(item => item.id === requestId);
-  if (!request || !["pending", "revised"].includes(request.status)) return;
+  if (!request || (!["pending", "revised"].includes(request.status)
+    && !(profile?.role === "superadmin" && request.status === "expired"))) return;
   setBusy(button, true, "Menyimpan...");
   try {
     const result = await callApi("receiveStock", {
@@ -6362,7 +6392,7 @@ async function acceptStockRequest(requestId, button) {
     toast(result.adjustmentType
       ? `Koreksi diterima. Stok ${result.menuName} ${result.adjustmentType} ${integer(Math.abs(result.stockDelta))} unit.`
       : `Pengajuan diterima. ${integer(result.qty)} unit ${result.menuName} ditambahkan ke stok.`, "success");
-  } catch (error) { toast(friendlyError(error), "error"); }
+  } catch (error) { toast(stockFirestoreError("Penerimaan stok", error), "error"); }
   finally { setBusy(button, false); }
 }
 
@@ -6375,7 +6405,8 @@ async function acceptAllStockRequests(button) {
   }
   const requests = requestBulkCandidateIds
     .map(id => store.stockRequests.find(item => item.id === id))
-    .filter(item => item && ["pending", "revised"].includes(item.status));
+    .filter(item => item && (["pending", "revised"].includes(item.status)
+      || (profile?.role === "superadmin" && item.status === "expired")));
   if (!requests.length) {
     requestSelectAll = false;
     renderPage();
@@ -6403,7 +6434,7 @@ async function acceptAllStockRequests(button) {
         });
         succeeded += 1;
       } catch (error) {
-        failures.push(`${request.menuName || "Menu"}: ${friendlyError(error)}`);
+        failures.push(`${request.menuName || "Menu"}: ${stockFirestoreError("Penerimaan stok", error)}`);
       }
     }
     if (failures.length) {
@@ -6424,7 +6455,8 @@ async function acceptAllStockRequests(button) {
 
 function openReviseStockRequestModal(requestId) {
   const request = store.stockRequests.find(item => item.id === requestId);
-  if (!request || !["pending", "revised"].includes(request.status)) return;
+  if (!request || (!["pending", "revised"].includes(request.status)
+    && !(profile?.role === "superadmin" && request.status === "expired"))) return;
   const root = $("#modal-root");
   root.innerHTML = `<div class="modal-backdrop" data-request-modal-backdrop><section class="modal"><div class="modal-head"><div><h2>Revisi jumlah pengajuan</h2><p>${escapeHtml(request.partnerName || "Mitra")} · ${escapeHtml(request.menuName || "Menu")}</p></div><button class="modal-close" data-request-modal-close>×</button></div><form id="revise-stock-request-form"><div class="form-field"><label>Jumlah baru</label><input name="qty" type="number" min="1" max="100000" step="1" value="${Number(request.qty)}" required></div><div class="form-field"><label>Catatan revisi (opsional)</label><input name="note" maxlength="160" placeholder="Contoh: jumlah disesuaikan dengan stok yang diterima"></div><div class="form-actions"><button type="button" class="btn btn-light" data-request-modal-close>Batal</button><button type="submit" class="btn btn-primary">Simpan revisi</button></div></form></section></div>`;
   root.querySelector("#revise-stock-request-form").addEventListener("submit", async event => {
