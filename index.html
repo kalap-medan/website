@@ -5220,26 +5220,80 @@ function renderPartnerHome() {
 }
 function groupPendingStickerRequestsByPartner(requests) {
   const groups = new Map();
-  requests.forEach(row => {
-    const partnerId = String(row.partnerId || "").trim();
-    const key = partnerId || `requester:${String(row.requestedBy || row.partnerName || "unknown")}`;
+  const normalizePartnerName = value => String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("id-ID")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  // Use the canonical partner record when possible. Older requests may have a
+  // blank/stale partnerId, so resolve them by the partner name (or requester
+  // profile) before falling back to a raw ID. This prevents one Mitra's later
+  // requests from appearing as a second, separate group.
+  const partnerById = new Map((store.partners || []).map(partner => [String(partner.id || "").trim(), partner]));
+  const partnersByName = new Map();
+  for (const partner of store.partners || []) {
+    const normalized = normalizePartnerName(partner.name);
+    if (!normalized) continue;
+    if (!partnersByName.has(normalized)) partnersByName.set(normalized, []);
+    partnersByName.get(normalized).push(partner);
+  }
+  const userById = new Map((store.users || []).map(user => [String(user.id || user.uid || "").trim(), user]));
+
+  requests.forEach((row, index) => {
+    const rawPartnerId = String(row.partnerId || "").trim();
+    const normalizedName = normalizePartnerName(row.partnerName);
+    let partner = rawPartnerId ? partnerById.get(rawPartnerId) : null;
+
+    if (!partner && row.requestedBy) {
+      const requester = userById.get(String(row.requestedBy).trim());
+      const requesterPartnerId = String(requester?.partnerId || "").trim();
+      if (requesterPartnerId) partner = partnerById.get(requesterPartnerId) || null;
+    }
+
+    if (!partner && normalizedName) {
+      const nameMatches = partnersByName.get(normalizedName) || [];
+      if (nameMatches.length === 1) partner = nameMatches[0];
+    }
+
+    const resolvedPartnerId = String(partner?.id || rawPartnerId).trim();
+    // A normalized name is a safer fallback than requestedBy: a single Mitra
+    // may have more than one login/user record, but should still have one queue.
+    const key = resolvedPartnerId
+      ? `partner:${resolvedPartnerId}`
+      : normalizedName
+        ? `name:${normalizedName}`
+        : `requester:${String(row.requestedBy || row.id || index)}`;
+    const partnerName = String(partner?.name || row.partnerName || "Mitra").trim() || "Mitra";
+    const createdAt = asDate(row.createdAt)?.getTime() || 0;
+
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        partnerId,
-        partnerName: String(row.partnerName || "Mitra"),
+        partnerId: resolvedPartnerId,
+        partnerName,
         requests: [],
-        firstCreatedAt: asDate(row.createdAt)?.getTime() || 0
+        firstCreatedAt: createdAt || Number.MAX_SAFE_INTEGER,
+        firstSeenOrder: index
       });
     }
     const group = groups.get(key);
     group.requests.push(row);
-    const createdAt = asDate(row.createdAt)?.getTime() || 0;
-    if (createdAt && (!group.firstCreatedAt || createdAt < group.firstCreatedAt)) group.firstCreatedAt = createdAt;
+    if (!group.partnerId && resolvedPartnerId) group.partnerId = resolvedPartnerId;
+    if ((!group.partnerName || group.partnerName === "Mitra") && partnerName !== "Mitra") group.partnerName = partnerName;
+    if (createdAt) group.firstCreatedAt = Math.min(group.firstCreatedAt, createdAt);
   });
-  return Array.from(groups.values()).sort((a, b) =>
-    a.partnerName.localeCompare(b.partnerName, "id") || a.firstCreatedAt - b.firstCreatedAt
-  );
+
+  return Array.from(groups.values())
+    .map(group => ({
+      ...group,
+      requests: group.requests.slice().sort((a, b) =>
+        (asDate(a.createdAt)?.getTime() || 0) - (asDate(b.createdAt)?.getTime() || 0)
+      )
+    }))
+    // Keep the order in which each Mitra first entered the queue, but keep all
+    // requests from that Mitra together even when other Mitra submitted later.
+    .sort((a, b) => a.firstCreatedAt - b.firstCreatedAt || a.firstSeenOrder - b.firstSeenOrder);
 }
 
 function renderLabelsPage() {
