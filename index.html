@@ -987,6 +987,8 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
 .label-search-result span { color:var(--muted); font-size:10px; text-align:right; }
 .label-search-result.selected,.label-search-result:hover { border-color:var(--kalap-red); background:var(--kalap-cream); }
 .label-search-empty { padding:10px 12px; color:var(--muted); font-size:11px; }
+.partner-sticker-menu-selected { display:grid; gap:6px; margin-top:7px; }
+.partner-sticker-menu-selected:empty { display:none; }
 .payment-symbol { width:30px; height:30px; display:grid; place-items:center; }
 .payment-symbol svg { width:27px; height:27px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .payment-choice .payment-symbol { font-size:0 !important; }
@@ -5216,23 +5218,55 @@ function renderPartnerHome() {
       <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
 }
+function groupPendingStickerRequestsByPartner(requests) {
+  const groups = new Map();
+  requests.forEach(row => {
+    const partnerId = String(row.partnerId || "").trim();
+    const key = partnerId || `requester:${String(row.requestedBy || row.partnerName || "unknown")}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        partnerId,
+        partnerName: String(row.partnerName || "Mitra"),
+        requests: [],
+        firstCreatedAt: asDate(row.createdAt)?.getTime() || 0
+      });
+    }
+    const group = groups.get(key);
+    group.requests.push(row);
+    const createdAt = asDate(row.createdAt)?.getTime() || 0;
+    if (createdAt && (!group.firstCreatedAt || createdAt < group.firstCreatedAt)) group.firstCreatedAt = createdAt;
+  });
+  return Array.from(groups.values()).sort((a, b) =>
+    a.partnerName.localeCompare(b.partnerName, "id") || a.firstCreatedAt - b.firstCreatedAt
+  );
+}
+
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
   const pendingStickerRequests = profile?.role === "superadmin"
     ? store.labelPrintRequests.filter(row => row.status === "pending").slice().sort((a,b) => (asDate(a.createdAt)?.getTime() || 0) - (asDate(b.createdAt)?.getTime() || 0))
     : [];
-  const queueRows = pendingStickerRequests.map(row => `<tr>
-    <td><strong>${escapeHtml(row.menuName || "Menu")}</strong><div class="muted">${money(row.price || 0)}</div></td>
-    <td>${escapeHtml(row.partnerName || "Mitra")}</td>
-    <td><strong>${integer(row.copies || 0)} stiker</strong></td>
-    <td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td>
-    <td><button type="button" class="btn btn-primary btn-sm" data-print-partner-sticker-request="${escapeHtml(row.id)}">Cetak</button></td>
-  </tr>`).join("");
+  const partnerGroups = groupPendingStickerRequestsByPartner(pendingStickerRequests);
+  const groupedQueueHtml = partnerGroups.map(group => {
+    const totalCopies = group.requests.reduce((sum, row) => sum + Math.max(0, Number(row.copies) || 0), 0);
+    const uniqueMenuCount = new Set(group.requests.map(row => String(row.menuId || row.menuName || ""))).size;
+    const requestRows = group.requests.map(row => `<tr>
+      <td><strong>${escapeHtml(row.menuName || "Menu")}</strong><div class="muted">${money(row.price || 0)}</div></td>
+      <td><strong>${integer(row.copies || 0)} stiker</strong></td>
+      <td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td>
+      <td><button type="button" class="btn btn-primary btn-sm" data-print-partner-sticker-request="${escapeHtml(row.id)}">Cetak</button></td>
+    </tr>`).join("");
+    return `<section class="panel sticker-partner-queue-group" style="margin-top:12px">
+      <div class="panel-header"><div><h3 class="panel-title">${escapeHtml(group.partnerName)}</h3><div class="panel-subtitle">${integer(uniqueMenuCount)} menu · ${integer(group.requests.length)} pengajuan</div></div><span class="status pending">${integer(totalCopies)} stiker</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Menu</th><th>Jumlah cetak</th><th>Waktu pengajuan</th><th>Aksi</th></tr></thead><tbody>${requestRows}</tbody></table></div>
+    </section>`;
+  }).join("");
   const stickerQueuePanel = profile?.role === "superadmin" ? `<section class="panel" style="margin-bottom:14px">
-    ${panelHeader("Antrean pengajuan stiker Mitra", `${integer(pendingStickerRequests.length)} pengajuan menunggu dicetak`, `<span class="status ${pendingStickerRequests.length ? "pending" : "success"}">${pendingStickerRequests.length ? "MENUNGGU" : "KOSONG"}</span>`)}
-    <div class="table-wrap"><table><thead><tr><th>Menu</th><th>Mitra</th><th>Jumlah</th><th>Waktu pengajuan</th><th>Aksi</th></tr></thead><tbody>${queueRows || `<tr><td colspan="5" class="table-empty">Belum ada pengajuan cetak stiker dari Mitra.</td></tr>`}</tbody></table></div>
-    <div class="helper-text">Klik Cetak pada pengajuan. Sistem menyiapkan QR menu dan mencetak sesuai jumlah stiker yang diminta Mitra.</div>
+    ${panelHeader("Antrean pengajuan stiker Mitra", `${integer(pendingStickerRequests.length)} pengajuan dari ${integer(partnerGroups.length)} Mitra`, `<span class="status ${pendingStickerRequests.length ? "pending" : "success"}">${pendingStickerRequests.length ? "MENUNGGU" : "KOSONG"}</span>`)}
+    ${groupedQueueHtml || `<div class="table-empty">Belum ada pengajuan cetak stiker dari Mitra.</div>`}
+    <div class="helper-text" style="margin-top:12px">Pengajuan dikelompokkan berdasarkan Mitra. Klik Cetak pada menu yang ingin dicetak; jumlah stiker mengikuti permintaan Mitra.</div>
   </section>` : "";
   return `${pageHeading("Cetak label", "", `<span class="status neutral">30 × 40 mm</span>`)}
     ${stickerQueuePanel}
@@ -5247,16 +5281,15 @@ function renderLabelsPage() {
 
 function renderPartnerStickerPage() {
   const partnerId = String(profile?.partnerId || "");
-  const menus = store.menus
-    .filter(menu => menu.partnerId === partnerId && menu.active !== false && menu.deleted !== true)
+  const menus = partnerId ? store.menus
+    .filter(menu => String(menu.partnerId || "") === partnerId && menu.active !== false && menu.deleted !== true)
     .slice()
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))) : [];
   const requests = store.labelPrintRequests
     .filter(row => row.partnerId === partnerId)
     .slice()
     .sort((a, b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0))
     .slice(0, 12);
-  const menuOptions = menus.map(menu => `<option value="${escapeHtml(menu.id)}">${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("");
   const historyRows = requests.map(row => {
     const status = row.status === "printed"
       ? `<span class="status success">Sudah dicetak</span>`
@@ -5269,11 +5302,11 @@ function renderPartnerStickerPage() {
   return `${pageHeading("Cetak stiker", "Ajukan jumlah stiker untuk menu milik Anda. Superadmin akan mencetak sesuai jumlah yang Anda minta.", `<span class="status neutral">30 × 40 mm</span>`)}
     <section class="panel">${panelHeader("Ajukan cetak stiker", `${integer(menus.length)} menu aktif milik Anda`)}
       ${menus.length ? `<form id="partner-sticker-form" class="form-grid">
-        <div class="form-field"><label for="partner-sticker-menu">Pilih menu Anda</label><select id="partner-sticker-menu" name="menuId" required><option value="">Pilih menu</option>${menuOptions}</select></div>
+        <div class="form-field label-unified-field"><label for="partner-sticker-menu-search">Cari nama menu</label><input id="partner-sticker-menu-search" type="search" autocomplete="off" placeholder="Ketik nama menu atau scan QR..." aria-label="Cari menu milik Anda"><input type="hidden" id="partner-sticker-menu" name="menuId" value="" required><div id="partner-sticker-menu-results" class="label-search-results" aria-live="polite"></div><div id="partner-sticker-menu-selected" class="partner-sticker-menu-selected" aria-live="polite"></div></div>
         <div class="form-field"><label for="partner-sticker-copies">Jumlah stiker yang ingin dicetak</label><input id="partner-sticker-copies" name="copies" type="number" min="1" max="500" step="1" value="1" required></div>
         <div class="form-actions"><button type="submit" class="btn btn-primary">Ajukan cetak stiker</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang terhubung dengan akun Mitra ini.</div>`}
-      <div class="helper-text">Menu yang dapat dipilih hanya menu yang terdaftar atas nama Mitra Anda. Pengajuan akan masuk ke antrean Cetak Label Superadmin.</div>
+      <div class="helper-text">Cari dan pilih hanya menu yang terdaftar atas nama Mitra Anda. Pengajuan akan masuk ke antrean Cetak Label Superadmin.</div>
     </section>
     <section class="panel">${panelHeader("Riwayat pengajuan stiker", `${integer(requests.length)} pengajuan terbaru`)}
       <div class="table-wrap"><table><thead><tr><th>Tanggal pengajuan</th><th>Menu</th><th>Jumlah</th><th>Status</th></tr></thead><tbody>${historyRows || `<tr><td colspan="4" class="table-empty">Anda belum pernah mengajukan cetak stiker.</td></tr>`}</tbody></table></div>
@@ -5411,6 +5444,11 @@ function attachPageEvents() {
   initMoneyInputs();
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
   $("#partner-sticker-form")?.addEventListener("submit", partnerStickerSubmit);
+  $("#partner-sticker-menu-search")?.addEventListener("input", handlePartnerStickerMenuSearchInput);
+  $("#partner-sticker-menu-search")?.addEventListener("keydown", handlePartnerStickerMenuSearchKeydown);
+  $("#partner-sticker-menu-selected")?.addEventListener("click", event => {
+    if (event.target.closest("[data-change-partner-sticker-menu]")) clearPartnerStickerMenuSelection();
+  });
   initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
@@ -6327,6 +6365,91 @@ function handleLabelSearchKeydown(event) {
   else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan QR menu KALAP.", "error");
 }
 
+function getPartnerStickerEligibleMenus() {
+  const partnerId = String(profile?.partnerId || "");
+  if (profile?.role !== "partner" || !partnerId) return [];
+  return store.menus
+    .filter(menu => String(menu.partnerId || "") === partnerId && menu.active !== false && menu.deleted !== true)
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+function handlePartnerStickerMenuSearchInput(event) {
+  const hidden = $("#partner-sticker-menu");
+  if (hidden) hidden.value = "";
+  const selected = $("#partner-sticker-menu-selected");
+  if (selected) selected.innerHTML = "";
+  refreshPartnerStickerMenuSearch(event.currentTarget.value);
+}
+
+function refreshPartnerStickerMenuSearch(rawQuery = $("#partner-sticker-menu-search")?.value || "") {
+  const results = $("#partner-sticker-menu-results");
+  if (!results) return;
+  const queryText = String(rawQuery || "").trim().toLowerCase();
+  if (!queryText) {
+    results.innerHTML = "";
+    return;
+  }
+  const matches = getPartnerStickerEligibleMenus().filter(menu =>
+    [menu.name, menuBarcode(menu), menuQrPayload(menu), menu.barcode]
+      .some(value => String(value || "").toLowerCase().includes(queryText))
+  );
+  if (!matches.length) {
+    results.innerHTML = `<div class="label-search-empty">Menu tidak ditemukan di daftar menu milik akun Anda.</div>`;
+    return;
+  }
+  results.innerHTML = matches.slice(0, 12).map(menu => `<button type="button" class="label-search-result" data-partner-sticker-menu-choice="${escapeHtml(menu.id)}"><strong>${escapeHtml(menu.name || "Menu")}</strong><span>${money(menu.price || 0)} · Pilih menu</span></button>`).join("");
+  results.querySelectorAll("[data-partner-sticker-menu-choice]").forEach(button => {
+    button.addEventListener("click", () => selectPartnerStickerMenu(button.dataset.partnerStickerMenuChoice));
+  });
+}
+
+function selectPartnerStickerMenu(menuId) {
+  const menu = getPartnerStickerEligibleMenus().find(row => row.id === menuId);
+  if (!menu) {
+    toast("Menu ini bukan milik akun Mitra Anda atau sudah tidak aktif.", "error");
+    return false;
+  }
+  const hidden = $("#partner-sticker-menu");
+  const search = $("#partner-sticker-menu-search");
+  const results = $("#partner-sticker-menu-results");
+  const selected = $("#partner-sticker-menu-selected");
+  if (!hidden || !search || !selected) return false;
+  hidden.value = menu.id;
+  search.value = menu.name || "";
+  if (results) results.innerHTML = "";
+  selected.innerHTML = `<div class="label-search-result selected"><strong>${escapeHtml(menu.name || "Menu")}</strong><span>${money(menu.price || 0)} · Menu dipilih</span></div><button type="button" class="btn btn-light btn-sm" data-change-partner-sticker-menu style="margin-top:7px">Ganti menu</button>`;
+  return true;
+}
+
+function clearPartnerStickerMenuSelection() {
+  const hidden = $("#partner-sticker-menu");
+  const search = $("#partner-sticker-menu-search");
+  const selected = $("#partner-sticker-menu-selected");
+  const results = $("#partner-sticker-menu-results");
+  if (hidden) hidden.value = "";
+  if (search) { search.value = ""; search.focus(); }
+  if (selected) selected.innerHTML = "";
+  if (results) results.innerHTML = "";
+}
+
+function handlePartnerStickerMenuSearchKeydown(event) {
+  if (event.key !== "Enter") return;
+  const queryText = String(event.currentTarget.value || "").trim().toLowerCase();
+  if (!queryText) return;
+  const normalized = queryText.replace(/[\s-]/g, "");
+  const exact = getPartnerStickerEligibleMenus().filter(menu =>
+    [menu.name, menuBarcode(menu), menuQrPayload(menu), menu.barcode].some(value => {
+      const candidate = String(value || "").trim().toLowerCase();
+      return candidate === queryText || candidate.replace(/[\s-]/g, "") === normalized;
+    })
+  );
+  if (exact.length === 1) {
+    event.preventDefault();
+    selectPartnerStickerMenu(exact[0].id);
+  }
+}
+
 async function partnerStickerSubmit(event) {
   event.preventDefault();
   if (profile?.role !== "partner" || !currentUser?.uid) return toast("Fitur ini hanya tersedia untuk akun Mitra.", "error");
@@ -6368,6 +6491,10 @@ async function partnerStickerSubmit(event) {
     if (!payload.menuName || !Number.isSafeInteger(payload.price) || payload.price < 0) throw new Error("Data nama atau harga menu tidak valid. Hubungi Admin.");
     await addDoc(collection(db, "labelPrintRequests"), payload);
     form.reset();
+    const pickerResults = $("#partner-sticker-menu-results");
+    const pickerSelected = $("#partner-sticker-menu-selected");
+    if (pickerResults) pickerResults.innerHTML = "";
+    if (pickerSelected) pickerSelected.innerHTML = "";
     toast(`Pengajuan cetak ${integer(copies)} stiker untuk ${payload.menuName} berhasil dikirim.`, "success");
   } catch (error) {
     console.error("Pengajuan cetak stiker gagal:", error);
