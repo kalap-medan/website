@@ -1349,7 +1349,7 @@ let store = {
   menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [],
   dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
   dashboardTodayTransactions: [], dashboardTodayMovements: [], financeMovements: [],
-  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
+  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], labelPrintRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
   dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null
 };
 let stockDailyUnsubscriber = null;
@@ -3947,6 +3947,8 @@ function startSubscriptions() {
   if (financeMovementsUnsubscriber) { try { financeMovementsUnsubscriber(); } catch (_) {} financeMovementsUnsubscriber = null; }
   if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
   if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
+  store.labelPrintRequests = [];
+  updateLabelPrintNavBadge();
   const role = profile.role;
   const todayKey = jakartaDateKey(new Date());
   subscribeTodayClosing(todayKey);
@@ -3977,7 +3979,7 @@ function startSubscriptions() {
   unsubscribers.push(onSnapshot(menuQuery, snap => {
     store.menus = snap.docs.map(item => ({ id: item.id, ...item.data() }));
     if (cart.size) reconcileCart();
-    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "labels", "requests"].includes(activePage)) renderPage();
+    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "partnerSticker", "labels", "requests"].includes(activePage)) renderPage();
     reconcileLegacyDeletedMenus(store.menus).catch(error => console.error("Rekonsiliasi menu lama gagal:", error));
   }, onDataError));
 
@@ -4009,6 +4011,11 @@ function startSubscriptions() {
       renderIfPage("accounts");
       reconcileOrphanPartnerUsers(store.users).catch(error => console.error("Rekonsiliasi profil Mitra yatim gagal:", error));
     }, onDataError));
+    unsubscribers.push(onSnapshot(query(collection(db, "labelPrintRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
+      store.labelPrintRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      updateLabelPrintNavBadge();
+      renderIfPage("labels");
+    }, onDataError));
   }
 
   if (role === "partner") {
@@ -4018,6 +4025,11 @@ function startSubscriptions() {
     unsubscribers.push(onSnapshot(requestQuery, snap => {
       store.stockRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
       renderIfPage("requests", "partnerHome");
+    }, onDataError));
+    const stickerRequestQuery = query(collection(db, "labelPrintRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
+    unsubscribers.push(onSnapshot(stickerRequestQuery, snap => {
+      store.labelPrintRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
+      renderIfPage("partnerSticker");
     }, onDataError));
     subscribePartnerDailySummary(jakartaDateKey(new Date()));
   }
@@ -4256,7 +4268,7 @@ function navItems() {
   switch (profile.role) {
     case "superadmin": return [
       { section: "OVERVIEW" }, { id: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "newMenu", label: "Menu baru", icon: ICONS.newMenu }, { id: "labels", label: "Cetak label", icon: ICONS.labels }, { id: "requests", label: "Pengajuan dan stok harian", icon: ICONS.requests, badge: pendingStockRequestCount() },
+      { section: "TRANSAKSI & STOK" }, { id: "pos", label: "Kasir / POS", icon: ICONS.pos }, { id: "transactions", label: "Riwayat transaksi", icon: ICONS.transactions }, { id: "closing", label: "Closing harian", icon: ICONS.closing }, { id: "stock", label: "Menu & persediaan", icon: ICONS.stock }, { id: "newMenu", label: "Menu baru", icon: ICONS.newMenu }, { id: "labels", label: "Cetak label", icon: ICONS.labels, badge: pendingLabelPrintRequestCount() }, { id: "requests", label: "Pengajuan dan stok harian", icon: ICONS.requests, badge: pendingStockRequestCount() },
       { section: "MANAJEMEN" }, { id: "partners", label: "Mitra", icon: ICONS.partners }, { id: "accounts", label: "Akun pengguna", icon: ICONS.accounts }, { id: "finance", label: "Keuangan", icon: ICONS.finance }, { id: "partnerTransfers", label: "Transferan mitra", icon: "⇄" },
       { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
@@ -4270,7 +4282,7 @@ function navItems() {
       { section: "AKUN" }, { id: "profile", label: "Profil saya", icon: "♙" }
     ];
     default: return [
-      { section: "PORTAL MITRA" }, { id: "partnerHome", label: "Dashboard mitra", icon: ICONS.partnerHome }, { id: "partnerMenu", label: "Menu saya", icon: ICONS.partnerMenu }, { id: "partnerSales", label: "Penjualan saya", icon: ICONS.partnerSales }, { id: "requests", label: "Pengajuan dan stok harian", icon: ICONS.requests }
+      { section: "PORTAL MITRA" }, { id: "partnerHome", label: "Dashboard mitra", icon: ICONS.partnerHome }, { id: "partnerMenu", label: "Menu saya", icon: ICONS.partnerMenu }, { id: "partnerSales", label: "Penjualan saya", icon: ICONS.partnerSales }, { id: "partnerSticker", label: "Cetak stiker", icon: ICONS.labels }, { id: "requests", label: "Pengajuan dan stok harian", icon: ICONS.requests }
     ];
   }
 }
@@ -4293,10 +4305,32 @@ function updateRequestNavBadge() {
     }
   });
 }
+function pendingLabelPrintRequestCount() {
+  return store.labelPrintRequests.filter(row => row.status === "pending").length;
+}
+function updateLabelPrintNavBadge() {
+  const count = pendingLabelPrintRequestCount();
+  $$('[data-nav="labels"]').forEach(button => {
+    let badge = button.querySelector('[data-nav-badge="labels"]');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-badge";
+        badge.dataset.navBadge = "labels";
+        button.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? "99+" : integer(count);
+      button.setAttribute("aria-label", `Cetak label, ${integer(count)} pengajuan stiker menunggu dicetak`);
+    } else {
+      badge?.remove();
+      button.removeAttribute("aria-label");
+    }
+  });
+}
 function renderNav() {
   $("#side-nav").innerHTML = navItems().map(item => item.section
     ? `<div class="nav-section-label">${item.section}</div>`
-    : `<button class="nav-link ${activePage === item.id ? "active" : ""}" data-nav="${item.id}"${Number(item.badge || 0) > 0 ? ` aria-label="${escapeHtml(item.label)}, ${integer(item.badge)} menu menunggu keputusan"` : ""}><span class="nav-icon">${item.icon}</span><span class="nav-link-label">${item.label}</span>${Number(item.badge || 0) > 0 ? `<span class="nav-badge" data-nav-badge="${item.id}">${Number(item.badge) > 99 ? "99+" : integer(item.badge)}</span>` : ""}</button>`).join("");
+    : `<button class="nav-link ${activePage === item.id ? "active" : ""}" data-nav="${item.id}"${Number(item.badge || 0) > 0 ? ` aria-label="${item.id === "labels" ? `Cetak label, ${integer(item.badge)} pengajuan stiker menunggu dicetak` : `${escapeHtml(item.label)}, ${integer(item.badge)} menu menunggu keputusan`}"` : ""}><span class="nav-icon">${item.icon}</span><span class="nav-link-label">${item.label}</span>${Number(item.badge || 0) > 0 ? `<span class="nav-badge" data-nav-badge="${item.id}">${Number(item.badge) > 99 ? "99+" : integer(item.badge)}</span>` : ""}</button>`).join("");
 }
 function renderPage() {
   if (!profile) return;
@@ -4305,7 +4339,7 @@ function renderPage() {
     dashboard: profile.role === "spv" ? "Dashboard SPV" : "Dashboard",
     pos: "Kasir / POS", profile: "Profil saya", partnerTransfers: "Transferan mitra", transactions: "Riwayat transaksi",
     stock: profile.role === "spv" ? "Pemantauan stok" : "Menu & persediaan", newMenu: "Menu baru", closing: "Closing harian", partners: "Manajemen mitra", accounts: "Akun pengguna",
-    finance: "Keuangan", requests: "Pengajuan dan Stok Harian", labels: "Cetak label", partnerHome: "Dashboard mitra", partnerMenu: "Menu saya", partnerSales: "Penjualan saya"
+    finance: "Keuangan", requests: "Pengajuan dan Stok Harian", labels: "Cetak label", partnerHome: "Dashboard mitra", partnerMenu: "Menu saya", partnerSales: "Penjualan saya", partnerSticker: "Cetak stiker"
   };
   $("#breadcrumb-current").textContent = titles[activePage] || "Dashboard";
   destroyCharts();
@@ -4327,6 +4361,7 @@ function renderPage() {
     case "partnerHome": page.innerHTML = renderPartnerHome(); break;
     case "partnerMenu": page.innerHTML = renderPartnerMenu(); break;
     case "partnerSales": page.innerHTML = renderPartnerSales(); break;
+    case "partnerSticker": page.innerHTML = profile.role === "partner" ? renderPartnerStickerPage() : `<div class="panel">Akses tidak diizinkan.</div>`; break;
     default: page.innerHTML = `<div class="panel">Halaman tidak ditemukan.</div>`;
   }
   attachPageEvents();
@@ -4337,6 +4372,7 @@ function showPage(page) {
   if (page === "partnerTransfers" && profile?.role !== "superadmin") return toast("Transferan mitra hanya dapat diakses Admin.", "error");
   if (page === "newMenu" && profile?.role !== "superadmin") return toast("Menu baru hanya dapat dikelola Admin.", "error");
   if (page === "profile" && profile?.role === "partner") return toast("Pengaturan profil tidak tersedia untuk akun Mitra.", "error");
+  if (page === "partnerSticker" && profile?.role !== "partner") return toast("Pengajuan cetak stiker hanya tersedia untuk akun Mitra.", "error");
   activePage = page;
   closeSidebarDrawer();
   if (["spv", "cashier", "partner"].includes(profile?.role) && ["dashboard", "pos", "partnerHome"].includes(page)) {
@@ -5183,13 +5219,64 @@ function renderPartnerHome() {
 function renderLabelsPage() {
   const menus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true).slice().sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
   const partners = store.partners.filter(partner => partner.active !== false);
+  const pendingStickerRequests = profile?.role === "superadmin"
+    ? store.labelPrintRequests.filter(row => row.status === "pending").slice().sort((a,b) => (asDate(a.createdAt)?.getTime() || 0) - (asDate(b.createdAt)?.getTime() || 0))
+    : [];
+  const queueRows = pendingStickerRequests.map(row => `<tr>
+    <td><strong>${escapeHtml(row.menuName || "Menu")}</strong><div class="muted">${money(row.price || 0)}</div></td>
+    <td>${escapeHtml(row.partnerName || "Mitra")}</td>
+    <td><strong>${integer(row.copies || 0)} stiker</strong></td>
+    <td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td>
+    <td><button type="button" class="btn btn-primary btn-sm" data-print-partner-sticker-request="${escapeHtml(row.id)}">Cetak</button></td>
+  </tr>`).join("");
+  const stickerQueuePanel = profile?.role === "superadmin" ? `<section class="panel" style="margin-bottom:14px">
+    ${panelHeader("Antrean pengajuan stiker Mitra", `${integer(pendingStickerRequests.length)} pengajuan menunggu dicetak`, `<span class="status ${pendingStickerRequests.length ? "pending" : "success"}">${pendingStickerRequests.length ? "MENUNGGU" : "KOSONG"}</span>`)}
+    <div class="table-wrap"><table><thead><tr><th>Menu</th><th>Mitra</th><th>Jumlah</th><th>Waktu pengajuan</th><th>Aksi</th></tr></thead><tbody>${queueRows || `<tr><td colspan="5" class="table-empty">Belum ada pengajuan cetak stiker dari Mitra.</td></tr>`}</tbody></table></div>
+    <div class="helper-text">Klik Cetak pada pengajuan. Sistem menyiapkan QR menu dan mencetak sesuai jumlah stiker yang diminta Mitra.</div>
+  </section>` : "";
   return `${pageHeading("Cetak label", "", `<span class="status neutral">30 × 40 mm</span>`)}
+    ${stickerQueuePanel}
     <section class="panel">${panelHeader("Pilih beberapa label", `${integer(menus.length)} menu aktif · ${integer(partners.length)} mitra`)}
       ${menus.length ? `<form id="label-print-form" class="label-selector-grid">
         <div class="form-field label-unified-field"><label for="label-unified-search">Cari mitra / menu / scan QR</label><input id="label-unified-search" type="search" autocomplete="off" placeholder="Cari nama menu atau scan QR..." value=""><div id="label-search-results" class="label-search-results" aria-live="polite"></div></div>
         <div class="label-selection-summary" id="label-selection-summary" style="grid-column:1/-1" hidden></div>
         <div class="label-print-actions"><button class="btn btn-primary" type="submit" ${labelSelections.length ? "" : "disabled"}>Cetak semua label</button></div>
       </form>` : `<div class="table-empty">Belum ada menu aktif yang dapat dicetak.</div>`}
+    </section>`;
+}
+
+function renderPartnerStickerPage() {
+  const partnerId = String(profile?.partnerId || "");
+  const menus = store.menus
+    .filter(menu => menu.partnerId === partnerId && menu.active !== false && menu.deleted !== true)
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  const requests = store.labelPrintRequests
+    .filter(row => row.partnerId === partnerId)
+    .slice()
+    .sort((a, b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0))
+    .slice(0, 12);
+  const menuOptions = menus.map(menu => `<option value="${escapeHtml(menu.id)}">${escapeHtml(menu.name)} · ${money(menu.price)}</option>`).join("");
+  const historyRows = requests.map(row => {
+    const status = row.status === "printed"
+      ? `<span class="status success">Sudah dicetak</span>`
+      : row.status === "pending"
+        ? `<span class="status pending">Menunggu dicetak</span>`
+        : `<span class="status neutral">${escapeHtml(row.status || "—")}</span>`;
+    const stamp = row.printedAt || row.createdAt;
+    return `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.menuName || "Menu")}</strong></td><td>${integer(row.copies || 0)} stiker</td><td>${status}${row.printedAt ? `<div class="muted">${formatDate(stamp)} · ${formatTime(stamp)}</div>` : ""}</td></tr>`;
+  }).join("");
+  return `${pageHeading("Cetak stiker", "Ajukan jumlah stiker untuk menu milik Anda. Superadmin akan mencetak sesuai jumlah yang Anda minta.", `<span class="status neutral">30 × 40 mm</span>`)}
+    <section class="panel">${panelHeader("Ajukan cetak stiker", `${integer(menus.length)} menu aktif milik Anda`)}
+      ${menus.length ? `<form id="partner-sticker-form" class="form-grid">
+        <div class="form-field"><label for="partner-sticker-menu">Pilih menu Anda</label><select id="partner-sticker-menu" name="menuId" required><option value="">Pilih menu</option>${menuOptions}</select></div>
+        <div class="form-field"><label for="partner-sticker-copies">Jumlah stiker yang ingin dicetak</label><input id="partner-sticker-copies" name="copies" type="number" min="1" max="500" step="1" value="1" required></div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">Ajukan cetak stiker</button></div>
+      </form>` : `<div class="table-empty">Belum ada menu aktif yang terhubung dengan akun Mitra ini.</div>`}
+      <div class="helper-text">Menu yang dapat dipilih hanya menu yang terdaftar atas nama Mitra Anda. Pengajuan akan masuk ke antrean Cetak Label Superadmin.</div>
+    </section>
+    <section class="panel">${panelHeader("Riwayat pengajuan stiker", `${integer(requests.length)} pengajuan terbaru`)}
+      <div class="table-wrap"><table><thead><tr><th>Tanggal pengajuan</th><th>Menu</th><th>Jumlah</th><th>Status</th></tr></thead><tbody>${historyRows || `<tr><td colspan="4" class="table-empty">Anda belum pernah mengajukan cetak stiker.</td></tr>`}</tbody></table></div>
     </section>`;
 }
 
@@ -5323,6 +5410,7 @@ function attachPageEvents() {
   $("#finance-form")?.addEventListener("submit", financeSubmit);
   initMoneyInputs();
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
+  $("#partner-sticker-form")?.addEventListener("submit", partnerStickerSubmit);
   initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
@@ -5407,6 +5495,7 @@ function attachPageEvents() {
   $$('[data-reject-request]').forEach(button => button.addEventListener("click", () => openRejectStockRequestModal(button.dataset.rejectRequest)));
   $$('[data-edit-received-stock]').forEach(button => button.addEventListener("click", () => openReceivedStockAdjustmentModal(button.dataset.editReceivedStock)));
   $$('[data-print-label]').forEach(button => button.addEventListener("click", () => openLabelModal(button.dataset.printLabel)));
+  $$('[data-print-partner-sticker-request]').forEach(button => button.addEventListener("click", () => printPartnerStickerRequest(button.dataset.printPartnerStickerRequest, button)));
   $("#label-print-form")?.addEventListener("submit", handleBulkLabelPrint);
   $("#label-unified-search")?.addEventListener("input", () => {
     labelSearchCurrentPage = 1;
@@ -6238,6 +6327,102 @@ function handleLabelSearchKeydown(event) {
   else toast("Menu tidak ditemukan. Coba kata kunci lain atau scan QR menu KALAP.", "error");
 }
 
+async function partnerStickerSubmit(event) {
+  event.preventDefault();
+  if (profile?.role !== "partner" || !currentUser?.uid) return toast("Fitur ini hanya tersedia untuk akun Mitra.", "error");
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  const formData = new FormData(form);
+  const menuId = String(formData.get("menuId") || "").trim();
+  const copies = Number(formData.get("copies"));
+  if (!menuId) return toast("Pilih menu milik Anda terlebih dahulu.", "error");
+  if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah stiker harus antara 1 sampai 500.", "error");
+  setBusy(button, true, "Mengirim pengajuan...");
+  try {
+    const liveProfileSnap = await getDocFromServer(doc(db, "users", currentUser.uid));
+    if (!liveProfileSnap.exists()) throw new Error("Profil Mitra tidak ditemukan.");
+    const liveProfile = liveProfileSnap.data();
+    if (liveProfile.active !== true || liveProfile.role !== "partner" || !liveProfile.partnerId) {
+      throw new Error("Profil akun harus aktif dan memiliki role Mitra serta partnerId yang valid.");
+    }
+    const menuSnap = await getDocFromServer(doc(db, "menus", menuId));
+    if (!menuSnap.exists()) throw new Error("Menu tidak ditemukan.");
+    const menu = { id: menuSnap.id, ...menuSnap.data() };
+    if (menu.partnerId !== liveProfile.partnerId) throw new Error("Menu ini bukan milik akun Mitra Anda. Pengajuan dibatalkan.");
+    if (menu.active === false || menu.deleted === true) throw new Error("Menu tidak aktif dan tidak dapat diajukan untuk cetak stiker.");
+    const partnerName = String(liveProfile.partnerName || profile.partnerName || profile.displayName || "Mitra");
+    const payload = {
+      partnerId: liveProfile.partnerId,
+      partnerName,
+      requestedBy: currentUser.uid,
+      requestedByName: String(liveProfile.displayName || profile.displayName || "Mitra"),
+      menuId: menu.id,
+      menuName: String(menu.name || "").trim(),
+      price: Number(menu.price || 0),
+      barcode: String(menu.barcode || ""),
+      copies,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    if (!payload.menuName || !Number.isSafeInteger(payload.price) || payload.price < 0) throw new Error("Data nama atau harga menu tidak valid. Hubungi Admin.");
+    await addDoc(collection(db, "labelPrintRequests"), payload);
+    form.reset();
+    toast(`Pengajuan cetak ${integer(copies)} stiker untuk ${payload.menuName} berhasil dikirim.`, "success");
+  } catch (error) {
+    console.error("Pengajuan cetak stiker gagal:", error);
+    toast(friendlyError(error), "error");
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function printPartnerStickerRequest(requestId, button) {
+  if (profile?.role !== "superadmin") return toast("Hanya Superadmin yang dapat mencetak pengajuan stiker Mitra.", "error");
+  const request = store.labelPrintRequests.find(row => row.id === requestId && row.status === "pending");
+  if (!request) return toast("Pengajuan sudah diproses atau tidak ditemukan.", "info");
+  const copies = Number(request.copies);
+  if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah stiker pada pengajuan tidak valid.", "error");
+  const menu = {
+    id: String(request.menuId || ""),
+    name: String(request.menuName || "Menu Mitra"),
+    price: Number(request.price || 0),
+    barcode: String(request.barcode || "")
+  };
+  if (!menu.id || !Number.isSafeInteger(menu.price) || menu.price < 0) return toast("Data menu pada pengajuan tidak lengkap. Periksa menu dan ajukan ulang.", "error");
+  if (typeof window.qrcode !== "function") return toast("Pustaka QR belum termuat. Periksa koneksi internet, lalu muat ulang halaman.", "error");
+  setBusy(button, true, "Menyiapkan QR...");
+  try {
+    printMenuLabels(menu, copies, {
+      onCleanup: completed => {
+        if (!completed && button?.isConnected) setBusy(button, false);
+      },
+      onAfterPrint: async () => {
+        try {
+          await updateDoc(doc(db, "labelPrintRequests", requestId), {
+            status: "printed",
+            printedAt: serverTimestamp(),
+            printedBy: currentUser.uid,
+            printedByName: String(profile.displayName || profile.email || "Superadmin"),
+            updatedAt: serverTimestamp()
+          });
+          toast(`${integer(copies)} stiker untuk ${menu.name} selesai dikirim ke proses cetak.`, "success");
+        } catch (error) {
+          console.error("Status pengajuan stiker gagal diperbarui:", error);
+          toast(`Dialog cetak sudah ditutup, tetapi status antrean belum berubah: ${friendlyError(error)}`, "error");
+        } finally {
+          if (button?.isConnected) setBusy(button, false);
+        }
+      }
+    });
+    toast(`Menyiapkan ${integer(copies)} stiker ${menu.name}.`, "info");
+  } catch (error) {
+    setBusy(button, false);
+    console.error(error);
+    toast(error?.message || "Pekerjaan cetak stiker gagal disiapkan.", "error");
+  }
+}
+
 function handleBulkLabelPrint(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -6345,7 +6530,7 @@ function openLabelModal(menuId) {
   }));
 }
 
-function printMenuLabels(menuOrItems, copies = 1) {
+function printMenuLabels(menuOrItems, copies = 1, options = {}) {
   if (typeof window.qrcode !== "function") throw new Error("Pustaka QR belum termuat.");
   const items = Array.isArray(menuOrItems) ? menuOrItems : [{ menu: menuOrItems, copies }];
   const normalizedItems = items.map(entry => ({ menu: entry.menu, copies: Number(entry.copies) }));
@@ -6408,24 +6593,35 @@ function printMenuLabels(menuOrItems, copies = 1) {
   document.body.classList.add("printing-labels");
   let cleaned = false;
   let safetyTimer = null;
-  const cleanup = () => {
+  const cleanup = completed => {
     if (cleaned) return;
     cleaned = true;
     if (safetyTimer) clearTimeout(safetyTimer);
     document.body.classList.remove("printing-labels");
     root.innerHTML = "";
     delete root.dataset.size;
-    window.removeEventListener("afterprint", cleanup);
+    window.removeEventListener("afterprint", onAfterPrint);
+    if (typeof options.onCleanup === "function") {
+      Promise.resolve().then(() => options.onCleanup(completed)).catch(error => {
+        console.error("Callback pembersihan cetak gagal:", error);
+      });
+    }
+    if (completed && typeof options.onAfterPrint === "function") {
+      Promise.resolve().then(() => options.onAfterPrint()).catch(error => {
+        console.error("Callback setelah cetak gagal:", error);
+      });
+    }
   };
-  window.addEventListener("afterprint", cleanup, { once: true });
+  const onAfterPrint = () => cleanup(true);
+  window.addEventListener("afterprint", onAfterPrint, { once: true });
 
   // One browser print invocation sends the complete set as a single job.
   // Each GAP label remains one physical page so the printer can detect the gap.
   requestAnimationFrame(() => requestAnimationFrame(() => {
     try { window.print(); }
-    catch (error) { cleanup(); console.error(error); toast("Dialog cetak gagal dibuka. Periksa driver printer.", "error"); }
+    catch (error) { cleanup(false); console.error(error); toast("Dialog cetak gagal dibuka. Periksa driver printer.", "error"); }
   }));
-  safetyTimer = setTimeout(cleanup, 15 * 60 * 1000);
+  safetyTimer = setTimeout(() => cleanup(false), 15 * 60 * 1000);
 }
 
 async function stockRequestSubmit(event) {
