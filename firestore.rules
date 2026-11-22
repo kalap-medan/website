@@ -21,6 +21,16 @@ service cloud.firestore {
     function isCashier() { return roleIs('cashier'); }
     function isPartner() { return roleIs('partner'); }
     function isStaff() { return isSuperadmin() || isSpv(); }
+
+    function partnerOwnsActiveMenu(menuId) {
+      let menuPath = /databases/$(database)/documents/menus/$(menuId);
+      return menuId is string
+        && menuId.size() > 0
+        && exists(menuPath)
+        && get(menuPath).data.partnerId == myProfile().partnerId
+        && get(menuPath).data.get('active', true) != false
+        && get(menuPath).data.get('deleted', false) != true;
+    }
     function isPOSUser() { return isStaff() || isCashier(); }
 
     function activeDailyResetAuthorization() {
@@ -84,7 +94,7 @@ service cloud.firestore {
 
     function businessDateIsOpen(dateKey) {
       let closingPath = /databases/$(database)/documents/dailyClosings/$(dateKey);
-      return !exists(closingPath) || get(closingPath).data.status == 'open';
+      return !exists(closingPath) || get(closingPath).data.status in ['open', 'reopened'];
     }
 
     function validNewManagedUser(userId) {
@@ -300,6 +310,8 @@ service cloud.firestore {
     }
 
     match /menus/{menuId} {
+      // Superadmin aktif tidak dibatasi validasi operasional saat mengelola saldo menu.
+      allow update: if isSuperadmin();
       allow read: if isStaff() || isCashier()
         || (isPartner() && resource.data.partnerId == myProfile().partnerId);
       allow create: if validNewMenu(menuId);
@@ -442,6 +454,8 @@ service cloud.firestore {
     }
 
     match /stockMovements/{movementId} {
+      // Superadmin aktif boleh membuat, merevisi, dan membatalkan catatan pergerakan stok.
+      allow create, update, delete: if isSuperadmin();
       allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
       allow create: if (isSuperadmin()
           && request.resource.data.source == 'stock_daily_delete'
@@ -787,6 +801,8 @@ service cloud.firestore {
     }
 
     match /stockRequests/{requestId} {
+      // Superadmin aktif boleh menerima, menolak, merevisi, dan membatalkan pengajuan.
+      allow update, delete: if isSuperadmin();
       allow read: if isStaff() || (isPartner() && resource.data.partnerId == myProfile().partnerId);
 
       // Pengajuan baru atau permintaan koreksi terhadap satu batch stok yang sudah diterima.
@@ -1071,6 +1087,8 @@ service cloud.firestore {
     }
 
     match /stockRequestLocks/{menuId} {
+      // Pengunci menu adalah bagian dari alur persetujuan yang dikelola Superadmin.
+      allow create, update, delete: if isSuperadmin();
       allow get: if isStaff()
         || (isPartner()
           && (!exists(/databases/$(database)/documents/stockRequestLocks/$(menuId))
@@ -1120,7 +1138,7 @@ service cloud.firestore {
 
       allow update: if isStaff() && (
         // Staff mulai proses closing; status lock mencegah transaksi POS baru.
-        (resource.data.status == 'open'
+        (resource.data.status in ['open', 'reopened']
           && request.resource.data.status == 'closing'
           && request.resource.data.dateKey == dateKey
           && request.resource.data.startedByUid == request.auth.uid
@@ -1130,7 +1148,7 @@ service cloud.firestore {
             'status', 'startedAt', 'startedByUid', 'startedByName', 'closedAt'
           ]))
         ||
-        // Header ditutup dalam batch yang sama dengan ringkasan tiap mitra.
+        // Header ditutup bersama ringkasan mitra dan snapshot saldo sebelum stok dikosongkan.
         (resource.data.status == 'closing'
           && request.resource.data.status == 'closed'
           && request.resource.data.closedByUid == request.auth.uid
@@ -1139,7 +1157,35 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'closedAt', 'closedByUid', 'closedByName', 'salesTotal',
             'transactionCount', 'soldQty', 'receivedQty', 'totalRemaining',
-            'paymentBreakdown', 'operationalItems', 'partnerCount', 'updatedAt'
+            'paymentBreakdown', 'operationalItems', 'partnerCount', 'stockBeforeClosing', 'updatedAt'
+          ])
+          && request.resource.data.stockBeforeClosing is list
+          && request.resource.data.stockBeforeClosing.size() <= 5000)
+        ||
+        // Hanya Superadmin yang dapat memulai dan menyelesaikan pembatalan closing.
+        (isSuperadmin()
+          && resource.data.status == 'closed'
+          && request.resource.data.status == 'reopening'
+          && request.resource.data.reopeningAt == request.time
+          && request.resource.data.reopeningByUid == request.auth.uid
+          && request.resource.data.reopeningByName is string
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'reopeningAt', 'reopeningByUid', 'reopeningByName', 'updatedAt'
+          ]))
+        ||
+        (isSuperadmin()
+          && resource.data.status == 'reopening'
+          && request.resource.data.status == 'reopened'
+          && request.resource.data.reopenedAt == request.time
+          && request.resource.data.reopenedByUid == request.auth.uid
+          && request.resource.data.reopenedByName is string
+          && request.resource.data.restoredMenuCount is int
+          && request.resource.data.legacySummaryRestore is bool
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'reopenedAt', 'reopenedByUid', 'reopenedByName',
+            'restoredMenuCount', 'legacySummaryRestore', 'updatedAt'
           ]))
         ||
         // Jika proses gagal, staff dapat membuka kembali tanggal tersebut.
@@ -1171,7 +1217,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.closedAt == request.time;
 
-        allow update: if isPartner()
+        allow update: if (isPartner()
           && partnerId == myProfile().partnerId
           && resource.data.partnerId == myProfile().partnerId
           && resource.data.status == 'closed'
@@ -1184,7 +1230,34 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'disposition', 'dispositionAt', 'dispositionByUid', 'dispositionByName', 'updatedAt'
           ])
-          && get(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed';
+          && get(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed')
+          || (isSuperadmin()
+            && resource.data.status == 'closed'
+            && request.resource.data.status == 'reopened'
+            && request.resource.data.reopenedAt == request.time
+            && request.resource.data.reopenedByUid == request.auth.uid
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'disposition', 'dispositionAt', 'dispositionByUid', 'dispositionByName',
+              'reopenedAt', 'reopenedByUid', 'updatedAt'
+            ]))
+          || (isStaff()
+            && resource.data.status == 'reopened'
+            && request.resource.data.status == 'closed'
+            && request.resource.data.dateKey == dateKey
+            && request.resource.data.partnerId == partnerId
+            && request.resource.data.disposition == 'pending'
+            && request.resource.data.items is list
+            && request.resource.data.totalRemaining is int
+            && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.status == 'closed'
+            && getAfter(/databases/$(database)/documents/dailyClosings/$(dateKey)).data.closedByUid == request.auth.uid
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.closedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'dateKey', 'partnerId', 'partnerName', 'status', 'items', 'totalRemaining',
+              'disposition', 'closedAt', 'createdAt', 'dispositionAt', 'dispositionByUid',
+              'dispositionByName', 'reopenedAt', 'reopenedByUid', 'updatedAt'
+            ]));
         allow delete: if (resetAuthorizationContains('closingSummaryIds', partnerId)
             && get(/databases/$(database)/documents/dailyResetAuthorizations/active).data.dateKey == dateKey)
           || fullSystemResetContains('closingSummaryIds', dateKey + '|' + partnerId);
@@ -1357,6 +1430,54 @@ service cloud.firestore {
               'stockRequestIds', 'stockRequestLockIds', 'payoutIds', 'closingIds', 'closingSummaryIds'
             ]))
         );
+      allow delete: if false;
+    }
+
+    // Pengajuan cetak stiker Mitra. Mitra hanya dapat membuat dan membaca
+    // pengajuan untuk menu yang benar-benar terhubung ke partnerId pada profilnya.
+    match /labelPrintRequests/{requestId} {
+      allow get, list: if isSuperadmin()
+        || (isPartner() && resource.data.partnerId == myProfile().partnerId);
+
+      allow create: if isPartner()
+        && request.resource.data.keys().hasAll([
+          'partnerId', 'partnerName', 'requestedBy', 'requestedByName',
+          'menuId', 'menuName', 'price', 'barcode', 'copies', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'partnerId', 'partnerName', 'requestedBy', 'requestedByName',
+          'menuId', 'menuName', 'price', 'barcode', 'copies', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.partnerId == myProfile().partnerId
+        && request.resource.data.partnerName is string
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.requestedByName is string
+        && request.resource.data.menuId is string
+        && partnerOwnsActiveMenu(request.resource.data.menuId)
+        && request.resource.data.menuName == get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.name
+        && request.resource.data.price is int
+        && request.resource.data.price == get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.price
+        && request.resource.data.price >= 0
+        && request.resource.data.barcode is string
+        && request.resource.data.barcode == get(/databases/$(database)/documents/menus/$(request.resource.data.menuId)).data.get('barcode', '')
+        && request.resource.data.copies is int
+        && request.resource.data.copies >= 1
+        && request.resource.data.copies <= 500
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // Hanya Superadmin yang dapat mengonfirmasi antrean sebagai selesai dicetak.
+      allow update: if isSuperadmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'printed'
+        && request.resource.data.printedAt == request.time
+        && request.resource.data.printedBy == request.auth.uid
+        && request.resource.data.printedByName is string
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'printedAt', 'printedBy', 'printedByName', 'updatedAt'
+        ]);
       allow delete: if false;
     }
 

@@ -1433,8 +1433,8 @@ function movementStockDelta(row) {
 }
 function isBusinessDayLocked(dateKey = jakartaDateKey(new Date())) {
   const today = store.todayClosing;
-  if (today?.id === dateKey && ["closing", "closed"].includes(String(today.status || ""))) return true;
-  if (store.dailyClosings.some(row => row.id === dateKey && ["closing", "closed"].includes(String(row.status || "")))) return true;
+  if (today?.id === dateKey && ["closing", "closed", "reopening"].includes(String(today.status || ""))) return true;
+  if (store.dailyClosings.some(row => row.id === dateKey && ["closing", "closed", "reopening"].includes(String(row.status || "")))) return true;
   return store.partnerDailySummary?.dateKey === dateKey && store.partnerDailySummary?.status === "closed";
 }
 function menuStockForDate(menu, dateKey = jakartaDateKey(new Date()), respectClosing = true) {
@@ -1458,7 +1458,7 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
     // Tanpa pemeriksaan ini, sesi baru yang dibuka setelah closing dapat menulis kembali
     // saldo dari pergerakan hari yang sudah ditutup.
     const closingSnap = await getDocFromServer(doc(db, "dailyClosings", dateKey));
-    if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+    if (closingSnap.exists() && ["closing", "closed", "reopening"].includes(String(closingSnap.data().status || ""))) {
       stockRolloverDayKey = dateKey;
       return { reset: 0, currentDayStock: 0, locked: true };
     }
@@ -2356,7 +2356,7 @@ async function callApi(name, payload = {}) {
     const closingRef = doc(db, "dailyClosings", businessDate);
     const result = await runTransaction(db, async tx => {
       const closingSnap = await tx.get(closingRef);
-      if (closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status)) {
+      if (closingSnap.exists() && ["closing", "closed", "reopening"].includes(closingSnap.data().status)) {
         throw new Error("Closing harian sedang diproses atau sudah selesai. Transaksi baru tidak dapat dibuat untuk tanggal ini.");
       }
       const snaps = await Promise.all(menuRefs.map(ref => tx.get(ref)));
@@ -2490,8 +2490,8 @@ async function callApi(name, payload = {}) {
       if (!saleSnap.exists() || saleSnap.data().status !== "completed") throw new Error("Transaksi sudah diproses oleh pengguna lain. Stok tidak ditambahkan dua kali.");
       const sale = saleSnap.data();
       if (profile.role === "cashier" && sale.cashierUid !== actorUid) throw new Error("Kasir hanya dapat membatalkan transaksi miliknya sendiri.");
-      if ((closingSnap.exists() && ["closing", "closed"].includes(closingSnap.data().status))
-        || (stockClosingSnap.exists() && ["closing", "closed"].includes(stockClosingSnap.data().status))) {
+      if ((closingSnap.exists() && ["closing", "closed", "reopening"].includes(closingSnap.data().status))
+        || (stockClosingSnap.exists() && ["closing", "closed", "reopening"].includes(stockClosingSnap.data().status))) {
         throw new Error("Tanggal transaksi atau hari berjalan sudah masuk proses/selesai closing. Transaksi tidak dapat dibatalkan.");
       }
 
@@ -2603,7 +2603,7 @@ async function callApi(name, payload = {}) {
         : null;
       if (scheduledMovementsQuery) reads.push(tx.get(scheduledMovementsQuery));
       const [closingSnap, menuSnap, lockSnap, scheduledMovementsSnap] = await Promise.all(reads);
-      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))
+      if (closingSnap.exists() && ["closing", "closed", "reopening"].includes(String(closingSnap.data().status || ""))
         && !isSuperadminActor) {
         throw new Error("Closing harian sudah dilakukan. Input stok baru tersedia setelah tanggal closing dibuka.");
       }
@@ -3018,7 +3018,7 @@ async function callApi(name, payload = {}) {
     return await runTransaction(db, async tx => {
       const movementSnap = await tx.get(movementRef);
       const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
-      if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+      if (closingSnap.exists() && ["closing", "closed", "reopening"].includes(String(closingSnap.data().status || ""))) {
         throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diedit lagi.");
       }
       if (!movementSnap.exists()) throw new Error("Batch stok tidak ditemukan.");
@@ -3118,7 +3118,7 @@ async function callApi(name, payload = {}) {
       return await runTransaction(db, async tx => {
         const movementSnap = await tx.get(movementRef);
         const closingSnap = await tx.get(doc(db, "dailyClosings", businessDate));
-        if (closingSnap.exists() && ["closing", "closed"].includes(String(closingSnap.data().status || ""))) {
+        if (closingSnap.exists() && ["closing", "closed", "reopening"].includes(String(closingSnap.data().status || ""))) {
           throw new Error("Closing harian sudah dilakukan. Stok hari ini tidak dapat diubah lagi.");
         }
         if (!movementSnap.exists()) throw new Error("Batch stok harian sudah tidak tersedia.");
@@ -3336,7 +3336,7 @@ async function callApi(name, payload = {}) {
     resetPhase = "mengunci tanggal closing";
     await runTransaction(db, async tx => {
       const closingSnap = await tx.get(closingRef);
-      if (closingSnap.exists() && closingSnap.data().status === "closing") throw new Error("Tanggal ini sedang diproses oleh closing lain. Tunggu hingga proses tersebut selesai.");
+      if (closingSnap.exists() && ["closing", "reopening"].includes(String(closingSnap.data().status || ""))) throw new Error("Tanggal ini sedang diproses oleh closing atau pembatalan closing lain. Tunggu hingga proses tersebut selesai.");
       if (closingSnap.exists() && closingSnap.data().status === "closed") { closingLockMode = "closed"; return; }
       const now = serverTimestamp();
       if (closingSnap.exists()) {
@@ -3933,6 +3933,7 @@ function subscribeClosingSummaries(dateKey = selectedClosingDateKey) {
   const summariesRef = collection(db, "dailyClosings", dateKey, "partnerSummaries");
   closingSummariesUnsubscriber = onSnapshot(summariesRef, snap => {
     store.closingSummaries = snap.docs.map(item => ({ id: item.id, ...item.data() }))
+      .filter(item => item.status === "closed")
       .sort((a,b) => String(a.partnerName || "").localeCompare(String(b.partnerName || "")));
     renderIfPage("closing");
   }, onDataError);
@@ -4942,16 +4943,25 @@ function renderFinancePage() {
 function renderClosingPage() {
   const closedDays=store.dailyClosings.filter(row=>row.status==="closed");
   const today=jakartaDateKey(new Date());
-  const todayClosed=closedDays.some(row=>row.id===today);
-  const todayClosing=store.dailyClosings.some(row=>row.id===today&&row.status==="closing");
+  const todayHeader = store.dailyClosings.find(row=>row.id===today);
+  const todayClosed = todayHeader?.status === "closed";
+  const todayClosing = todayHeader?.status === "closing";
+  const todayReopening = todayHeader?.status === "reopening";
+  const canCancelTodayClosing = profile?.role === "superadmin" && (todayClosed || todayReopening);
   const historyFiltered=closedDays.filter(row=>{const q=closingHistorySearchQuery.trim().toLowerCase();return !q||[row.id,row.closedByName].some(value=>String(value||"").toLowerCase().includes(q));});
   const historyPages=Math.max(1,Math.ceil(historyFiltered.length/closingPageSize));closingHistoryPage=Math.min(closingHistoryPage,historyPages);
   const historyRows=historyFiltered.slice((closingHistoryPage-1)*closingPageSize,closingHistoryPage*closingPageSize);
-  const summaries=store.closingSummaries.filter(row=>{const q=closingSearchQuery.trim().toLowerCase();return !q||[row.partnerName,row.disposition,...(row.items||[]).map(item=>item.menuName)].some(value=>String(value||"").toLowerCase().includes(q));});
+  const summaries=store.closingSummaries.filter(row=>row.status === "closed").filter(row=>{const q=closingSearchQuery.trim().toLowerCase();return !q||[row.partnerName,row.disposition,...(row.items||[]).map(item=>item.menuName)].some(value=>String(value||"").toLowerCase().includes(q));});
   const summaryPages=Math.max(1,Math.ceil(summaries.length/closingPageSize));closingSummaryPage=Math.min(closingSummaryPage,summaryPages);
   const visibleSummaries=summaries.slice((closingSummaryPage-1)*closingPageSize,closingSummaryPage*closingPageSize);
   const selectedHeader=closedDays.find(row=>row.id===selectedClosingDateKey);
-  const closeAction=todayClosed?`<span class="status success">Closing hari ini selesai</span>`:todayClosing?`<span class="status pending">Closing sedang diproses…</span>`:`<button class="btn btn-primary" id="close-day-btn">Tutup penjualan hari ini</button>`;
+  const closeAction = todayClosed
+    ? `<span class="status success">Closing hari ini selesai</span>${canCancelTodayClosing ? `<button class="btn btn-danger" id="reopen-day-btn">Batalkan Closing</button>` : ""}`
+    : todayReopening
+      ? `<span class="status pending">Pembatalan closing belum selesai</span>${canCancelTodayClosing ? `<button class="btn btn-primary" id="reopen-day-btn">Lanjutkan Pembatalan</button>` : ""}`
+      : todayClosing
+        ? `<span class="status pending">Closing sedang diproses…</span>`
+        : `<button class="btn btn-primary" id="close-day-btn">Tutup penjualan hari ini</button>`;
   const selectedDateText=formatDate(dateFromKey(selectedClosingDateKey),{day:"numeric",month:"long",year:"numeric"});
   const payments=selectedHeader?.paymentBreakdown||{cash:0,qris:0,transfer:0,kalap_operational:0};
   const operationalItems=selectedHeader?.operationalItems||[];
@@ -5547,6 +5557,7 @@ function attachPageEvents() {
   $$('[data-closing-summary-page]').forEach(button => button.addEventListener("click", () => { closingSummaryPage += button.dataset.closingSummaryPage === "next" ? 1 : -1; renderPage(); }));
   $$('[data-view-closing]').forEach(button => button.addEventListener("click", () => setClosingDate(button.dataset.viewClosing)));
   $("#close-day-btn")?.addEventListener("click", event => closeBusinessDay(event.currentTarget));
+  $("#reopen-day-btn")?.addEventListener("click", event => reopenBusinessDay(event.currentTarget));
   $("#closing-date-select")?.addEventListener("change", event => setClosingDate(event.target.value));
   $("#closing-history-search")?.addEventListener("input",event=>{closingHistorySearchQuery=event.target.value;closingHistoryPage=1;renderPage();const el=$("#closing-history-search");el?.focus();el?.setSelectionRange(el.value.length,el.value.length);});
   $("#partner-transfer-date")?.addEventListener("change", event => subscribePartnerTransferDate(event.target.value));
@@ -5836,6 +5847,166 @@ async function choosePartnerDisposition(disposition, button) {
   finally { setBusy(button, false); }
 }
 
+async function reopenBusinessDay(button) {
+  requireRole("superadmin");
+  const dateKey = jakartaDateKey(new Date());
+  const headerRef = doc(db, "dailyClosings", dateKey);
+  const actorName = profile.displayName || profile.email || "Superadmin";
+  let restoreStarted = false;
+  try {
+    const initial = await getDocFromServer(headerRef);
+    if (!initial.exists()) return toast("Data closing hari ini tidak ditemukan.", "error");
+    const initialStatus = String(initial.data().status || "");
+    if (initialStatus === "reopened") return toast("Closing hari ini sudah dibatalkan. Transaksi baru sudah dapat dimasukkan.", "success");
+    if (!['closed', 'reopening'].includes(initialStatus)) {
+      return toast(initialStatus === "closing" ? "Closing masih sedang diproses. Tunggu sampai selesai." : "Hanya closing yang sudah selesai yang dapat dibatalkan.", "error");
+    }
+    const ok = await kalapConfirm(
+      `Batalkan closing untuk ${formatDate(dateFromKey(dateKey), { day: "numeric", month: "long", year: "numeric" })}?\n\nSaldo stok Mitra akan dikembalikan seperti tepat sebelum closing. Kunci transaksi hari ini dibuka kembali sehingga transaksi tambahan, input stok, dan pengajuan Mitra dapat dilakukan. Transaksi dan riwayat yang sudah ada tidak dihapus. Setelah selesai, kamu bisa melakukan closing lagi.`,
+      { title: "Batalkan closing harian", confirmText: "Ya, batalkan closing", danger: true }
+    );
+    if (!ok) return;
+
+    setBusy(button, true, "Membuka kembali hari...");
+
+    // Pasang status reopening terlebih dahulu agar proses lain tetap terkunci
+    // selama stok dan ringkasan dipulihkan. Status ini aman untuk dicoba ulang.
+    await runTransaction(db, async tx => {
+      const current = await tx.get(headerRef);
+      if (!current.exists()) throw new Error("Data closing tidak ditemukan.");
+      const status = String(current.data().status || "");
+      if (status === "reopened") return;
+      if (status === "closing") throw new Error("Closing masih berjalan. Tunggu sampai prosesnya selesai.");
+      if (!['closed', 'reopening'].includes(status)) throw new Error("Status closing tidak dapat dibatalkan.");
+      if (status === "closed") {
+        tx.update(headerRef, {
+          status: "reopening",
+          reopeningAt: serverTimestamp(),
+          reopeningByUid: profile.uid,
+          reopeningByName: actorName,
+          updatedAt: serverTimestamp()
+        });
+      }
+    });
+
+    const headerSnap = await getDocFromServer(headerRef);
+    if (!headerSnap.exists()) throw new Error("Data closing hilang saat proses pemulihan.");
+    const header = headerSnap.data();
+    let stockSnapshots = Array.isArray(header.stockBeforeClosing) ? header.stockBeforeClosing : [];
+    let usedLegacySummary = false;
+
+    // Closing yang dibuat sebelum fitur snapshot dipasang belum memiliki
+    // stockBeforeClosing. Pulihkan dari sisa per menu dalam partnerSummaries.
+    const currentMenusSnap = await getDocs(collection(db, "menus"));
+    if (!stockSnapshots.length) {
+      // Penutupan versi lama belum menyimpan snapshot khusus pada header.
+      // Ambil sisa menu dari ringkasan lama; untuk menu legacy yang tidak ikut
+      // diringkas (mis. partnerId kosong) rekonstruksi dari ledger pergerakan.
+      const [summarySnap, movementsByTimeSnap, movementsByDateSnap] = await Promise.all([
+        getDocs(collection(db, "dailyClosings", dateKey, "partnerSummaries")),
+        getDocs(query(collection(db, "stockMovements"),
+          where("createdAt", ">=", Timestamp.fromDate(dateFromKey(dateKey))),
+          where("createdAt", "<", Timestamp.fromDate(new Date(dateFromKey(dateKey).getTime() + 86400000))), limit(10000))),
+        getDocs(query(collection(db, "stockMovements"), where("businessDate", "==", dateKey), limit(10000)))
+      ]);
+      const summaryStockByMenu = new Map();
+      summarySnap.docs.forEach(summary => (summary.data().items || []).forEach(item => {
+        if (item?.menuId) summaryStockByMenu.set(String(item.menuId), Math.max(0, Number(item.remainingStock || 0)));
+      }));
+      const movementDocs = new Map();
+      [movementsByTimeSnap, movementsByDateSnap].forEach(snap => snap.docs.forEach(item => movementDocs.set(item.id, item.data())));
+      const ledgerStockByMenu = new Map();
+      for (const movement of movementDocs.values()) {
+        if (!movementBelongsToBusinessDate(movement, dateKey)) continue;
+        const menuId = String(movement.menuId || "");
+        if (!menuId) continue;
+        ledgerStockByMenu.set(menuId, (ledgerStockByMenu.get(menuId) || 0) + movementStockDelta(movement));
+      }
+      stockSnapshots = currentMenusSnap.docs
+        .filter(item => isPartnerStockMenu(item.data()))
+        .map(item => {
+          const menuId = item.id;
+          const reconstructed = summaryStockByMenu.has(menuId)
+            ? summaryStockByMenu.get(menuId)
+            : Math.max(0, Number(ledgerStockByMenu.get(menuId) || 0));
+          return { menuId, stock: reconstructed, stockBusinessDate: dateKey };
+        });
+      usedLegacySummary = true;
+      if (!stockSnapshots.length && Number(header.totalRemaining || 0) > 0) {
+        throw new Error("Data sisa stok closing lama tidak ditemukan pada ringkasan maupun riwayat pergerakan. Pembatalan dihentikan agar saldo tidak dipulihkan dengan angka tebakan.");
+      }
+    }
+
+    const existingMenuIds = new Set(currentMenusSnap.docs.map(item => item.id));
+    const uniqueSnapshots = new Map();
+    for (const item of stockSnapshots) {
+      const menuId = String(item?.menuId || "").trim();
+      if (!menuId || !existingMenuIds.has(menuId)) continue;
+      const stock = Number(item.stock);
+      if (!Number.isSafeInteger(stock) || stock < 0) throw new Error(`Snapshot stok untuk menu ${menuId} tidak valid. Pemulihan dihentikan agar saldo tidak salah.`);
+      uniqueSnapshots.set(menuId, { menuId, stock, stockBusinessDate: dateKey });
+    }
+
+    restoreStarted = true;
+    const restoreRows = [...uniqueSnapshots.values()];
+    for (let i = 0; i < restoreRows.length; i += 450) {
+      const batch = writeBatch(db);
+      restoreRows.slice(i, i + 450).forEach(item => {
+        batch.update(doc(db, "menus", item.menuId), {
+          stock: item.stock,
+          stockBusinessDate: item.stockBusinessDate,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+
+    const summarySnap = await getDocs(collection(db, "dailyClosings", dateKey, "partnerSummaries"));
+    for (let i = 0; i < summarySnap.docs.length; i += 450) {
+      const batch = writeBatch(db);
+      summarySnap.docs.slice(i, i + 450).forEach(summary => {
+        batch.update(summary.ref, {
+          status: "reopened",
+          disposition: "pending",
+          dispositionAt: null,
+          dispositionByUid: null,
+          dispositionByName: null,
+          reopenedAt: serverTimestamp(),
+          reopenedByUid: profile.uid,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+
+    await updateDoc(headerRef, {
+      status: "reopened",
+      reopenedAt: serverTimestamp(),
+      reopenedByUid: profile.uid,
+      reopenedByName: actorName,
+      restoredMenuCount: restoreRows.length,
+      legacySummaryRestore: usedLegacySummary,
+      updatedAt: serverTimestamp()
+    });
+
+    selectedClosingDateKey = dateKey;
+    closingSearchQuery = "";
+    closingHistoryPage = 1;
+    closingSummaryPage = 1;
+    subscribeClosingSummaries(dateKey);
+    toast(`Closing dibatalkan. ${integer(restoreRows.length)} saldo menu dipulihkan dan transaksi hari ini sudah dibuka kembali.`, "success");
+    renderPage();
+  } catch (error) {
+    console.error("Reopen daily closing failed", error);
+    // Status reopening sengaja dipertahankan bila pemulihan sempat berjalan.
+    // Operator dapat menekan tombol Lanjutkan Pembatalan; penulisan saldo aman
+    // diulang karena semua nilainya berasal dari snapshot tetap.
+    toast(`Pembatalan closing gagal${restoreStarted ? " saat memulihkan stok" : ""}: ${friendlyError(error)}. ${restoreStarted ? "Tanggal tetap terkunci; tekan Lanjutkan Pembatalan setelah masalah diatasi." : "Closing belum dibuka kembali."}`, "error");
+  } finally {
+    setBusy(button, false);
+  }
+}
+
 async function closeBusinessDay(button) {
   requireRole("superadmin", "spv");
   const dateKey = jakartaDateKey(new Date());
@@ -5850,7 +6021,7 @@ async function closeBusinessDay(button) {
     await rolloverPartnerStocksForDate(dateKey);
     await runTransaction(db, async tx => {
       const current = await tx.get(headerRef);
-      if (current.exists() && ["closing", "closed"].includes(current.data().status)) {
+      if (current.exists() && ["closing", "closed", "reopening"].includes(current.data().status)) {
         throw new Error(current.data().status === "closed" ? "Hari ini sudah ditutup." : "Proses closing sedang berjalan. Muat ulang beberapa saat lagi.");
       }
       tx.set(headerRef, {
@@ -5870,6 +6041,20 @@ async function closeBusinessDay(button) {
       getDocs(query(collection(db, "stockMovements"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs)))
     ]);
     const menus = menusSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+    const partnerMenuDocs = menusSnap.docs.filter(item => isPartnerStockMenu(item.data()));
+    // Snapshot saldo harian efektif sebelum stok dikosongkan. Snapshot disimpan
+    // pada header closing agar dapat dipulihkan berulang kali secara idempoten.
+    const stockBeforeClosing = partnerMenuDocs.map(item => {
+      const data = item.data();
+      return {
+        menuId: item.id,
+        stock: menuStockForDate(data, dateKey, false),
+        stockBusinessDate: dateKey
+      };
+    });
+    if (stockBeforeClosing.length > 5000 || new TextEncoder().encode(JSON.stringify(stockBeforeClosing)).length > 500000) {
+      throw new Error("Snapshot stok terlalu besar untuk disimpan dalam satu closing. Hubungi pengelola sistem sebelum menutup hari ini.");
+    }
     const transactions = txSnap.docs.map(item => ({ id: item.id, ...item.data() })).filter(item => item.status !== "cancelled");
     const movements = movementsSnap.docs.map(item => item.data());
     const grouped = new Map(partnersSnap.docs.map(item => [item.id, {
@@ -5918,11 +6103,12 @@ async function closeBusinessDay(button) {
       closedByName: profile.displayName || profile.email || "Staff",
       salesTotal, transactionCount: transactions.length, soldQty, receivedQty,
       paymentBreakdown, operationalItems,
-      totalRemaining, partnerCount: groups.length, updatedAt: serverTimestamp()
+      totalRemaining, partnerCount: groups.length,
+      stockBeforeClosing,
+      updatedAt: serverTimestamp()
     });
     await batch.commit();
     // Riwayat sisa sudah tersimpan pada ringkasan; saldo operasional Mitra dikosongkan.
-    const partnerMenuDocs = menusSnap.docs.filter(item => isPartnerStockMenu(item.data()));
     for (let i = 0; i < partnerMenuDocs.length; i += 450) {
       const stockResetBatch = writeBatch(db);
       partnerMenuDocs.slice(i, i + 450).forEach(item => stockResetBatch.update(item.ref, {
