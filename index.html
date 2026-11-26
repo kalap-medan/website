@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.20">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.21">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.20">
-  <title>KALAP Management System v2.2.20</title>
+  <meta name="application-version" content="2.2.21">
+  <title>KALAP Management System v2.2.21</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1200,7 +1200,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.20</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.21</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1321,10 +1321,9 @@ let menuStatusFilter = "all";
 let menuListCurrentPage = 1;
 let partnerListSearchQuery = "";
 let partnerListCurrentPage = 1;
-let partnerSalesFromDate = `${jakartaMonthKey(new Date())}-01`;
-let partnerSalesToDate = jakartaDateKey(new Date());
-let partnerSalesCurrentPage = 1;
-const partnerSalesPageSize = 10;
+let partnerStockRequestCurrentPage = 1;
+const partnerStockRequestPageSize = 10;
+let partnerStockRequestQuantities = Object.create(null);
 let accountsSearchQuery = "";
 let accountsCurrentPage = 1;
 const accountsPageSize = 7;
@@ -2815,17 +2814,6 @@ async function callApi(name, payload = {}) {
     return { requestId };
   }
 
-  if (name === "createFinanceEntry") {
-    requireRole("superadmin");
-    const type = String(payload.type || "");
-    const amount = Number(payload.amount);
-    const category = String(payload.category || "").trim();
-    if (!["income", "expense"].includes(type) || !Number.isSafeInteger(amount) || amount < 1 || !category) throw new Error("Data pemasukan/pengeluaran tidak valid.");
-    const ref = await addDoc(collection(db, "cashflows"), { type, amount, category,
-      note: String(payload.note || ""), source: "manual", createdAt: serverTimestamp(), createdBy: actorUid });
-    return { entryId: ref.id };
-  }
-
   if (name === "createStockRequest") {
     requireRole("partner");
     const partnerId = profile.partnerId;
@@ -3992,7 +3980,7 @@ function startSubscriptions() {
   unsubscribers.push(onSnapshot(menuQuery, snap => {
     store.menus = snap.docs.map(item => ({ id: item.id, ...item.data() }));
     if (cart.size) reconcileCart();
-    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "partnerSticker", "labels", "requests"].includes(activePage)) renderPage();
+    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "partnerSales", "partnerSticker", "labels", "requests"].includes(activePage)) renderPage();
     reconcileLegacyDeletedMenus(store.menus).catch(error => console.error("Rekonsiliasi menu lama gagal:", error));
   }, onDataError));
 
@@ -4037,7 +4025,7 @@ function startSubscriptions() {
     const requestQuery = query(collection(db, "stockRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
     unsubscribers.push(onSnapshot(requestQuery, snap => {
       store.stockRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-      renderIfPage("requests", "partnerHome");
+      renderIfPage("requests", "partnerHome", "partnerSales");
     }, onDataError));
     const stickerRequestQuery = query(collection(db, "labelPrintRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
     unsubscribers.push(onSnapshot(stickerRequestQuery, snap => {
@@ -4095,7 +4083,7 @@ function subscribeStockDailyDate(dateKey = stockDailyDateKey) {
   }
   stockDailyUnsubscriber = onSnapshot(movementQuery, snap => {
     store.dailyStockMovements = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-    renderIfPage("requests");
+    renderIfPage("requests", "partnerSales");
   }, onDataError);
 }
 
@@ -4232,7 +4220,6 @@ function subscribeFinanceRange(fromKey = financeFromDate, toKey = financeToDate)
   financeFromDate = range.from;
   financeToDate = range.to;
   store.financeTransactions = [];
-  store.financeCashflows = [];
   store.financeMovements = [];
   const startTs = Timestamp.fromDate(range.start);
   const endTs = Timestamp.fromDate(range.end);
@@ -4242,10 +4229,6 @@ function subscribeFinanceRange(fromKey = financeFromDate, toKey = financeToDate)
 
   financeUnsubscribers.push(onSnapshot(build("transactions"), snap => {
     store.financeTransactions = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-    renderIfPage("finance");
-  }, onDataError));
-  financeUnsubscribers.push(onSnapshot(build("cashflows"), snap => {
-    store.financeCashflows = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
     renderIfPage("finance");
   }, onDataError));
   financeUnsubscribers.push(onSnapshot(build("stockMovements"), snap => {
@@ -4398,6 +4381,10 @@ function showPage(page) {
   if (page === "newMenu" && profile?.role !== "superadmin") return toast("Menu baru hanya dapat dikelola Admin.", "error");
   if (page === "profile" && profile?.role === "partner") return toast("Pengaturan profil tidak tersedia untuk akun Mitra.", "error");
   if (page === "partnerSticker" && profile?.role !== "partner") return toast("Pengajuan cetak stiker hanya tersedia untuk akun Mitra.", "error");
+  if (page === "partnerSales" && profile?.role === "partner") {
+    const todayKey = jakartaDateKey(new Date());
+    if (stockDailyDateKey !== todayKey) subscribeStockDailyDate(todayKey);
+  }
   activePage = page;
   closeSidebarDrawer();
   if (["spv", "cashier", "partner"].includes(profile?.role) && ["dashboard", "pos", "partnerHome"].includes(page)) {
@@ -4460,16 +4447,6 @@ function pendingStockRequestCount(dateKey = jakartaDateKey(new Date())) {
 function getPartnerMonthSales() { return store.partnerSales.filter(item => item.status !== "cancelled" && partnerSaleBusinessDate(item).startsWith(monthKey)); }
 function getPartnerTodaySales(dateKey = jakartaDateKey(new Date())) {
   return store.partnerSales.filter(item => item.status !== "cancelled" && partnerSaleBusinessDate(item) === dateKey);
-}
-function getPartnerSalesForRange(fromKey = partnerSalesFromDate, toKey = partnerSalesToDate) {
-  let from = String(fromKey || "");
-  let to = String(toKey || from);
-  if (from > to) [from, to] = [to, from];
-  return sortNewest(store.partnerSales.filter(item => {
-    if (item.status === "cancelled") return false;
-    const saleDate = partnerSaleBusinessDate(item);
-    return saleDate && saleDate >= from && saleDate <= to;
-  }));
 }
 function sortNewest(rows, field = "createdAt") { return rows.slice().sort((a,b) => (asDate(b[field])?.getTime() || 0) - (asDate(a[field])?.getTime() || 0)); }
 function sumBy(list, key) { return list.reduce((sum, item) => sum + Number(item[key] || 0), 0); }
@@ -4572,17 +4549,13 @@ function summarizeRevenueAllocation(transactions) {
 }
 
 function renderSuperadminDashboard() {
-  const today = dashboardDateKey || jakartaDateKey(new Date());
+  const today = jakartaDateKey(new Date());
   const txs = store.dashboardTodayTransactions.filter(row => row.status !== "cancelled" && transactionBusinessDate(row) === today);
   const dailyStock = dailyApprovedStockSummary(today, txs, store.dashboardTodayMovements);
   const revenue = sumBy(txs, "total");
-  const allocation = summarizeRevenueAllocation(txs);
-  const todayFlows = store.cashflows.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === today);
-  const todayExpenses = todayFlows.filter(row => row.type === "expense")
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const todayManualIncome = todayFlows.filter(row => row.type === "income" && row.source !== "sale")
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const kalapResultBeforeHpp = allocation.kalapIncome + todayManualIncome - todayExpenses;
+  const fromText = formatDate(dateFromKey(dashboardFrom), { day: "numeric", month: "short", year: "numeric" });
+  const toText = formatDate(dateFromKey(dashboardTo), { day: "numeric", month: "short", year: "numeric" });
+  const periodText = dashboardFrom === dashboardTo ? fromText : `${fromText} sampai ${toText}`;
   return `${pageHeading("Dashboard", "Ringkasan penjualan dan stok hari ini.")}
     <section class="stats-grid">
       ${statCard("Omzet hari ini", money(revenue), "↗", `${integer(txs.length)} transaksi selesai`)}
@@ -4590,8 +4563,8 @@ function renderSuperadminDashboard() {
       ${statCard("Stok terjual hari ini", integer(dailyStock.sold), "▣", "Total unit terjual melalui transaksi POS")}
       ${statCard("Sisa stok hari ini", integer(dailyStock.remaining), "▤", "Total unit tersedia setelah dikurangi penjualan")}
     </section>
-    <section class="panel">${panelHeader("Grafik penjualan", "30 hari terakhir · mengikuti tanggal berjalan", `<span class="status success">REALTIME</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik tanggal pada grafik untuk melihat rincian penjualan dan stok pada tanggal tersebut.</div></section>
-    <section class="panel">${panelHeader("Omzet dan estimasi laba hari ini", `Estimasi laba sebelum HPP: ${money(kalapResultBeforeHpp)}`)}<div class="chart-wrap chart-wrap-donut"><canvas id="dashboard-revenue-chart"></canvas></div><div class="helper-text">Grafik membagi omzet menjadi bagian KALAP (penjualan menu KALAP ditambah komisi 20% dari menu mitra) dan bagian mitra. Estimasi laba dihitung dari bagian KALAP ditambah pemasukan manual, lalu dikurangi pengeluaran tercatat. Ini belum merupakan laba bersih karena HPP/modal menu belum dicatat.</div></section>`;
+    <section class="panel">${panelHeader("Grafik penjualan", `Penjualan pada ${periodText} · realtime`, dashboardRangeControls())}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik tanggal pada grafik untuk melihat rincian penjualan dan stok pada tanggal tersebut.</div></section>
+    <section class="panel">${panelHeader("Omzet dan keuntungan KALAP", `Periode ${periodText}`)}<div class="chart-wrap chart-wrap-donut"><canvas id="dashboard-revenue-chart"></canvas></div><div class="helper-text">Keuntungan KALAP dihitung dari komisi 20% atas penjualan produk Mitra. Bagian mitra adalah 80% dari penjualan produk tersebut.</div></section>`;
 }
 function renderSpvDashboard() {
   const txs = store.dashboardTransactions.filter(row => row.status !== "cancelled" && transactionBusinessDate(row) >= dashboardFrom && transactionBusinessDate(row) <= dashboardTo);
@@ -4616,35 +4589,58 @@ function renderSpvDashboard() {
 }
 function destroyCharts() { chartInstances.forEach(chart => { try { chart.destroy(); } catch (_) {} }); chartInstances = []; }
 function mountDashboardCharts() {
-  const salesCanvas = $("#sales-chart"); const cashCanvas = $("#cashflow-chart");
+  const salesCanvas = $("#sales-chart");
   if (!salesCanvas || typeof Chart === "undefined") return;
-  let keys=[]; try { keys=getDashboardKeys(); } catch(error) { toast(error.message,"error"); return; }
-  const dailySales=new Map(), dailyIn=new Map(), dailyOut=new Map();
-  for(const tx of store.dashboardTransactions.filter(row=>row.status!=="cancelled")){const key=transactionBusinessDate(tx);dailySales.set(key,(dailySales.get(key)||0)+Number(tx.total||0));}
-  for(const row of store.dashboardCashflows.filter(item=>item.status!=="cancelled")){const key=String(row.businessDate||dayKeyFromTimestamp(row.createdAt));const map=row.type==="expense"?dailyOut:dailyIn;map.set(key,(map.get(key)||0)+Number(row.amount||0));}
-  const labels=keys.map(key=>formatDate(dateFromKey(key),{day:"2-digit",month:"short"}));
-  const dateTitle=items=>keys[items[0]?.dataIndex] ? formatDate(dateFromKey(keys[items[0].dataIndex]),{day:"numeric",month:"long",year:"numeric"}) : "";
-  const onChartClick=(_,elements)=>{const item=elements?.[0];if(item && keys[item.index]) openDashboardDayDetail(keys[item.index]);};
-  const common={responsive:true,maintainAspectRatio:false,interaction:{mode:"nearest",intersect:true},onClick:onChartClick,
-    plugins:{legend:{display:false},tooltip:{backgroundColor:"#3b211a",padding:11,titleFont:{family:"DM Sans",size:10},bodyFont:{family:"DM Sans",size:10},callbacks:{title:dateTitle}}},
-    scales:{x:{grid:{display:false},ticks:{color:"#9b8f82",font:{size:9},maxTicksLimit:12}},y:{beginAtZero:true,grid:{color:"#f0e8df"},ticks:{color:"#9b8f82",font:{size:9},callback:value=>value>=1000000?`${(value/1000000).toFixed(1)}jt`:value>=1000?`${Math.round(value/1000)}rb`:value}}}};
-  const line=new Chart(salesCanvas,{type:"line",data:{labels,datasets:[{label:"Penjualan",data:keys.map(key=>dailySales.get(key)||0),borderColor:"#E00000",backgroundColor:"rgba(224,0,0,.12)",fill:true,tension:.3,borderWidth:2,pointRadius:keys.length>90?0:3,pointHoverRadius:5,pointBackgroundColor:"#E00000"}]},options:common});
+  let keys = [];
+  try { keys = getDashboardKeys(); }
+  catch (error) { toast(error.message, "error"); return; }
+
+  const rangeTransactions = store.dashboardTransactions.filter(row =>
+    row.status !== "cancelled" && transactionBusinessDate(row) >= dashboardFrom && transactionBusinessDate(row) <= dashboardTo
+  );
+  const dailySales = new Map();
+  const dailyIn = new Map();
+  const dailyOut = new Map();
+  for (const tx of rangeTransactions) {
+    const key = transactionBusinessDate(tx);
+    dailySales.set(key, (dailySales.get(key) || 0) + Number(tx.total || 0));
+  }
+  for (const row of store.dashboardCashflows.filter(item => item.status !== "cancelled")) {
+    const key = String(row.businessDate || dayKeyFromTimestamp(row.createdAt));
+    const map = row.type === "expense" ? dailyOut : dailyIn;
+    map.set(key, (map.get(key) || 0) + Number(row.amount || 0));
+  }
+  const labels = keys.map(key => formatDate(dateFromKey(key), { day: "2-digit", month: "short" }));
+  const dateTitle = items => keys[items[0]?.dataIndex]
+    ? formatDate(dateFromKey(keys[items[0].dataIndex]), { day: "numeric", month: "long", year: "numeric" }) : "";
+  const onChartClick = (_, elements) => {
+    const item = elements?.[0];
+    if (item && keys[item.index]) openDashboardDayDetail(keys[item.index]);
+  };
+  const common = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: "nearest", intersect: true }, onClick: onChartClick,
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: "#3b211a", padding: 11, titleFont: { family: "DM Sans", size: 10 }, bodyFont: { family: "DM Sans", size: 10 }, callbacks: { title: dateTitle } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: "#9b8f82", font: { size: 9 }, maxTicksLimit: 12 } },
+      y: { beginAtZero: true, grid: { color: "#f0e8df" }, ticks: { color: "#9b8f82", font: { size: 9 }, callback: value => value >= 1000000 ? `${(value / 1000000).toFixed(1)}jt` : value >= 1000 ? `${Math.round(value / 1000)}rb` : value } }
+    }
+  };
+  const line = new Chart(salesCanvas, {
+    type: "line",
+    data: { labels, datasets: [{ label: "Penjualan", data: keys.map(key => dailySales.get(key) || 0), borderColor: "#E00000", backgroundColor: "rgba(224,0,0,.12)", fill: true, tension: .3, borderWidth: 2, pointRadius: keys.length > 90 ? 0 : 3, pointHoverRadius: 5, pointBackgroundColor: "#E00000" }] },
+    options: common
+  });
   chartInstances.push(line);
-  if(cashCanvas){const bar=new Chart(cashCanvas,{type:"bar",data:{labels,datasets:[
-    {label:"Pemasukan",data:keys.map(key=>dailyIn.get(key)||0),backgroundColor:"#9FED72",borderRadius:4,maxBarThickness:18},
-    {label:"Pengeluaran",data:keys.map(key=>dailyOut.get(key)||0),backgroundColor:"#FFA97B",borderRadius:4,maxBarThickness:18}
-  ]},options:{...common,interaction:{mode:"index",intersect:false},plugins:{...common.plugins,legend:{display:true,position:"bottom",labels:{boxWidth:8,boxHeight:8,usePointStyle:true,color:"#78685b",font:{size:9}}}}}});chartInstances.push(bar);}
 
   const revenueCanvas = $("#dashboard-revenue-chart");
   if (revenueCanvas && profile?.role === "superadmin") {
-    const todayKey = dashboardDateKey || jakartaDateKey(new Date());
-    const todayTransactions = store.dashboardTodayTransactions.filter(row => row.status !== "cancelled" && transactionBusinessDate(row) === todayKey);
-    const revenueTotal = sumBy(todayTransactions, "total");
-    const allocation = summarizeRevenueAllocation(todayTransactions);
-    const todayFlows = store.cashflows.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) === todayKey);
-    const todayExpenses = todayFlows.filter(row => row.type === "expense").reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const todayManualIncome = todayFlows.filter(row => row.type === "income" && row.source !== "sale").reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const estimatedProfitBeforeHpp = allocation.kalapIncome + todayManualIncome - todayExpenses;
+    const revenueTotal = sumBy(rangeTransactions, "total");
+    const allocation = summarizeRevenueAllocation(rangeTransactions);
+    const kalapProfit = allocation.partnerCommission;
     const centerText = {
       id: "kalap-revenue-center-text",
       afterDraw(chart) {
@@ -4658,28 +4654,24 @@ function mountDashboardCharts() {
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#8A8178";
         ctx.font = "600 8px DM Sans";
-        ctx.fillText("OMZET HARI INI", x, y - 27);
+        ctx.fillText("OMZET PERIODE", x, y - 27);
         ctx.fillStyle = "#202521";
         ctx.font = "800 12px Plus Jakarta Sans";
         ctx.fillText(money(revenueTotal), x, y - 11);
         ctx.fillStyle = "#8A8178";
         ctx.font = "600 8px DM Sans";
-        ctx.fillText("ESTIMASI LABA*", x, y + 10);
+        ctx.fillText("KEUNTUNGAN KALAP", x, y + 10);
         ctx.fillStyle = "#202521";
         ctx.font = "800 11px Plus Jakarta Sans";
-        ctx.fillText(money(estimatedProfitBeforeHpp), x, y + 26);
+        ctx.fillText(money(kalapProfit), x, y + 26);
         ctx.restore();
       }
     };
     const doughnut = new Chart(revenueCanvas, {
       type: "doughnut",
       data: {
-        labels: ["Bagian KALAP", "Bagian mitra (80%)"],
-        datasets: [{
-          data: [allocation.kalapIncome, allocation.partnerShare],
-          backgroundColor: ["#E00000", "#FFA97B"],
-          borderColor: "#FFFFFF", borderWidth: 3, hoverOffset: 6
-        }]
+        labels: ["Keuntungan KALAP (20%)", "Bagian mitra (80%)"],
+        datasets: [{ data: [allocation.partnerCommission, allocation.partnerShare], backgroundColor: ["#E00000", "#FFA97B"], borderColor: "#FFFFFF", borderWidth: 3, hoverOffset: 6 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: "68%",
@@ -4705,7 +4697,10 @@ async function openDashboardDayDetail(dateKey) {
     const movements = store.dashboardMovements.filter(row =>
       !row.hiddenFromDaily && !row.voided && movementBusinessDate(row) === dateKey
     );
-    const expenses = store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "expense" && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === dateKey);
+    const showCashflowDetail = profile?.role !== "superadmin";
+    const expenses = showCashflowDetail
+      ? store.dashboardCashflows.filter(row => row.status !== "cancelled" && row.type === "expense" && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === dateKey)
+      : [];
     const dailyStock = dailyApprovedStockSummary(dateKey, txs, movements);
     const salesTotal = sumBy(txs, "total"), expenseTotal = sumBy(expenses, "amount");
     const operationalItems = new Map();
@@ -4724,9 +4719,11 @@ async function openDashboardDayDetail(dateKey) {
       <div class="stat-card"><div class="stat-top">Sisa stok hari tersebut</div><div class="stat-value">${integer(dailyStock.remaining)}</div></div>
       <div class="stat-card"><div class="stat-top">Transaksi</div><div class="stat-value">${integer(txs.length)}</div></div>
       <div class="stat-card"><div class="stat-top">Total penjualan</div><div class="stat-value">${money(salesTotal)}</div></div>
-      <div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div>
+      ${showCashflowDetail ? `<div class="stat-card"><div class="stat-top">Pengeluaran</div><div class="stat-value">${money(expenseTotal)}</div></div>` : ""}
     </div>
-    <div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row => `<div class="operational-item-row"><span>${escapeHtml(operationalCategoryLabel(row.category))} · ${escapeHtml(operationalNoteLabel(row.note || row.transactionCode || ""))}</span><strong>${money(row.amount)}</strong></div>`).join("") || `<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size ? `<div class="operational-items-list"><h4>Menu operasional</h4>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}</div>
+    ${showCashflowDetail
+      ? `<div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Rincian pengeluaran</h3>${expenses.map(row => `<div class="operational-item-row"><span>${escapeHtml(operationalCategoryLabel(row.category))} · ${escapeHtml(operationalNoteLabel(row.note || row.transactionCode || ""))}</span><strong>${money(row.amount)}</strong></div>`).join("") || `<div class="muted">Tidak ada pengeluaran pada tanggal ini.</div>`}${operationalItems.size ? `<div class="operational-items-list"><h4>Menu operasional</h4>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}</div>`
+      : operationalItems.size ? `<div class="panel" style="padding:12px;margin-top:12px"><h3 class="panel-title">Menu operasional</h3>${[...operationalItems.values()].map(row => `<div class="operational-item-row"><span>${escapeHtml(row.name)} · ${integer(row.qty)}</span><strong>${money(row.total)}</strong></div>`).join("")}</div>` : ""}
     <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-light" data-dashboard-detail-close>Tutup</button></div>`;
     const modal = root.querySelector(".modal");
     if (!modal) return;
@@ -5008,19 +5005,13 @@ function renderFinancePage() {
   const fromKey = financeFromDate || jakartaDateKey(new Date());
   const toKey = financeToDate || fromKey;
   const txs = store.financeTransactions.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) >= fromKey && dayKeyFromTimestamp(row.createdAt) <= toKey);
-  const flows = store.financeCashflows.filter(row => row.status !== "cancelled" && dayKeyFromTimestamp(row.createdAt) >= fromKey && dayKeyFromTimestamp(row.createdAt) <= toKey);
   const movements = store.financeMovements.filter(row => !row.hiddenFromDaily && !row.voided && dayKeyFromTimestamp(row.createdAt) >= fromKey && dayKeyFromTimestamp(row.createdAt) <= toKey);
   const omzet = sumBy(txs, "total");
-  const totalIn = flows.filter(row => row.type === "income").reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const totalOut = flows.filter(row => row.type === "expense").reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const soldQty = txs.reduce((sum, tx) => sum + (tx.items || []).reduce((qty, item) => qty + Number(item.qty || 0), 0), 0);
   const paymentBreakdown = { cash: 0, qris: 0, transfer: 0, kalap_operational: 0 };
   const allocation = summarizeRevenueAllocation(txs);
   const partnerCommission = allocation.partnerCommission;
-  const kalapOwnedSales = allocation.kalapOwnedSales;
-  const manualIncome = flows.filter(row => row.type === "income" && row.source !== "sale")
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const estimatedResultBeforeHpp = allocation.kalapIncome + manualIncome - totalOut;
+  const partnerShare = allocation.partnerShare;
   const menuSales = new Map();
   for (const tx of txs) {
     paymentBreakdown[tx.paymentMethod] = (paymentBreakdown[tx.paymentMethod] || 0) + Number(tx.total || 0);
@@ -5028,7 +5019,8 @@ function renderFinancePage() {
       const subtotal = Number(item.subtotal || (Number(item.price || 0) * Number(item.qty || 0)));
       const menuKey = String(item.menuId || item.name || "unknown");
       const row = menuSales.get(menuKey) || { menuId: item.menuId || "", name: item.name || "Menu", partnerName: item.partnerName || "—", qty: 0, amount: 0 };
-      row.qty += Number(item.qty || 0); row.amount += subtotal;
+      row.qty += Number(item.qty || 0);
+      row.amount += subtotal;
       menuSales.set(menuKey, row);
     }
   }
@@ -5049,11 +5041,9 @@ function renderFinancePage() {
     const menu = menuId ? store.menus.find(item => item.id === menuId) : null;
     return { ...sale, ...stock, menuId, name: sale.name !== "Menu" ? sale.name : stock.name, partnerName: sale.partnerName !== "—" ? sale.partnerName : stock.partnerName, currentStock: menu ? menuStockForDate(menu) : null };
   }).sort((a, b) => a.name.localeCompare(b.name));
-  const expenseRows = flows.filter(row => row.type === "expense").sort((a, b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0));
   const fromText = formatDate(dateFromKey(fromKey), { day: "numeric", month: "long", year: "numeric" });
   const toText = formatDate(dateFromKey(toKey), { day: "numeric", month: "long", year: "numeric" });
   const dateText = fromKey === toKey ? fromText : `${fromText} sampai ${toText}`;
-
   const sortedSales = sortNewest(txs);
   const salesPages = Math.max(1, Math.ceil(sortedSales.length / financePageSize));
   financeSalesCurrentPage = Math.min(Math.max(1, financeSalesCurrentPage), salesPages);
@@ -5062,22 +5052,17 @@ function renderFinancePage() {
   financeStockCurrentPage = Math.min(Math.max(1, financeStockCurrentPage), stockPages);
   const visibleStockRows = stockRows.slice((financeStockCurrentPage - 1) * financePageSize, financeStockCurrentPage * financePageSize);
 
-  return `${pageHeading("Keuangan", `Laporan penjualan, stok, dan arus kas pada ${dateText}.`, financeRangeControls())}
+  return `${pageHeading("Keuangan", `Laporan omzet, keuntungan KALAP, dan pergerakan stok pada ${dateText}.`, financeRangeControls())}
     <section class="stats-grid">
       ${statCard("Omzet penjualan", money(omzet), "↗", `${integer(txs.length)} transaksi selesai`)}
+      ${statCard("Keuntungan KALAP", money(partnerCommission), "％", "Komisi 20% dari penjualan menu mitra")}
+      ${statCard("Bagian mitra", money(partnerShare), "◉", "80% dari penjualan menu mitra")}
       ${statCard("Unit terjual", `${integer(soldQty)} unit`, "▣", "Jumlah semua item transaksi")}
-      ${statCard("Pemasukan tercatat", money(totalIn), "＋", "Penerimaan yang masuk ke arus kas")}
-      ${statCard("Pengeluaran tercatat", money(totalOut), "−", "Termasuk transaksi dengan metode Operasional")}
-      ${statCard("Saldo arus kas", money(totalIn - totalOut), "◉", "Pemasukan dikurangi pengeluaran")}
-      ${statCard("Bagian KALAP dari menu mitra", money(partnerCommission), "％", "Perhitungan komisi 20% dari penjualan menu mitra")}
-      ${statCard("Estimasi laba sebelum HPP", money(estimatedResultBeforeHpp), "≈", "Penjualan menu KALAP + komisi 20% dikurangi pengeluaran tercatat; belum termasuk HPP")}
       ${statCard("Menu terjual", integer(menuSales.size), "▤", "Jumlah jenis menu yang terjual")}
     </section>
-    <div class="content-grid"><section class="panel">${panelHeader("Input manual", "Catat pemasukan atau pengeluaran lain")}<form id="finance-form"><div class="form-field"><label>Jenis catatan</label><select name="type"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="form-field"><label>Jumlah (Rp)</label><input type="text" name="amount" inputmode="numeric" data-money-input required placeholder="Contoh: 150.000"></div><div class="form-field"><label>Kategori</label><input name="category" maxlength="50" required placeholder="Contoh: listrik, belanja bahan"></div><div class="form-field"><label>Keterangan</label><textarea name="note" rows="2" maxlength="200" placeholder="Detail singkat transaksi"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Simpan catatan</button></div></form></section>
-      <section class="panel">${panelHeader("Rincian pembayaran", `Metode pembayaran pada ${dateText}`)}<div class="summary-list"><div class="summary-row"><span>Tunai</span><strong>${money(paymentBreakdown.cash)}</strong></div><div class="summary-row"><span>QRIS</span><strong>${money(paymentBreakdown.qris)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${money(paymentBreakdown.transfer)}</strong></div><div class="summary-row"><span>Operasional</span><strong>${money(paymentBreakdown.kalap_operational)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Penjualan menu milik KALAP (kotor)</span><strong>${money(kalapOwnedSales)}</strong></div><div class="summary-row"><span>Bagian KALAP dari menu mitra</span><strong>${money(partnerCommission)}</strong></div></div><div class="profile-security-note" style="margin-top:12px">Hasil KALAP di atas belum merupakan laba bersih karena harga modal/HPP setiap menu belum disimpan. Angka tersebut hanya memperhitungkan bagian penjualan KALAP dan pengeluaran yang tercatat.</div></section></div>
+    <section class="panel">${panelHeader("Rincian pembayaran", `Metode pembayaran pada ${dateText}`)}<div class="summary-list"><div class="summary-row"><span>Tunai</span><strong>${money(paymentBreakdown.cash)}</strong></div><div class="summary-row"><span>QRIS</span><strong>${money(paymentBreakdown.qris)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${money(paymentBreakdown.transfer)}</strong></div><div class="summary-row"><span>Operasional</span><strong>${money(paymentBreakdown.kalap_operational)}</strong></div><div class="summary-divider"></div><div class="summary-row"><span>Keuntungan KALAP (20%)</span><strong>${money(partnerCommission)}</strong></div><div class="summary-row"><span>Bagian mitra (80%)</span><strong>${money(partnerShare)}</strong></div></div></section>
     <section class="panel">${panelHeader("Rincian penjualan", `${integer(txs.length)} transaksi · ${integer(menuSales.size)} jenis menu pada ${dateText}`)}${renderTransactionTable(visibleSales, true)}${renderFinancePagination(sortedSales.length, financeSalesCurrentPage, "finance-sales")}</section>
-    <section class="panel">${panelHeader("Penjualan dan pergerakan stok per menu", `Menampilkan ${integer(stockRows.length)} menu pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Stok masuk</th><th>Terjual</th><th>Stok kembali</th><th>Koreksi</th><th>Omzet</th><th>Stok saat ini</th></tr></thead><tbody>${visibleStockRows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.qty)}</td><td>${integer(row.returned)}</td><td>${row.adjustment > 0 ? "+" : ""}${integer(row.adjustment)}</td><td><strong>${money(row.amount)}</strong></td><td>${row.currentStock === null ? "—" : `${integer(row.currentStock)} unit`}</td></tr>`).join("") || `<tr><td colspan="7" class="table-empty">Tidak ada penjualan atau pergerakan stok pada rentang tanggal ini.</td></tr>`}</tbody></table></div>${renderFinancePagination(stockRows.length, financeStockCurrentPage, "finance-stock")}</section>
-    <section class="panel">${panelHeader("Rincian pengeluaran", `${integer(expenseRows.length)} catatan pengeluaran pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead><tbody>${expenseRows.map(row => `<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)} WIB</td><td>${escapeHtml(operationalCategoryLabel(row.category))}</td><td>${escapeHtml(operationalNoteLabel(row.note || row.transactionCode || "—"))}</td><td><strong>${money(row.amount)}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Tidak ada pengeluaran pada rentang tanggal ini.</td></tr>`}</tbody></table></div></section>`;
+    <section class="panel">${panelHeader("Penjualan dan pergerakan stok per menu", `Menampilkan ${integer(stockRows.length)} menu pada ${dateText}`)}<div class="table-wrap"><table><thead><tr><th>Menu / mitra</th><th>Stok masuk</th><th>Terjual</th><th>Stok kembali</th><th>Koreksi</th><th>Omzet</th><th>Stok saat ini</th></tr></thead><tbody>${visibleStockRows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><div class="muted">${escapeHtml(row.partnerName || "—")}</div></td><td>${integer(row.incoming)}</td><td>${integer(row.qty)}</td><td>${integer(row.returned)}</td><td>${row.adjustment > 0 ? "+" : ""}${integer(row.adjustment)}</td><td><strong>${money(row.amount)}</strong></td><td>${row.currentStock === null ? "—" : `${integer(row.currentStock)} unit`}</td></tr>`).join("") || `<tr><td colspan="7" class="table-empty">Tidak ada penjualan atau pergerakan stok pada rentang tanggal ini.</td></tr>`}</tbody></table></div>${renderFinancePagination(stockRows.length, financeStockCurrentPage, "finance-stock")}</section>`;
 }
 function renderClosingPage() {
   const closedDays=store.dailyClosings.filter(row=>row.status==="closed");
@@ -5349,14 +5334,17 @@ function renderPartnerHome() {
   const stock = activeMenus.reduce((sum,menu)=>sum+menuStockForDate(menu),0);
   const liveSales = sales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
   const closing = store.partnerDailySummary;
+  const closingHasTitipan = Boolean((closing?.items || []).some(item =>
+    Number(item.receivedQty || 0) > 0 || Number(item.soldQty || 0) > 0 || Number(item.remainingStock || 0) > 0
+  ));
   const closingPanel = closing?.status === "closed" ? `
     <section class="panel partner-closing-panel" style="margin-bottom:15px;border:1px solid #FFA97B;background:linear-gradient(135deg,#FFECCB 0%,#fff8ec 100%)">
       <div class="panel-header"><div><h3 class="panel-title">Penjualan hari ini sudah selesai</h3><div class="panel-subtitle">Closing ${formatDate(dateFromKey(closing.dateKey),{day:"numeric",month:"long",year:"numeric"})}. Berikut sisa produk yang tercatat di sistem.</div></div><span class="status success">CLOSED</span></div>
       <div class="stats-grid" style="margin:12px 0"><div class="stat-card"><div class="stat-top">Sisa produk</div><div class="stat-value">${integer(closing.totalRemaining||0)} unit</div></div><div class="stat-card"><div class="stat-top">Produk terjual hari ini</div><div class="stat-value">${integer((closing.items||[]).reduce((sum,item)=>sum+Number(item.soldQty||0),0))} unit</div></div></div>
       <div class="table-wrap"><table><thead><tr><th>Menu</th><th>Terjual</th><th>Sisa sistem</th></tr></thead><tbody>${(closing.items||[]).map(item=>`<tr><td><strong>${escapeHtml(item.menuName||"—")}</strong></td><td>${integer(item.soldQty||0)}</td><td><strong>${integer(item.remainingStock||0)}</strong></td></tr>`).join("")||`<tr><td colspan="3" class="table-empty">Tidak ada menu yang tercatat untuk hari ini.</td></tr>`}</tbody></table></div>
-      <div class="profile-security-note" style="margin-top:12px"><strong>Konfirmasi sisa produk:</strong> pilih apakah sisa makanan akan dibagikan atau dijemput oleh tim KALAP. Pilihan ini akan langsung terlihat oleh SPV.</div>
-      <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ${closing.disposition==="share"?"btn-success":"btn-light"}" data-partner-disposition="share">Bagikan</button><button class="btn ${closing.disposition==="pickup"?"btn-success":"btn-primary"}" data-partner-disposition="pickup">Jemput</button></div>
-      <div class="helper-text">${closing.disposition==="share"?"Pilihan saat ini: sisa produk dibagikan.":closing.disposition==="pickup"?"Pilihan saat ini: sisa produk dijemput tim KALAP.":"Belum memilih tindakan untuk sisa produk."} Pilihan dapat diperbarui sampai tim operasional menindaklanjuti.</div>
+      <div class="profile-security-note" style="margin-top:12px"><strong>Konfirmasi sisa produk:</strong> ${closingHasTitipan ? "pilih apakah sisa makanan akan dibagikan atau dijemput oleh tim KALAP. Pilihan ini akan langsung terlihat oleh SPV." : "tidak ada titipan atau stok masuk yang tercatat untuk hari ini, sehingga pilihan Bagikan/Jemput tidak tersedia."}</div>
+      <div class="form-actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ${closing.disposition==="share"?"btn-success":"btn-light"}" data-partner-disposition="share" ${closingHasTitipan ? "" : "disabled"}>Bagikan</button><button class="btn ${closing.disposition==="pickup"?"btn-success":"btn-primary"}" data-partner-disposition="pickup" ${closingHasTitipan ? "" : "disabled"}>Jemput</button></div>
+      <div class="helper-text">${!closingHasTitipan ? "Tidak ada titipan hari ini; tidak ada tindakan sisa produk yang perlu dipilih." : closing.disposition==="share"?"Pilihan saat ini: sisa produk dibagikan.":closing.disposition==="pickup"?"Pilihan saat ini: sisa produk dijemput tim KALAP.":"Belum memilih tindakan untuk sisa produk."}${closingHasTitipan ? " Pilihan dapat diperbarui sampai tim operasional menindaklanjuti." : ""}</div>
     </section>` : "";
   return `${pageHeading(`Halo, ${escapeHtml(profile.displayName || "Mitra")}`, "Pantau menu terdaftar, stok, dan penjualan produk milik Anda saja.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
     ${closingPanel}
@@ -5517,36 +5505,51 @@ function renderPartnerStickerPage() {
 }
 
 function renderPartnerMenu() {
-  return `${pageHeading("Menu saya", "Daftar produk milik Anda yang dijual melalui KALAP.")}
-    <section class="panel">${panelHeader("Katalog produk", `${integer(store.menus.filter(menu=>menu.deleted!==true).length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Stok saat ini</th><th>Status</th></tr></thead><tbody>${store.menus.filter(menu=>menu.deleted!==true).map(menu=>`<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><strong>${integer(menuStockForDate(menu))}</strong></td><td><span class="status ${menuStockForDate(menu)>0?"success":"inactive"}">${menuStockForDate(menu)>0?"Tersedia":"Habis"}</span></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
+  const ownMenus = store.menus.filter(menu => menu.deleted !== true);
+  return `${pageHeading("Menu saya", "Daftar katalog produk yang terhubung dengan akun Anda.")}
+    <section class="panel">${panelHeader("Katalog produk", `${integer(ownMenus.length)} menu terdaftar`)}<div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th></tr></thead><tbody>${ownMenus.map(menu => `<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td></tr>`).join("") || `<tr><td colspan="2" class="table-empty">Belum ada menu yang terhubung dengan akun ini.</td></tr>`}</tbody></table></div><div class="helper-text">Harga dan data menu dikelola oleh KALAP. Hubungi admin apabila ada perubahan nama atau harga.</div></section>`;
 }
+
+function getPartnerLiveStockRows(dateKey = jakartaDateKey(new Date())) {
+  const ownMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
+  const ownMenuIds = new Set(ownMenus.map(menu => menu.id));
+  const requests = store.stockRequests.filter(row =>
+    ownMenuIds.has(row.menuId)
+    && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === dateKey
+    && ["pending", "revised", "received"].includes(String(row.status || "pending").toLowerCase())
+    && row.requestType !== "adjustment"
+  );
+  const movements = store.dailyStockMovements.filter(row =>
+    ownMenuIds.has(row.menuId)
+    && movementBusinessDate(row) === dateKey
+    && row.voided !== true && row.hiddenFromDaily !== true
+    && row.supersededBySuperadminEdit !== true
+  );
+  const requestedMenuIds = new Set(requests.map(row => row.menuId));
+  const receivedMenuIds = new Set(movements.filter(row => row.type === "in").map(row => row.menuId));
+  const visibleMenuIds = new Set([...requestedMenuIds, ...receivedMenuIds]);
+
+  return ownMenus.filter(menu => visibleMenuIds.has(menu.id)).map(menu => {
+    const menuRequests = requests.filter(row => row.menuId === menu.id);
+    const menuMovements = movements.filter(row => row.menuId === menu.id);
+    const incoming = menuMovements.filter(row => row.type === "in").reduce((sum, row) => sum + effectiveMovementQty(row), 0);
+    const sold = menuMovements.filter(row => row.type === "sale").reduce((sum, row) => sum + Number(row.qty || 0), 0)
+      - menuMovements.filter(row => row.type === "sale_cancel").reduce((sum, row) => sum + Number(row.qty || 0), 0);
+    const pending = menuRequests.filter(row => ["pending", "revised"].includes(String(row.status || "").toLowerCase()));
+    const pendingQty = pending.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+    const stock = menuStockForDate(menu, dateKey, false);
+    const status = pending.length ? "Menunggu persetujuan" : stock > 0 ? "Tersedia" : "Habis";
+    return { menu, incoming, pendingQty, sold: Math.max(0, sold), stock, status, displayedQty: incoming || pendingQty };
+  }).sort((a, b) => String(a.menu.name || "").localeCompare(String(b.menu.name || "")));
+}
+
 function renderPartnerSales() {
-  const rangeSales = getPartnerSalesForRange(partnerSalesFromDate, partnerSalesToDate);
-  const total = sumPartnerNetSales(rangeSales);
-  const totalUnits = rangeSales.reduce((sum, row) => sum + Number(row.qty || 0), 0);
-  const pages = Math.max(1, Math.ceil(rangeSales.length / partnerSalesPageSize));
-  partnerSalesCurrentPage = Math.min(Math.max(1, partnerSalesCurrentPage), pages);
-  const start = (partnerSalesCurrentPage - 1) * partnerSalesPageSize;
-  const visibleSales = rangeSales.slice(start, start + partnerSalesPageSize);
-  const pageNumbers = pages <= 7
-    ? Array.from({ length: pages }, (_, index) => index + 1)
-    : [...new Set([1, Math.max(2, partnerSalesCurrentPage - 1), partnerSalesCurrentPage, Math.min(pages - 1, partnerSalesCurrentPage + 1), pages])].sort((a, b) => a - b);
-  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === partnerSalesCurrentPage ? "active-page" : ""}" data-partner-sales-page-number="${page}" aria-current="${page === partnerSalesCurrentPage ? "page" : "false"}">${page}</button>`).join("");
-  const firstItem = rangeSales.length ? start + 1 : 0;
-  const lastItem = Math.min(start + partnerSalesPageSize, rangeSales.length);
-  const dateLabel = `${formatDate(dateFromKey(partnerSalesFromDate))} – ${formatDate(dateFromKey(partnerSalesToDate))}`;
-  return `${pageHeading("Penjualan saya", "Riwayat penjualan dan pendapatan bersih setelah potongan 20% untuk KALAP.")}
-    <section class="stats-grid">${statCard("Pendapatan bersih", money(total), "↗", dateLabel)}${statCard("Jumlah transaksi", integer(rangeSales.length), "▣", "Transaksi pada rentang tanggal")}${statCard("Unit terjual", integer(totalUnits), "＋", "Akumulasi unit produk terjual")}${statCard("Status pencatatan", "Realtime", "◉", "Data tersinkron otomatis")}</section>
-    <section class="panel">${panelHeader("Riwayat penjualan", `${integer(rangeSales.length)} catatan · nominal bersih mitra`)}
-      <div class="table-toolbar">
-        <div class="date-range-control partner-sales-date-range">
-          <label>Dari tanggal<input type="date" id="partner-sales-from" value="${escapeHtml(partnerSalesFromDate)}"></label>
-          <label>Sampai tanggal<input type="date" id="partner-sales-to" value="${escapeHtml(partnerSalesToDate)}"></label>
-          <button type="button" class="btn btn-primary" id="apply-partner-sales-range">Terapkan</button>
-        </div>
-      </div>
-      <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode transaksi</th><th>Produk & jumlah</th><th>Metode bayar</th><th>Pendapatan bersih (80%)</th></tr></thead><tbody>${visibleSales.map(row=>`<tr><td>${formatDate(dateFromKey(partnerSaleBusinessDate(row)))} · ${formatTime(row.createdAt)}</td><td><strong>${escapeHtml(row.transactionCode||"—")}</strong></td><td>${(row.items||[]).map(item=>`${escapeHtml(item.name)} (${integer(item.qty)}x)`).join(", ")}</td><td>${escapeHtml(paymentMethodLabel(row.paymentMethod))}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="5" class="table-empty">Tidak ada penjualan pada rentang tanggal ini.</td></tr>`}</tbody></table></div>
-      <div class="pagination-row"><span class="helper-text">Menampilkan ${firstItem}–${lastItem} dari ${integer(rangeSales.length)} catatan · halaman ${partnerSalesCurrentPage} dari ${pages} · ${partnerSalesPageSize} per halaman</span><div class="page-buttons"><button type="button" data-partner-sales-page="prev" ${partnerSalesCurrentPage <= 1 ? "disabled" : ""} aria-label="Halaman sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-partner-sales-page="next" ${partnerSalesCurrentPage >= pages ? "disabled" : ""} aria-label="Halaman berikutnya" title="Berikutnya">›</button></div></div>
+  const today = jakartaDateKey(new Date());
+  const rows = getPartnerLiveStockRows(today);
+  return `${pageHeading("Penjualan saya", "Stok titipan hari ini yang berubah otomatis setiap ada transaksi.", `<span class="status success"><span class="live-pulse"></span> LIVE REALTIME</span>`)}
+    <section class="panel">${panelHeader("Stok produk hari ini", `${integer(rows.length)} menu diajukan atau dimasukkan hari ini`, `<span class="status success">REALTIME</span>`)}
+      <div class="table-wrap"><table><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Jumlah hari ini</th><th>Terjual</th><th>Sisa stok</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td><strong>${escapeHtml(row.menu.name)}</strong></td><td>${money(row.menu.price)}</td><td>${integer(row.displayedQty)} unit${row.pendingQty > 0 ? `<div class="muted">${integer(row.pendingQty)} menunggu persetujuan</div>` : ""}</td><td>${integer(row.sold)} unit</td><td><strong>${integer(row.stock)} unit</strong></td><td><span class="status ${row.pendingQty > 0 ? "pending" : row.stock > 0 ? "success" : "inactive"}">${escapeHtml(row.status)}</span></td></tr>`).join("") || `<tr><td colspan="6" class="table-empty">Belum ada menu yang diajukan atau dimasukkan untuk hari ini.</td></tr>`}</tbody></table></div>
+      <div class="helper-text">Daftar ini hanya menampilkan menu yang diajukan atau menerima input stok pada hari ini. Sisa stok mengikuti penjualan POS secara realtime.</div>
     </section>`;
 }
 
@@ -5566,22 +5569,6 @@ async function newMenuPageSubmit(event) {
     });
     form.reset();
     toast(`Menu ${result.name} berhasil didaftarkan. QR Code dibuat otomatis.`, "success");
-  } catch (error) { toast(friendlyError(error), "error"); }
-  finally { setBusy(button, false); }
-}
-
-async function financeSubmit(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = Object.fromEntries(new FormData(form));
-  const button = form.querySelector('[type="submit"]');
-  const amount = parseMoneyInput(data.amount);
-  if (!Number.isSafeInteger(amount) || amount < 1) return toast("Nominal harus lebih besar dari Rp0.", "error");
-  setBusy(button, true, "Menyimpan...");
-  try {
-    await callApi("createFinanceEntry", { ...data, amount });
-    form.reset();
-    toast("Catatan keuangan berhasil disimpan.", "success");
   } catch (error) { toast(friendlyError(error), "error"); }
   finally { setBusy(button, false); }
 }
@@ -5630,26 +5617,6 @@ function attachPageEvents() {
     if (!/^\d{4}-\d{2}$/.test(value)) return;
     subscribeMonthData(value);
   });
-  $("#apply-partner-sales-range")?.addEventListener("click", () => {
-    const from = $("#partner-sales-from")?.value || "";
-    const to = $("#partner-sales-to")?.value || "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-      return toast("Pilih tanggal awal dan tanggal akhir terlebih dahulu.", "error");
-    }
-    if (from > to) return toast("Tanggal awal tidak boleh melewati tanggal akhir.", "error");
-    partnerSalesFromDate = from;
-    partnerSalesToDate = to;
-    partnerSalesCurrentPage = 1;
-    renderPage();
-  });
-  $$('[data-partner-sales-page]').forEach(button => button.addEventListener("click", () => {
-    partnerSalesCurrentPage += button.dataset.partnerSalesPage === "next" ? 1 : -1;
-    renderPage();
-  }));
-  $$('[data-partner-sales-page-number]').forEach(button => button.addEventListener("click", () => {
-    partnerSalesCurrentPage = Number(button.dataset.partnerSalesPageNumber);
-    renderPage();
-  }));
   $("#chart-days")?.addEventListener("input", event => {
     chartDays = Number(event.target.value);
     $("#chart-days-label").textContent = `${chartDays} hari`;
@@ -5666,16 +5633,25 @@ function attachPageEvents() {
   $("#create-user-form")?.addEventListener("submit", createUserSubmit);
   $("#profile-form")?.addEventListener("submit", saveOwnProfileSubmit);
   $("#create-partner-form")?.addEventListener("submit", createPartnerSubmit);
-  $("#finance-form")?.addEventListener("submit", financeSubmit);
   initMoneyInputs();
   $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
+  $$('[data-partner-stock-qty]').forEach(input => input.addEventListener("input", () => {
+    partnerStockRequestQuantities[input.dataset.partnerStockQty] = String(input.value || "").trim();
+  }));
+  $$('[data-partner-stock-page]').forEach(button => button.addEventListener("click", () => {
+    partnerStockRequestCurrentPage += button.dataset.partnerStockPage === "next" ? 1 : -1;
+    renderPage();
+  }));
+  $$('[data-partner-stock-page-number]').forEach(button => button.addEventListener("click", () => {
+    partnerStockRequestCurrentPage = Number(button.dataset.partnerStockPageNumber);
+    renderPage();
+  }));
   $("#partner-sticker-form")?.addEventListener("submit", partnerStickerSubmit);
   $("#partner-sticker-menu-search")?.addEventListener("input", handlePartnerStickerMenuSearchInput);
   $("#partner-sticker-menu-search")?.addEventListener("keydown", handlePartnerStickerMenuSearchKeydown);
   $("#partner-sticker-menu-selected")?.addEventListener("click", event => {
     if (event.target.closest("[data-change-partner-sticker-menu]")) clearPartnerStickerMenuSelection();
   });
-  initStockRequestMenuSearch();
   $("#new-menu-page-form")?.addEventListener("submit", newMenuPageSubmit);
   $("#request-search")?.addEventListener("input", event => { requestSearchQuery = event.target.value; requestCurrentPage = 1; requestSelectAll = false; renderPage(); const input=$("#request-search"); input?.focus(); input?.setSelectionRange(input.value.length,input.value.length); });
   $("#open-manual-stock-input")?.addEventListener("click", openManualStockInputModal);
@@ -6000,6 +5976,10 @@ async function choosePartnerDisposition(disposition, button) {
   if (!["share", "pickup"].includes(disposition)) return;
   const summary = store.partnerDailySummary;
   if (!summary || summary.status !== "closed") return toast("Ringkasan closing hari ini belum tersedia.", "error");
+  const hasDailyTitipan = (summary.items || []).some(item =>
+    Number(item.receivedQty || 0) > 0 || Number(item.soldQty || 0) > 0 || Number(item.remainingStock || 0) > 0
+  );
+  if (!hasDailyTitipan) return toast("Tidak ada titipan atau stok masuk hari ini. Pilihan Bagikan/Jemput tidak tersedia.", "error");
   const label = disposition === "share" ? "Bagikan sisa produk" : "Jemput sisa produk";
   if (!await kalapConfirm(`Konfirmasi pilihan: ${label}? Pilihan ini akan langsung terlihat oleh SPV.`, {title:"Konfirmasi sisa produk", confirmText:"Kirim pilihan"})) return;
   setBusy(button, true, "Menyimpan...");
@@ -7164,29 +7144,53 @@ async function stockRequestSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector("button[type=submit]");
-  const data = Object.fromEntries(new FormData(form));
-  if (!data.menuId) return toast("Cari lalu pilih menu terlebih dahulu.", "error");
-  setBusy(button, true, "Mengirim...");
+  form.querySelectorAll("[data-partner-stock-qty]").forEach(input => {
+    partnerStockRequestQuantities[input.dataset.partnerStockQty] = String(input.value || "").trim();
+  });
+  const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
+  const entered = ownMenus.map(menu => {
+    const raw = String(partnerStockRequestQuantities[menu.id] ?? "").trim();
+    return { menu, raw, qty: raw === "" ? 0 : Number(raw) };
+  }).filter(row => row.raw !== "");
+  const invalid = entered.find(row => !Number.isInteger(row.qty) || row.qty < 0 || row.qty > 100000);
+  if (invalid) return toast(`Jumlah ${invalid.menu.name} harus berupa angka bulat 0–100.000.`, "error");
+  const selected = entered.filter(row => row.qty > 0);
+  if (!selected.length) return toast("Masukkan jumlah lebih dari 0 pada minimal satu menu terlebih dahulu.", "error");
+
+  setBusy(button, true, "Mengirim pengajuan...");
+  const successes = [];
+  const failures = [];
   try {
-    const result = await callApi("createStockRequest", { ...data, qty: Number(data.qty) });
-    form.reset();
-    $("#stock-request-menu-results", form).innerHTML = "";
-    $("#stock-request-menu-selected", form).innerHTML = "";
-    $("#stock-request-menu-selected", form).classList.remove("show");
-    const todayKey = jakartaDateKey(new Date());
-    if (stockDailyDateKey !== todayKey) {
-      stockDailyDateKey = todayKey;
-      stockDailyCurrentPage = 1;
-      stockDailySearchQuery = "";
-      requestCurrentPage = 1;
-      requestSearchQuery = "";
-      subscribeStockDailyDate(todayKey);
+    for (const row of selected) {
+      try {
+        const result = await callApi("createStockRequest", { menuId: row.menu.id, qty: row.qty });
+        successes.push({ ...row, result });
+        delete partnerStockRequestQuantities[row.menu.id];
+      } catch (error) {
+        failures.push({ name: row.menu.name, message: friendlyError(error) });
+      }
     }
-    toast(result.merged
-      ? `Pengajuan digabung: ${integer(result.previousQty)} + ${integer(Number(data.qty))} = ${integer(result.qty)} unit. Tidak dibuat pengajuan terpisah.`
-      : "Pengajuan stok dikirim ke tim KALAP.", "success");
-  } catch (error) { toast(friendlyError(error), "error"); }
-  finally { setBusy(button, false); }
+    if (successes.length) {
+      const todayKey = jakartaDateKey(new Date());
+      if (stockDailyDateKey !== todayKey) {
+        stockDailyDateKey = todayKey;
+        stockDailyCurrentPage = 1;
+        stockDailySearchQuery = "";
+        requestCurrentPage = 1;
+        requestSearchQuery = "";
+        subscribeStockDailyDate(todayKey);
+      }
+    }
+    if (failures.length) {
+      const failureSummary = failures.slice(0, 3).map(item => `${item.name}: ${item.message}`).join("; ");
+      toast(`${successes.length} menu berhasil diajukan, ${failures.length} menu gagal. Jumlah yang gagal tetap tersimpan agar bisa dicoba lagi. ${failureSummary}${failures.length > 3 ? "; dan lainnya" : ""}`, "error");
+    } else {
+      toast(`${successes.length} menu berhasil diajukan ke tim KALAP.`, "success");
+    }
+    renderPage();
+  } finally {
+    setBusy(button, false);
+  }
 }
 async function acceptStockRequest(requestId, button) {
   const request = store.stockRequests.find(item => item.id === requestId);
@@ -7606,51 +7610,23 @@ async function resetDailyOperations(dateKey, button) {
 }
 
 function renderStockRequestForm() {
-  const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
-  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "")}
-    <form id="stock-request-form" class="inline-form stock-request-form">
-      <div class="form-field"><label for="stock-request-menu-search">Cari menu</label><input id="stock-request-menu-search" type="search" autocomplete="off" placeholder="Ketik nama menu..." ${ownMenus.length ? "" : "disabled"}><div id="stock-request-menu-results" class="stock-request-menu-results" aria-live="polite"></div><div id="stock-request-menu-selected" class="manual-existing-banner"></div><input type="hidden" name="menuId" required></div>
-      <div class="form-field"><label>Jumlah tambahan</label><input name="qty" type="number" min="1" max="100000" step="1" required placeholder="Jumlah unit"></div>
-      <div class="form-field"><label>Catatan</label><input name="note" maxlength="160" placeholder="Contoh: stok kiriman hari ini"></div>
-      <button type="submit" class="btn btn-primary" ${ownMenus.length ? "" : "disabled"}>Kirim pengajuan</button>
-    </form>${ownMenus.length ? "" : `<div class="table-empty">Belum ada menu aktif yang terdaftar untuk akun ini.</div>`}</section>`;
-}
-
-function initStockRequestMenuSearch() {
-  const form = $("#stock-request-form");
-  if (!form) return;
-  const menus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
-  const input = $("#stock-request-menu-search", form);
-  const hidden = $("input[name='menuId']", form);
-  const results = $("#stock-request-menu-results", form);
-  const selected = $("#stock-request-menu-selected", form);
-  const draw = () => {
-    const q = input.value.trim().toLowerCase();
-    if (!q) { results.innerHTML = ""; return; }
-    const matches = menus.filter(menu => `${menu.name || ""} ${menu.partnerName || ""}`.toLowerCase().includes(q)).slice(0, 8);
-    results.innerHTML = matches.length ? matches.map(menu => `<button type="button" data-stock-request-menu-select="${menu.id}"><strong>${escapeHtml(menu.name)}</strong><span class="muted"> · Stok saat ini ${integer(menuStockForDate(menu))} unit</span></button>`).join("")
-      : `<div class="muted request-extra">Menu tidak ditemukan pada daftar menu aktif Anda.</div>`;
-    results.querySelectorAll("[data-stock-request-menu-select]").forEach(button => button.addEventListener("click", () => {
-      const menu = menus.find(item => item.id === button.dataset.stockRequestMenuSelect);
-      if (!menu) return;
-      hidden.value = menu.id;
-      input.value = menu.name;
-      selected.innerHTML = `<strong>${escapeHtml(menu.name)}</strong> · Stok saat ini ${integer(menuStockForDate(menu))} unit`;
-      selected.classList.add("show");
-      results.innerHTML = "";
-    }));
-  };
-  input.addEventListener("input", () => {
-    hidden.value = "";
-    selected.innerHTML = "";
-    selected.classList.remove("show");
-    draw();
-  });
-  input.addEventListener("keydown", event => {
-    if (event.key !== "Enter") return;
-    const first = results.querySelector("[data-stock-request-menu-select]");
-    if (first) { event.preventDefault(); first.click(); }
-  });
+  const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true)
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  const pages = Math.max(1, Math.ceil(ownMenus.length / partnerStockRequestPageSize));
+  partnerStockRequestCurrentPage = Math.min(Math.max(1, partnerStockRequestCurrentPage), pages);
+  const start = (partnerStockRequestCurrentPage - 1) * partnerStockRequestPageSize;
+  const visibleMenus = ownMenus.slice(start, start + partnerStockRequestPageSize);
+  const pageNumbers = pages <= 7 ? Array.from({ length: pages }, (_, index) => index + 1)
+    : [...new Set([1, Math.max(2, partnerStockRequestCurrentPage - 1), partnerStockRequestCurrentPage, Math.min(pages - 1, partnerStockRequestCurrentPage + 1), pages])].sort((a, b) => a - b);
+  const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === partnerStockRequestCurrentPage ? "active-page" : ""}" data-partner-stock-page-number="${page}" aria-current="${page === partnerStockRequestCurrentPage ? "page" : "false"}">${page}</button>`).join("");
+  const pagination = ownMenus.length > partnerStockRequestPageSize ? `<div class="pagination-row"><span class="helper-text">${integer(ownMenus.length)} menu · halaman ${partnerStockRequestCurrentPage} dari ${pages} · ${partnerStockRequestPageSize} menu per halaman</span><div class="page-buttons"><button type="button" data-partner-stock-page="prev" ${partnerStockRequestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-partner-stock-page="next" ${partnerStockRequestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>` : "";
+  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Pilih jumlah titipan pada menu yang akan masuk hari ini.")}
+    <form id="stock-request-form">
+      <div class="table-wrap"><table class="partner-stock-entry-table"><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Jumlah titipan</th></tr></thead><tbody>${visibleMenus.map(menu => `<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><input class="partner-stock-qty" type="number" min="0" max="100000" step="1" inputmode="numeric" placeholder="0" aria-label="Jumlah titipan ${escapeHtml(menu.name)}" data-partner-stock-qty="${escapeHtml(menu.id)}" value="${escapeHtml(partnerStockRequestQuantities[menu.id] || "")}"></td></tr>`).join("") || `<tr><td colspan="3" class="table-empty">Belum ada menu aktif yang terdaftar untuk akun ini.</td></tr>`}</tbody></table></div>
+      ${pagination}
+      <div class="form-actions" style="justify-content:flex-end;margin-top:14px"><button type="submit" class="btn btn-primary" ${ownMenus.length ? "" : "disabled"}>Kirim pengajuan stok</button></div>
+    </form>
+  </section>`;
 }
 
 function closeSidebarDrawer(){
@@ -7685,7 +7661,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.20", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.21", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
