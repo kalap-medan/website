@@ -1,4 +1,12 @@
-# KALAP Management System v2.2.19
+# KALAP Management System v2.2.20
+
+## Perbaikan terfokus v2.2.20
+- Keuangan Superadmin memakai rentang tanggal awal–akhir untuk omzet, arus kas, komisi, dan ringkasan hasil KALAP.
+- Rincian penjualan serta tabel penjualan/pergerakan stok memiliki pagination terpisah.
+- Dashboard Superadmin tidak lagi menampilkan filter tanggal dan tabel transaksi; tabel transaksi diganti grafik donat yang menampilkan total omzet dan estimasi laba sebelum HPP hari ini.
+- POS memiliki pencarian riwayat transaksi berdasarkan nama menu, kode transaksi, nama mitra, dan kasir.
+- Urutan navigasi Superadmin disesuaikan dengan permintaan.
+- HPP/modal menu belum disimpan, sehingga hasil KALAP yang ditampilkan adalah angka sebelum HPP dan bukan laba bersih.
 
 ## Perbaikan terfokus: hapus batch yang telah dikoreksi dan revisi koreksi
 
@@ -20,18 +28,18 @@
 - Hak staff tidak diperluas di luar Superadmin/SPV aktif.
 
 ## Berkas paket
-- `index.html`: aplikasi KALAP v2.2.19.
+- `index.html`: aplikasi KALAP v2.2.20.
 - `firestore.rules`: Firestore Rules v2.2.19.
-- `service-worker.js`: cache shell v2.2.19.
+- `service-worker.js`: cache shell v2.2.20.
 - `manifest.webmanifest` dan `firestore.indexes.json`: dipertahankan.
 - `RELEASE_NOTES_v2.2.19.txt`: ringkasan perubahan.
 
 ## Pemasangan
 1. Cadangkan berkas hosting dan Firestore Rules aktif terlebih dahulu.
 2. Ganti `index.html` dan `service-worker.js` di hosting dengan versi paket ini.
-3. Publikasikan `firestore.rules` ke Firebase Console pada project `kalap-63628`.
+3. `firestore.rules` tidak diubah, sehingga tidak perlu dipublikasikan ulang untuk pembaruan ini.
 4. Pertahankan folder `icons/` yang sudah ada di hosting; paket ini tidak mengganti ikon.
-5. Hard refresh (`Ctrl + Shift + R`) dan pastikan aplikasi menampilkan v2.2.19.
+5. Hard refresh (`Ctrl + Shift + R`) dan pastikan aplikasi menampilkan v2.2.20.
 
 ## Catatan pengujian
 JavaScript dan berkas konfigurasi diperiksa secara lokal. Firestore Rules belum dapat diuji pada Firebase Emulator maupun project produksi dari lingkungan ini. Karena itu, validasi transaksi nyata tetap perlu dilakukan setelah Rules dipublikasikan.
