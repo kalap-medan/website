@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.23">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.24">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.23">
-  <title>KALAP Management System v2.2.23</title>
+  <meta name="application-version" content="2.2.24">
+  <title>KALAP Management System v2.2.24</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -413,6 +413,25 @@ td { border-top-color:#f5e8e6; }
 .request-pagination .page-buttons { flex-wrap:wrap; justify-content:flex-end; }
 #manual-stock-pending .btn { justify-self: start; }
 .manual-existing-banner { line-height: 1.6; }
+
+.partner-action-menu-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.partner-action-menu { width:100%; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px; border:1px solid color-mix(in srgb, var(--kalap-peach) 45%, #FFFFFF); border-radius:13px; background:#FFFFFF; color:var(--ink); text-align:left; box-shadow:0 5px 14px rgba(48,35,27,.045); transition:border-color .15s,transform .15s,background .15s; }
+.partner-action-menu:hover { border-color:var(--kalap-red); background:color-mix(in srgb, var(--kalap-cream) 40%, #FFFFFF); transform:translateY(-1px); }
+.partner-action-menu-copy { display:grid; gap:5px; min-width:0; }
+.partner-action-menu-name { display:block; overflow-wrap:anywhere; font-size:12px; line-height:1.45; }
+.partner-action-menu-meta { color:var(--muted); font-size:10px; }
+.partner-action-menu-cta { flex:none; color:var(--kalap-red); font-size:10px; font-weight:800; white-space:nowrap; }
+.partner-quantity-backdrop { z-index:120; }
+.partner-quantity-modal { width:min(100%,430px); }
+.partner-quantity-menu-confirm { display:grid; gap:5px; margin:0 0 16px; padding:13px 14px; border:1px solid color-mix(in srgb, var(--kalap-peach) 50%, #FFFFFF); border-radius:13px; background:color-mix(in srgb, var(--kalap-cream) 60%, #FFFFFF); }
+.partner-quantity-menu-confirm small { color:var(--muted); font-size:10px; font-weight:700; }
+.partner-quantity-menu-confirm strong { color:var(--ink); font-size:14px; overflow-wrap:anywhere; }
+.partner-quantity-menu-confirm span { color:var(--kalap-red); font-size:11px; font-weight:800; }
+.partner-quantity-modal .form-field { margin:0; }
+.partner-quantity-modal .form-field label { display:block; margin:0 0 8px; color:var(--ink); font-size:12px; font-weight:800; }
+.partner-quantity-modal .form-actions { justify-content:flex-end; margin-top:18px; }
+@media(max-width:640px) { .partner-action-menu-grid { grid-template-columns:minmax(0,1fr); } .partner-action-menu { min-height:66px; padding:13px; } .partner-quantity-backdrop { padding:14px; } .partner-quantity-modal { padding:18px; } .partner-quantity-modal .form-actions { display:grid; grid-template-columns:1fr 1fr; } .partner-quantity-modal .form-actions .btn { width:100%; } }
+
 .manual-lookup-results button { width: 100%; }
 @media (max-width: 640px) {
   .new-menu-form { grid-template-columns: 1fr; }
@@ -1198,7 +1217,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.23</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.24</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1321,10 +1340,8 @@ let partnerListSearchQuery = "";
 let partnerListCurrentPage = 1;
 let partnerStockRequestCurrentPage = 1;
 const partnerStockRequestPageSize = 10;
-let partnerStockRequestQuantities = Object.create(null);
 let partnerStickerCurrentPage = 1;
 const partnerStickerPageSize = 10;
-let partnerStickerQuantities = Object.create(null);
 let accountsSearchQuery = "";
 let accountsCurrentPage = 1;
 const accountsPageSize = 7;
@@ -5485,7 +5502,7 @@ function renderPartnerHome() {
   const sold = sales.reduce((sum,row)=>sum+Number(row.qty||0),0);
   const activeMenus = store.menus.filter(menu => menu.active !== false && menu.deleted !== true);
   const stock = activeMenus.reduce((sum,menu)=>sum+menuStockForDate(menu),0);
-  const liveSales = sales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
+  const liveSales = todaySales.slice().sort((a,b)=>(asDate(b.createdAt)||0)-(asDate(a.createdAt)||0)).slice(0,8);
   const closing = store.partnerDailySummary;
   const closingHasTitipan = Boolean((closing?.items || []).some(item =>
     Number(item.receivedQty || 0) > 0 || Number(item.soldQty || 0) > 0 || Number(item.remainingStock || 0) > 0
@@ -5504,8 +5521,8 @@ function renderPartnerHome() {
     <section class="stats-grid partner-dashboard-stats">${statCard("Pendapatan hari ini", money(todayNetIncome), "↗", `${integer(todaySales.length)} transaksi · sudah dipotong 20%`)}${statCard("Pendapatan bersih bulan ini", money(totalSales), "◷", `${integer(sales.length)} catatan · setelah potongan 20%`)}${statCard("Produk terjual", integer(sold), "▣", "Unit produk Anda yang laku bulan ini")}${statCard("Stok tersedia", integer(stock), "▤", "Stok aktif produk Anda")}${statCard("Menu terdaftar", integer(activeMenus.length), "＋", "Menu yang terhubung dengan akun Anda")}</section>
     <section class="content-grid equal"><article class="panel">${panelHeader("Menu milik Anda", "", `<button class="panel-action" data-nav="partnerMenu">Lihat semua →</button>`)}
       <div class="summary-list">${activeMenus.slice(0,8).map(menu=>{const soldQty=sales.reduce((sum,sale)=>sum+(sale.items||[]).filter(item=>item.menuId===menu.id).reduce((n,item)=>n+Number(item.qty||0),0),0);return `<div class="summary-row"><span>${escapeHtml(menu.name)}<small style="display:block;color:#9b888a;margin-top:3px">${money(menu.price)} · terjual ${integer(soldQty)} bulan ini</small></span><strong>${integer(menuStockForDate(menu))} stok</strong></div>`;}).join("") || `<div class="muted">Belum ada menu yang terhubung dengan akun ini. Hubungi Admin untuk mendaftarkan menu.</div>`}</div>
-    </article><article class="panel">${panelHeader("Aktivitas terbaru", "", `<span class="status success">LIVE</span>`)}
-      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada penjualan produk Anda pada bulan ini.</td></tr>`}</tbody></table></div>
+    </article><article class="panel">${panelHeader("Aktivitas terbaru", formatDate(dateFromKey(jakartaDateKey(new Date())), { day: "numeric", month: "long", year: "numeric" }), `<span class="status success">HARI INI</span>`)}
+      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Produk</th><th>Unit</th><th>Pendapatan bersih</th></tr></thead><tbody>${liveSales.map(row=>`<tr><td>${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}</td><td>${(row.items||[]).map(item=>escapeHtml(item.name)).join(", ")}</td><td>${integer(row.qty)}</td><td><strong>${money(partnerNetAmount(row))}</strong></td></tr>`).join("") || `<tr><td colspan="4" class="table-empty">Belum ada aktivitas penjualan produk Anda hari ini.</td></tr>`}</tbody></table></div>
     </article></section>`;
 }
 function groupPendingStickerRequestsByPartner(requests) {
@@ -5641,15 +5658,11 @@ function renderPartnerStickerPage() {
   const pagination = menus.length > partnerStickerPageSize
     ? `<div class="pagination-row"><span class="helper-text">${integer(menus.length)} menu · halaman ${partnerStickerCurrentPage} dari ${pages} · ${partnerStickerPageSize} menu per halaman</span><div class="page-buttons"><button type="button" data-partner-sticker-page="prev" ${partnerStickerCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-partner-sticker-page="next" ${partnerStickerCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>`
     : "";
-  return `${pageHeading("Cetak stiker", "Pilih menu dan isi jumlah stiker yang ingin dicetak. Superadmin akan mencetak sesuai jumlah yang Anda ajukan.", `<span class="status neutral">30 × 40 mm</span>`)}
+  return `${pageHeading("Cetak stiker", "Ketuk nama menu untuk memasukkan jumlah stiker yang ingin dicetak.", `<span class="status neutral">30 × 40 mm</span>`)}
     <section class="panel">
       ${panelHeader("Daftar menu cetak stiker", `${integer(menus.length)} menu aktif milik Anda`, `<span class="status ${statusClass}">${statusLabel}</span>`)}
       <div class="helper-text" style="margin:-5px 0 13px">${integer(printedCount)} pengajuan sudah dicetak · ${integer(pendingCount)} menunggu dicetak</div>
-      ${menus.length ? `<form id="partner-sticker-form">
-        <div class="table-wrap"><table class="partner-stock-entry-table"><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Jumlah stiker</th></tr></thead><tbody>${visibleMenus.map(menu => `<tr><td><strong>${escapeHtml(menu.name || "Menu")}</strong></td><td>${money(menu.price || 0)}</td><td><input class="partner-stock-qty" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="0" aria-label="Jumlah stiker ${escapeHtml(menu.name || "Menu")}" data-partner-sticker-qty="${escapeHtml(menu.id)}" value="${escapeHtml(partnerStickerQuantities[menu.id] || "")}"></td></tr>`).join("")}</tbody></table></div>
-        ${pagination}
-        <div class="form-actions" style="justify-content:flex-end;margin-top:14px"><button type="submit" class="btn btn-primary">Ajukan cetak stiker</button></div>
-      </form>` : `<div class="table-empty">Belum ada menu aktif yang terhubung dengan akun Mitra ini.</div>`}
+      ${menus.length ? `<div class="partner-action-menu-grid">${visibleMenus.map(menu => `<button type="button" class="partner-action-menu" data-partner-sticker-menu="${escapeHtml(menu.id)}"><span class="partner-action-menu-copy"><strong class="partner-action-menu-name">${escapeHtml(menu.name || "Menu")}</strong><small class="partner-action-menu-meta">${money(menu.price || 0)}</small></span><span class="partner-action-menu-cta">Pilih menu <span aria-hidden="true">›</span></span></button>`).join("")}</div>${pagination}` : `<div class="table-empty">Belum ada menu aktif yang terhubung dengan akun Mitra ini.</div>`}
     </section>`;
 }
 
@@ -5783,9 +5796,8 @@ function attachPageEvents() {
   $("#profile-form")?.addEventListener("submit", saveOwnProfileSubmit);
   $("#create-partner-form")?.addEventListener("submit", createPartnerSubmit);
   initMoneyInputs();
-  $("#stock-request-form")?.addEventListener("submit", stockRequestSubmit);
-  $$('[data-partner-stock-qty]').forEach(input => input.addEventListener("input", () => {
-    partnerStockRequestQuantities[input.dataset.partnerStockQty] = String(input.value || "").trim();
+  $$('[data-partner-stock-menu]').forEach(button => button.addEventListener("click", () => {
+    openPartnerQuantityModal("stock", button.dataset.partnerStockMenu);
   }));
   $$('[data-partner-stock-page]').forEach(button => button.addEventListener("click", () => {
     partnerStockRequestCurrentPage += button.dataset.partnerStockPage === "next" ? 1 : -1;
@@ -5795,9 +5807,8 @@ function attachPageEvents() {
     partnerStockRequestCurrentPage = Number(button.dataset.partnerStockPageNumber);
     renderPage();
   }));
-  $("#partner-sticker-form")?.addEventListener("submit", partnerStickerSubmit);
-  $$('[data-partner-sticker-qty]').forEach(input => input.addEventListener("input", () => {
-    partnerStickerQuantities[input.dataset.partnerStickerQty] = String(input.value || "").trim();
+  $$('[data-partner-sticker-menu]').forEach(button => button.addEventListener("click", () => {
+    openPartnerQuantityModal("sticker", button.dataset.partnerStickerMenu);
   }));
   $$('[data-partner-sticker-page]').forEach(button => button.addEventListener("click", () => {
     partnerStickerCurrentPage += button.dataset.partnerStickerPage === "next" ? 1 : -1;
@@ -6923,21 +6934,13 @@ async function partnerStickerSubmit(event) {
   if (profile?.role !== "partner" || !currentUser?.uid) return toast("Fitur ini hanya tersedia untuk akun Mitra.", "error");
   const form = event.currentTarget;
   const button = form.querySelector('[type="submit"]');
-  form.querySelectorAll("[data-partner-sticker-qty]").forEach(input => {
-    partnerStickerQuantities[input.dataset.partnerStickerQty] = String(input.value || "").trim();
-  });
-  const ownMenus = getPartnerStickerEligibleMenus();
-  const entered = ownMenus.map(menu => {
-    const raw = String(partnerStickerQuantities[menu.id] ?? "").trim();
-    return { menu, raw, copies: raw === "" ? 0 : Number(raw) };
-  }).filter(row => row.raw !== "");
-  const invalid = entered.find(row => !Number.isInteger(row.copies) || row.copies < 0 || row.copies > 500);
-  if (invalid) return toast(`Jumlah stiker ${invalid.menu.name} harus berupa angka bulat 0–500.`, "error");
-  const selected = entered.filter(row => row.copies > 0);
-  if (!selected.length) return toast("Masukkan jumlah lebih dari 0 pada minimal satu menu terlebih dahulu.", "error");
+  const menuId = String(form.dataset.menuId || "");
+  const copies = Number(form.elements.qty?.value);
+  const selectedMenu = getPartnerStickerEligibleMenus().find(item => item.id === menuId);
+  if (!selectedMenu) return toast("Menu tidak ditemukan atau bukan milik akun Mitra Anda.", "error");
+  if (!Number.isInteger(copies) || copies < 1 || copies > 500) return toast("Jumlah stiker harus berupa angka bulat 1–500.", "error");
 
   setBusy(button, true, "Mengirim pengajuan...");
-  let createdCount = 0;
   try {
     const liveProfileSnap = await getDocFromServer(doc(db, "users", currentUser.uid));
     if (!liveProfileSnap.exists()) throw new Error("Profil Mitra tidak ditemukan.");
@@ -6946,64 +6949,43 @@ async function partnerStickerSubmit(event) {
       throw new Error("Profil akun harus aktif dan memiliki role Mitra serta partnerId yang valid.");
     }
 
-    const liveMenus = await Promise.all(selected.map(async row => {
-      const menuSnap = await getDocFromServer(doc(db, "menus", row.menu.id));
-      if (!menuSnap.exists()) throw new Error(`Menu ${row.menu.name} tidak ditemukan.`);
-      const menu = { id: menuSnap.id, ...menuSnap.data() };
-      if (menu.partnerId !== liveProfile.partnerId) throw new Error(`Menu ${row.menu.name} bukan milik akun Mitra Anda. Pengajuan dibatalkan.`);
-      if (menu.active === false || menu.deleted === true) throw new Error(`Menu ${row.menu.name} tidak aktif dan tidak dapat diajukan untuk cetak stiker.`);
-      const price = Number(menu.price || 0);
-      const menuName = String(menu.name || "").trim();
-      if (!menuName || !Number.isSafeInteger(price) || price < 0) throw new Error(`Data nama atau harga menu ${row.menu.name} tidak valid. Hubungi Admin.`);
-      return {
-        menuId: menu.id,
-        menuName,
-        price,
-        barcode: String(menu.barcode || ""),
-        copies: row.copies,
-        sourceMenuId: row.menu.id
-      };
-    }));
+    const menuSnap = await getDocFromServer(doc(db, "menus", selectedMenu.id));
+    if (!menuSnap.exists()) throw new Error(`Menu ${selectedMenu.name} tidak ditemukan.`);
+    const menu = { id: menuSnap.id, ...menuSnap.data() };
+    if (menu.partnerId !== liveProfile.partnerId) throw new Error(`Menu ${selectedMenu.name} bukan milik akun Mitra Anda. Pengajuan dibatalkan.`);
+    if (menu.active === false || menu.deleted === true) throw new Error(`Menu ${selectedMenu.name} tidak aktif dan tidak dapat diajukan untuk cetak stiker.`);
+    const price = Number(menu.price || 0);
+    const menuName = String(menu.name || "").trim();
+    if (!menuName || !Number.isSafeInteger(price) || price < 0) throw new Error(`Data nama atau harga menu ${selectedMenu.name} tidak valid. Hubungi Admin.`);
 
     const partnerName = String(liveProfile.partnerName || profile.partnerName || profile.displayName || "Mitra");
     const requestedByName = String(liveProfile.displayName || profile.displayName || "Mitra");
-    for (let offset = 0; offset < liveMenus.length; offset += 450) {
-      const chunk = liveMenus.slice(offset, offset + 450);
-      const batch = writeBatch(db);
-      chunk.forEach(row => {
-        const requestRef = doc(collection(db, "labelPrintRequests"));
-        batch.set(requestRef, {
-          partnerId: liveProfile.partnerId,
-          partnerName,
-          requestedBy: currentUser.uid,
-          requestedByName,
-          menuId: row.menuId,
-          menuName: row.menuName,
-          price: row.price,
-          barcode: row.barcode,
-          copies: row.copies,
-          status: "pending",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      });
-      await batch.commit();
-      createdCount += chunk.length;
-      chunk.forEach(row => { delete partnerStickerQuantities[row.sourceMenuId]; });
-    }
+    const requestRef = doc(collection(db, "labelPrintRequests"));
+    const batch = writeBatch(db);
+    batch.set(requestRef, {
+      partnerId: liveProfile.partnerId,
+      partnerName,
+      requestedBy: currentUser.uid,
+      requestedByName,
+      menuId: menu.id,
+      menuName,
+      price,
+      barcode: String(menu.barcode || ""),
+      copies,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await batch.commit();
 
-    const totalCopies = selected.reduce((sum, row) => sum + row.copies, 0);
-    toast(`${integer(createdCount)} menu berhasil diajukan dengan total ${integer(totalCopies)} stiker.`, "success");
+    toast(`${integer(copies)} stiker untuk ${menuName} berhasil diajukan.`, "success");
+    closePartnerQuantityModal();
+    renderPage();
   } catch (error) {
     console.error("Pengajuan cetak stiker gagal:", error);
-    if (createdCount > 0) {
-      toast(`${integer(createdCount)} menu berhasil diajukan sebelum terjadi kendala. Jumlah menu yang belum terkirim tetap tersimpan. ${friendlyError(error)}`, "error");
-    } else {
-      toast(friendlyError(error), "error");
-    }
+    toast(friendlyError(error), "error");
   } finally {
     setBusy(button, false);
-    if (createdCount > 0) renderPage();
   }
 }
 
@@ -7254,58 +7236,64 @@ function printMenuLabels(menuOrItems, copies = 1, options = {}) {
   safetyTimer = setTimeout(() => cleanup(false), 15 * 60 * 1000);
 }
 
+function closePartnerQuantityModal() {
+  const root = $("#modal-root");
+  if (root) root.innerHTML = "";
+}
+
+function openPartnerQuantityModal(kind, menuId) {
+  if (profile?.role !== "partner" || !profile.partnerId) return toast("Fitur ini hanya tersedia untuk akun Mitra.", "error");
+  const menu = store.menus.find(item => item.id === String(menuId)
+    && item.partnerId === profile.partnerId && item.active !== false && item.deleted !== true);
+  if (!menu) return toast("Menu tidak ditemukan atau bukan milik akun Mitra Anda.", "error");
+  const isSticker = kind === "sticker";
+  const max = isSticker ? 500 : 100000;
+  const title = isSticker ? "Ajukan cetak stiker" : "Ajukan stok masuk";
+  const label = isSticker ? "Jumlah stiker yang ingin dicetak" : "Jumlah stok yang ingin diajukan";
+  const submitLabel = isSticker ? "Ajukan cetak stiker" : "Kirim pengajuan stok";
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="modal-backdrop partner-quantity-backdrop" data-partner-quantity-backdrop><section class="modal partner-quantity-modal" role="dialog" aria-modal="true" aria-labelledby="partner-quantity-title"><div class="modal-head"><div><h2 id="partner-quantity-title">${title}</h2><p>Pastikan nama menu yang dipilih sudah benar.</p></div><button type="button" class="modal-close" data-partner-quantity-close aria-label="Tutup">×</button></div><div class="partner-quantity-menu-confirm"><small>Menu yang dipilih</small><strong>${escapeHtml(menu.name || "Menu")}</strong><span>${money(menu.price || 0)}</span></div><form id="partner-quantity-form" data-menu-id="${escapeHtml(menu.id)}" data-kind="${isSticker ? "sticker" : "stock"}"><div class="form-field"><label for="partner-quantity-input">${label}</label><input id="partner-quantity-input" name="qty" type="number" min="1" max="${max}" step="1" inputmode="numeric" placeholder="Masukkan jumlah" required></div><div class="form-actions"><button type="button" class="btn btn-light" data-partner-quantity-close>Batal</button><button type="submit" class="btn btn-primary">${submitLabel}</button></div></form></section></div>`;
+  root.querySelectorAll("[data-partner-quantity-close]").forEach(button => button.addEventListener("click", closePartnerQuantityModal));
+  root.querySelector("[data-partner-quantity-backdrop]")?.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closePartnerQuantityModal();
+  });
+  root.querySelector("#partner-quantity-form")?.addEventListener("submit", isSticker ? partnerStickerSubmit : stockRequestSubmit);
+  requestAnimationFrame(() => root.querySelector("#partner-quantity-input")?.focus());
+}
+
 async function stockRequestSubmit(event) {
   event.preventDefault();
+  if (profile?.role !== "partner" || !profile.partnerId) return toast("Fitur ini hanya tersedia untuk akun Mitra.", "error");
   const form = event.currentTarget;
-  const button = form.querySelector("button[type=submit]");
-  form.querySelectorAll("[data-partner-stock-qty]").forEach(input => {
-    partnerStockRequestQuantities[input.dataset.partnerStockQty] = String(input.value || "").trim();
-  });
-  const ownMenus = store.menus.filter(menu => menu.partnerId === profile.partnerId && menu.active !== false && menu.deleted !== true);
-  const entered = ownMenus.map(menu => {
-    const raw = String(partnerStockRequestQuantities[menu.id] ?? "").trim();
-    return { menu, raw, qty: raw === "" ? 0 : Number(raw) };
-  }).filter(row => row.raw !== "");
-  const invalid = entered.find(row => !Number.isInteger(row.qty) || row.qty < 0 || row.qty > 100000);
-  if (invalid) return toast(`Jumlah ${invalid.menu.name} harus berupa angka bulat 0–100.000.`, "error");
-  const selected = entered.filter(row => row.qty > 0);
-  if (!selected.length) return toast("Masukkan jumlah lebih dari 0 pada minimal satu menu terlebih dahulu.", "error");
+  const button = form.querySelector('[type="submit"]');
+  const menuId = String(form.dataset.menuId || "");
+  const qty = Number(form.elements.qty?.value);
+  const menu = store.menus.find(item => item.id === menuId && item.partnerId === profile.partnerId && item.active !== false && item.deleted !== true);
+  if (!menu) return toast("Menu tidak ditemukan atau bukan milik akun Mitra Anda.", "error");
+  if (!Number.isInteger(qty) || qty < 1 || qty > 100000) return toast("Jumlah stok harus berupa angka bulat 1–100.000.", "error");
 
   setBusy(button, true, "Mengirim pengajuan...");
-  const successes = [];
-  const failures = [];
   try {
-    for (const row of selected) {
-      try {
-        const result = await callApi("createStockRequest", { menuId: row.menu.id, qty: row.qty });
-        successes.push({ ...row, result });
-        delete partnerStockRequestQuantities[row.menu.id];
-      } catch (error) {
-        failures.push({ name: row.menu.name, message: friendlyError(error) });
-      }
+    await callApi("createStockRequest", { menuId: menu.id, qty });
+    const todayKey = jakartaDateKey(new Date());
+    if (stockDailyDateKey !== todayKey) {
+      stockDailyDateKey = todayKey;
+      stockDailyCurrentPage = 1;
+      stockDailySearchQuery = "";
+      requestCurrentPage = 1;
+      requestSearchQuery = "";
+      subscribeStockDailyDate(todayKey);
     }
-    if (successes.length) {
-      const todayKey = jakartaDateKey(new Date());
-      if (stockDailyDateKey !== todayKey) {
-        stockDailyDateKey = todayKey;
-        stockDailyCurrentPage = 1;
-        stockDailySearchQuery = "";
-        requestCurrentPage = 1;
-        requestSearchQuery = "";
-        subscribeStockDailyDate(todayKey);
-      }
-    }
-    if (failures.length) {
-      const failureSummary = failures.slice(0, 3).map(item => `${item.name}: ${item.message}`).join("; ");
-      toast(`${successes.length} menu berhasil diajukan, ${failures.length} menu gagal. Jumlah yang gagal tetap tersimpan agar bisa dicoba lagi. ${failureSummary}${failures.length > 3 ? "; dan lainnya" : ""}`, "error");
-    } else {
-      toast(`${successes.length} menu berhasil diajukan ke tim KALAP.`, "success");
-    }
+    toast(`${integer(qty)} unit ${menu.name} berhasil diajukan ke tim KALAP.`, "success");
+    closePartnerQuantityModal();
     renderPage();
+  } catch (error) {
+    toast(friendlyError(error), "error");
   } finally {
     setBusy(button, false);
   }
 }
+
 async function acceptStockRequest(requestId, button) {
   const request = store.stockRequests.find(item => item.id === requestId);
   if (!request || (!["pending", "revised"].includes(request.status)
@@ -7734,12 +7722,8 @@ function renderStockRequestForm() {
     : [...new Set([1, Math.max(2, partnerStockRequestCurrentPage - 1), partnerStockRequestCurrentPage, Math.min(pages - 1, partnerStockRequestCurrentPage + 1), pages])].sort((a, b) => a - b);
   const numberedButtons = pageNumbers.map((page, index) => `${index && page - pageNumbers[index - 1] > 1 ? '<span class="page-ellipsis">…</span>' : ""}<button type="button" class="${page === partnerStockRequestCurrentPage ? "active-page" : ""}" data-partner-stock-page-number="${page}" aria-current="${page === partnerStockRequestCurrentPage ? "page" : "false"}">${page}</button>`).join("");
   const pagination = ownMenus.length > partnerStockRequestPageSize ? `<div class="pagination-row"><span class="helper-text">${integer(ownMenus.length)} menu · halaman ${partnerStockRequestCurrentPage} dari ${pages} · ${partnerStockRequestPageSize} menu per halaman</span><div class="page-buttons"><button type="button" data-partner-stock-page="prev" ${partnerStockRequestCurrentPage <= 1 ? "disabled" : ""} aria-label="Sebelumnya" title="Sebelumnya">‹</button>${numberedButtons}<button type="button" data-partner-stock-page="next" ${partnerStockRequestCurrentPage >= pages ? "disabled" : ""} aria-label="Berikutnya" title="Berikutnya">›</button></div></div>` : "";
-  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Pilih jumlah titipan pada menu yang akan masuk hari ini.")}
-    <form id="stock-request-form">
-      <div class="table-wrap"><table class="partner-stock-entry-table"><thead><tr><th>Nama menu</th><th>Harga jual</th><th>Jumlah titipan</th></tr></thead><tbody>${visibleMenus.map(menu => `<tr><td><strong>${escapeHtml(menu.name)}</strong></td><td>${money(menu.price)}</td><td><input class="partner-stock-qty" type="number" min="0" max="100000" step="1" inputmode="numeric" placeholder="0" aria-label="Jumlah titipan ${escapeHtml(menu.name)}" data-partner-stock-qty="${escapeHtml(menu.id)}" value="${escapeHtml(partnerStockRequestQuantities[menu.id] || "")}"></td></tr>`).join("") || `<tr><td colspan="3" class="table-empty">Belum ada menu aktif yang terdaftar untuk akun ini.</td></tr>`}</tbody></table></div>
-      ${pagination}
-      <div class="form-actions" style="justify-content:flex-end;margin-top:14px"><button type="submit" class="btn btn-primary" ${ownMenus.length ? "" : "disabled"}>Kirim pengajuan stok</button></div>
-    </form>
+  return `<section class="panel" style="margin-bottom:15px">${panelHeader("Ajukan stok", "Ketuk nama menu untuk memasukkan jumlah stok yang ingin diajukan.")}
+    ${ownMenus.length ? `<div class="partner-action-menu-grid">${visibleMenus.map(menu => `<button type="button" class="partner-action-menu" data-partner-stock-menu="${escapeHtml(menu.id)}"><span class="partner-action-menu-copy"><strong class="partner-action-menu-name">${escapeHtml(menu.name || "Menu")}</strong><small class="partner-action-menu-meta">${money(menu.price || 0)}</small></span><span class="partner-action-menu-cta">Pilih menu <span aria-hidden="true">›</span></span></button>`).join("")}</div>${pagination}` : `<div class="table-empty">Belum ada menu aktif yang terdaftar untuk akun ini.</div>`}
   </section>`;
 }
 
@@ -7775,7 +7759,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.23", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.24", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
