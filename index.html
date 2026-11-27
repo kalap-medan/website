@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="KALAP">
   <link rel="icon" type="image/svg+xml" href="./icons/kalap-icon.svg">
   <link rel="apple-touch-icon" href="./icons/kalap-192.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=2.2.22">
+  <link rel="manifest" href="./manifest.webmanifest?v=2.2.23">
   <meta name="description" content="Sistem operasional KALAP — dashboard, kasir, stok, mitra, dan keuangan.">
-  <meta name="application-version" content="2.2.22">
-  <title>KALAP Management System v2.2.22</title>
+  <meta name="application-version" content="2.2.23">
+  <title>KALAP Management System v2.2.23</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1198,7 +1198,7 @@ html[data-orientation="landscape"] .login-screen { min-height: 100dvh; }
       <nav id="side-nav" class="side-nav" aria-label="Navigasi utama"></nav>
       <div class="sidebar-bottom">
         <div class="sidebar-help"><span class="help-icon">?</span><div><strong>Butuh bantuan?</strong><small>Hubungi Admin</small><a class="sidebar-help-phone" href="tel:087877297446" aria-label="Telepon Admin 087877297446">087877297446</a></div></div>
-        <div class="sidebar-version">KALAP System <span>v2.2.22</span></div>
+        <div class="sidebar-version">KALAP System <span>v2.2.23</span></div>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
@@ -1348,6 +1348,11 @@ const posPageSize = 12;
 let cart = new Map();
 let chartInstances = [];
 let unsubscribers = [];
+let pageScopedUnsubscribers = [];
+let pageSubscriptionKey = "";
+let menusLoaded = false;
+let pendingStockRequestsLoaded = false;
+let pendingLabelPrintRequestsLoaded = false;
 let monthUnsubscribers = [];
 let dashboardUnsubscribers = [];
 let dashboardTodayUnsubscribers = [];
@@ -1357,7 +1362,7 @@ let store = {
   menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [],
   dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
   dashboardTodayTransactions: [], dashboardTodayMovements: [], financeTransactions: [], financeCashflows: [], financeMovements: [],
-  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], labelPrintRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
+  transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], pendingStockRequests: [], labelPrintRequests: [], pendingLabelPrintRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [],
   dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null
 };
 let stockDailyUnsubscriber = null;
@@ -1478,8 +1483,10 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
     const businessDateMovementsQuery = query(collection(db, "stockMovements"),
       where("businessDate", "==", dateKey), limit(10000));
     rolloverPhase = "membaca catatan pergerakan stok";
-    const [menusSnap, movementSnaps] = await Promise.all([
-      getDocsFromServer(menusQuery),
+    const [menuDocs, movementSnaps] = await Promise.all([
+      menusLoaded
+        ? Promise.resolve(store.menus.map(menu => ({ id: menu.id, data: () => menu, ref: doc(db, "menus", menu.id) })))
+        : getDocsFromServer(menusQuery).then(snap => snap.docs),
       Promise.all([getDocsFromServer(todayMovementsQuery), getDocsFromServer(businessDateMovementsQuery)])
     ]);
     // Gabungkan catatan yang dibuat hari ini dan stok yang dijadwalkan sebelumnya untuk tanggal bisnis yang sama.
@@ -1498,7 +1505,7 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
     }
     const updates = [];
     let reset = 0, currentDayStock = 0;
-    for (const snap of menusSnap.docs) {
+    for (const snap of menuDocs) {
       const menu = snap.data();
       if (!isPartnerStockMenu(menu)) continue;
       const oldStock = Math.max(0, Number(menu.stock || 0));
@@ -1533,16 +1540,21 @@ async function rolloverPartnerStocksForDate(dateKey = jakartaDateKey(new Date())
 
 // Pengajuan dari tanggal sebelumnya tidak lagi menjadi notifikasi atau mengunci menu baru.
 // Catatannya tetap tersimpan dan dapat dilihat saat tanggal historis dipilih.
-async function expireStaleStockRequestsForDate(dateKey = jakartaDateKey(new Date())) {
+async function expireStaleStockRequestsForDate(dateKey = jakartaDateKey(new Date()), candidates = null) {
   if (!db || !profile || !["superadmin", "spv"].includes(profile.role)) return 0;
   if (stockRequestExpiryDayKey === dateKey) return 0;
   if (stockRequestExpiryPromise) return stockRequestExpiryPromise;
   stockRequestExpiryPromise = (async () => {
-    const requestSnap = await getDocsFromServer(query(
-      collection(db, "stockRequests"), orderBy("createdAt", "desc"), limit(10000)
-    ));
-    const stale = requestSnap.docs.filter(item => {
-      const row = item.data();
+    let activeRows = Array.isArray(candidates) ? candidates : null;
+    if (!activeRows && pendingStockRequestsLoaded) activeRows = store.pendingStockRequests;
+    if (!activeRows) {
+      // Fallback is restricted to open requests; do not scan the full history.
+      const activeSnap = await getDocsFromServer(query(
+        collection(db, "stockRequests"), where("status", "in", ["pending", "revised"]), limit(2000)
+      ));
+      activeRows = activeSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+    }
+    const stale = activeRows.filter(row => {
       return ["pending", "revised"].includes(String(row.status || "pending").toLowerCase())
         && String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) < dateKey;
     });
@@ -3780,7 +3792,11 @@ async function callApi(name, payload = {}) {
 function safeUnsubscribe(list) { list.forEach(unsub => { try { unsub(); } catch (_) {} }); list.length = 0; }
 function resetStore() {
   store = { menus: [], partners: [], users: [], transactions: [], cashflows: [], movements: [], dashboardTransactions: [], dashboardCashflows: [], dashboardMovements: [],
-  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeTransactions: [], financeCashflows: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null };
+  dashboardTodayTransactions: [], dashboardTodayMovements: [], financeTransactions: [], financeCashflows: [], financeMovements: [], transferSales: [], partnerPayouts: [], partnerSales: [], stockRequests: [], pendingStockRequests: [], labelPrintRequests: [], pendingLabelPrintRequests: [], dailyStockMovements: [], partnerManagementTodayMovements: [], dailyClosings: [], closingSummaries: [], partnerDailySummary: null, todayClosing: null };
+  menusLoaded = false;
+  pendingStockRequestsLoaded = false;
+  pendingLabelPrintRequestsLoaded = false;
+  pageSubscriptionKey = "";
 }
 
 async function startApp() {
@@ -3838,6 +3854,7 @@ async function startApp() {
       currentUser = null;
       profile = null;
       safeUnsubscribe(unsubscribers);
+      stopPageSubscriptions();
       safeUnsubscribe(monthUnsubscribers);
       safeUnsubscribe(dashboardUnsubscribers);
       safeUnsubscribe(dashboardTodayUnsubscribers);
@@ -3938,31 +3955,201 @@ function subscribeClosingSummaries(dateKey = selectedClosingDateKey) {
   }, onDataError);
 }
 
-function startSubscriptions() {
-  safeUnsubscribe(unsubscribers);
-  if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
-  if (partnerManagementTodayUnsubscriber) { try { partnerManagementTodayUnsubscriber(); } catch (_) {} partnerManagementTodayUnsubscriber = null; }
-  store.partnerManagementTodayMovements = [];
+function stopPageSubscriptions() {
+  safeUnsubscribe(pageScopedUnsubscribers);
+  safeUnsubscribe(monthUnsubscribers);
   safeUnsubscribe(dashboardUnsubscribers);
   safeUnsubscribe(dashboardTodayUnsubscribers);
   safeUnsubscribe(transferUnsubscribers);
   safeUnsubscribe(financeUnsubscribers);
+  // These named bindings are module-local; explicitly clear them as well.
+  if (stockDailyUnsubscriber) { try { stockDailyUnsubscriber(); } catch (_) {} stockDailyUnsubscriber = null; }
+  if (partnerManagementTodayUnsubscriber) { try { partnerManagementTodayUnsubscriber(); } catch (_) {} partnerManagementTodayUnsubscriber = null; }
   if (closingSummariesUnsubscriber) { try { closingSummariesUnsubscriber(); } catch (_) {} closingSummariesUnsubscriber = null; }
   if (partnerClosingUnsubscriber) { try { partnerClosingUnsubscriber(); } catch (_) {} partnerClosingUnsubscriber = null; }
-  store.labelPrintRequests = [];
-  updateLabelPrintNavBadge();
-  const role = profile.role;
-  const todayKey = jakartaDateKey(new Date());
-  subscribeTodayClosing(todayKey);
-  if (["superadmin", "spv"].includes(role)) {
-    rolloverPartnerStocksForDate(todayKey).catch(error => console.warn("Reset stok mitra harian gagal:", error));
-    expireStaleStockRequestsForDate(todayKey).catch(error => console.warn("Pembaruan pengajuan kedaluwarsa gagal:", error));
+  if (todayClosingUnsubscriber) { try { todayClosingUnsubscriber(); } catch (_) {} todayClosingUnsubscriber = null; }
+  menusLoaded = false;
+  store.dailyStockMovements = [];
+  store.partnerManagementTodayMovements = [];
+  store.closingSummaries = [];
+  store.partnerDailySummary = null;
+  store.todayClosing = null;
+  pageSubscriptionKey = "";
+}
+
+function subscribeMenuCatalog() {
+  if (profile?.role === "partner" && !profile.partnerId) return;
+  const menuQuery = profile.role === "partner"
+    ? query(collection(db, "menus"), where("partnerId", "==", profile.partnerId), limit(1000))
+    : query(collection(db, "menus"), orderBy("name", "asc"), limit(3000));
+  pageScopedUnsubscribers.push(onSnapshot(menuQuery, snap => {
+    store.menus = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    menusLoaded = true;
+    if (cart.size) reconcileCart();
+    if (profile?.role === "superadmin" && activePage === "stock") {
+      reconcileLegacyDeletedMenus(store.menus).catch(error => console.error("Rekonsiliasi menu lama gagal:", error));
+    }
+    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "partnerSales", "partnerSticker", "labels", "requests"].includes(activePage)) renderPage();
+  }, onDataError));
+}
+
+function subscribePartnerDirectory() {
+  if (!["superadmin", "spv"].includes(profile?.role)) return;
+  pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "partners"), orderBy("name", "asc"), limit(2000)), snap => {
+    store.partners = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    if (profile?.role === "superadmin" && activePage === "partners") {
+      reconcileLegacyDeletedPartners(store.partners).catch(error => console.error("Rekonsiliasi mitra lama gagal:", error));
+    }
+    renderIfPage("partners", "accounts", "stock", "newMenu", "labels", "requests", "partnerTransfers");
+  }, onDataError));
+}
+
+function subscribeStockRequestsForPage() {
+  if (["superadmin", "spv"].includes(profile?.role)) {
+    pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "stockRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
+      store.stockRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      updateRequestNavBadge();
+      renderIfPage("requests", "dashboard");
+    }, onDataError));
+  } else if (profile?.role === "partner" && profile.partnerId) {
+    pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "stockRequests"), where("partnerId", "==", profile.partnerId), limit(1000)), snap => {
+      store.stockRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
+      renderIfPage("requests", "partnerHome", "partnerSales");
+    }, onDataError));
   }
+}
+
+function subscribeLabelRequestsForPage() {
+  if (profile?.role === "superadmin") {
+    pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "labelPrintRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
+      store.labelPrintRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      store.pendingLabelPrintRequests = store.labelPrintRequests.filter(row => row.status === "pending");
+      pendingLabelPrintRequestsLoaded = true;
+      updateLabelPrintNavBadge();
+      renderIfPage("labels");
+    }, onDataError));
+  } else if (profile?.role === "partner" && profile.partnerId) {
+    pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "labelPrintRequests"), where("partnerId", "==", profile.partnerId), limit(1000)), snap => {
+      store.labelPrintRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
+      renderIfPage("partnerSticker");
+    }, onDataError));
+  }
+}
+
+function subscribeUsersForPage() {
+  if (profile?.role !== "superadmin") return;
+  pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(2000)), snap => {
+    store.users = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    reconcileOrphanPartnerUsers(store.users).catch(error => console.error("Rekonsiliasi profil Mitra yatim gagal:", error));
+    renderIfPage("accounts");
+  }, onDataError));
+}
+
+function subscribeDailyClosingHistory() {
+  if (!["superadmin", "spv"].includes(profile?.role)) return;
+  pageScopedUnsubscribers.push(onSnapshot(query(collection(db, "dailyClosings"), orderBy("closedAt", "desc"), limit(120)), snap => {
+    store.dailyClosings = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    const nextDateKey = store.dailyClosings.some(item => item.id === selectedClosingDateKey)
+      ? selectedClosingDateKey
+      : store.dailyClosings[0]?.id || jakartaDateKey(new Date());
+    if (!closingSummariesUnsubscriber || nextDateKey !== selectedClosingDateKey) {
+      selectedClosingDateKey = nextDateKey;
+      subscribeClosingSummaries(selectedClosingDateKey);
+    }
+    renderIfPage("closing", "dashboard");
+  }, onDataError));
+}
+
+function startPageSubscriptions(page) {
+  if (!profile || pageSubscriptionKey === page) return;
+  pageSubscriptionKey = page;
+  const role = profile.role;
+  const staff = ["superadmin", "spv"].includes(role);
+  const needsMenus = ["pos", "stock", "newMenu", "partners", "requests", "labels", "partnerHome", "partnerMenu", "partnerSales", "partnerSticker"].includes(page);
+  const needsPartners = ["stock", "newMenu", "partners", "requests", "labels", "partnerTransfers"].includes(page);
+  if (needsMenus) subscribeMenuCatalog();
+  if (needsPartners) subscribePartnerDirectory();
+
+  switch (page) {
+    case "dashboard":
+      if (staff) subscribeDashboardRange(dashboardFrom, dashboardTo);
+      break;
+    case "pos":
+      subscribeTodayClosing(jakartaDateKey(new Date()));
+      break;
+    case "transactions":
+      subscribeMonthData(monthKey);
+      break;
+    case "stock":
+      if (staff) {
+        subscribeTodayClosing(jakartaDateKey(new Date()));
+        subscribeStockDailyDate(stockDailyDateKey);
+      }
+      break;
+    case "newMenu":
+      break;
+    case "closing":
+      if (staff) subscribeDailyClosingHistory();
+      break;
+    case "partners":
+      if (role === "superadmin") subscribePartnerManagementTodayMovements(jakartaDateKey(new Date()));
+      break;
+    case "accounts":
+      subscribeUsersForPage();
+      break;
+    case "finance":
+      if (role === "superadmin") subscribeFinanceRange(financeFromDate, financeToDate);
+      break;
+    case "requests":
+      subscribeStockRequestsForPage();
+      if (staff) {
+        subscribeTodayClosing(jakartaDateKey(new Date()));
+        subscribeStockDailyDate(stockDailyDateKey);
+        if (pendingStockRequestsLoaded) {
+          expireStaleStockRequestsForDate(jakartaDateKey(new Date()), store.pendingStockRequests)
+            .catch(error => console.warn("Pembaruan pengajuan kedaluwarsa gagal:", error));
+        }
+      } else if (role === "partner") subscribeStockDailyDate(stockDailyDateKey);
+      break;
+    case "labels":
+    case "partnerSticker":
+      subscribeLabelRequestsForPage();
+      break;
+    case "partnerTransfers":
+      if (role === "superadmin") subscribePartnerTransferDate(partnerTransferDate);
+      break;
+    case "partnerHome":
+      if (role === "partner") {
+        subscribeMonthData(monthKey);
+        subscribePartnerDailySummary(jakartaDateKey(new Date()));
+      }
+      break;
+    case "partnerSales":
+      if (role === "partner") {
+        subscribeMonthData(monthKey);
+        subscribeStockDailyDate(stockDailyDateKey);
+        subscribeStockRequestsForPage();
+      }
+      break;
+    case "partnerMenu":
+      break;
+  }
+}
+
+function startSubscriptions() {
+  stopPageSubscriptions();
+  safeUnsubscribe(unsubscribers);
+  store.pendingStockRequests = [];
+  store.pendingLabelPrintRequests = [];
+  pendingStockRequestsLoaded = false;
+  pendingLabelPrintRequestsLoaded = false;
+  const role = profile.role;
   if (role === "partner" && !profile.partnerId) {
     store.menus = []; store.stockRequests = []; store.partnerSales = [];
     toast("Akun Mitra belum terhubung dengan data mitra. Minta Admin memeriksa akun ini.", "error");
     return;
   }
+
   const ownProfileRef = doc(db, "users", profile.uid);
   unsubscribers.push(onSnapshot(ownProfileRef, snap => {
     if (!snap.exists() || snap.data().active !== true) { signOut(auth); return; }
@@ -3973,76 +4160,28 @@ function startSubscriptions() {
     if (activePage === "profile") renderPage();
   }, onDataError));
 
-  // Mitra hanya meminta daftar menu milik partnerId sendiri. Filter aktif dilakukan lokal.
-  // Query satu-field ini tidak membutuhkan composite index.
-  const menuQuery = role === "partner"
-    ? query(collection(db, "menus"), where("partnerId", "==", profile.partnerId), limit(1000))
-    : query(collection(db, "menus"), orderBy("name", "asc"), limit(3000));
-  unsubscribers.push(onSnapshot(menuQuery, snap => {
-    store.menus = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-    if (cart.size) reconcileCart();
-    if (["dashboard", "pos", "stock", "newMenu", "partnerMenu", "partnerHome", "partnerSales", "partnerSticker", "labels", "requests"].includes(activePage)) renderPage();
-    reconcileLegacyDeletedMenus(store.menus).catch(error => console.error("Rekonsiliasi menu lama gagal:", error));
-  }, onDataError));
-
+  // Keep only compact active queues alive for navigation badges. Full histories
+  // are fetched only when the corresponding page is opened.
   if (["superadmin", "spv"].includes(role)) {
-    unsubscribers.push(onSnapshot(query(collection(db, "partners"), orderBy("name", "asc"), limit(2000)), snap => {
-      store.partners = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-      renderIfPage("partners", "accounts", "stock", "newMenu", "labels", "requests");
-      reconcileLegacyDeletedPartners(store.partners).catch(error => console.error("Rekonsiliasi mitra lama gagal:", error));
-    }, onDataError));
-    unsubscribers.push(onSnapshot(query(collection(db, "stockRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
-      store.stockRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    unsubscribers.push(onSnapshot(query(collection(db, "stockRequests"), where("status", "in", ["pending", "revised"]), limit(2000)), snap => {
+      store.pendingStockRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      pendingStockRequestsLoaded = true;
       updateRequestNavBadge();
-      renderIfPage("requests", "dashboard");
-    }, onDataError));
-    unsubscribers.push(onSnapshot(query(collection(db, "dailyClosings"), orderBy("closedAt", "desc"), limit(120)), snap => {
-      store.dailyClosings = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-      if (!store.dailyClosings.some(item => item.id === selectedClosingDateKey)) {
-        selectedClosingDateKey = store.dailyClosings[0]?.id || jakartaDateKey(new Date());
-        subscribeClosingSummaries(selectedClosingDateKey);
+      renderIfPage("dashboard", "requests");
+      if (activePage === "requests") {
+        expireStaleStockRequestsForDate(jakartaDateKey(new Date()), store.pendingStockRequests)
+          .catch(error => console.warn("Pembaruan pengajuan kedaluwarsa gagal:", error));
       }
-      renderIfPage("closing", "dashboard");
     }, onDataError));
-    subscribeClosingSummaries(selectedClosingDateKey);
   }
-
   if (role === "superadmin") {
-    unsubscribers.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(2000)), snap => {
-      store.users = snap.docs.map(item => ({ id: item.id, ...item.data() }));
-      renderIfPage("accounts");
-      reconcileOrphanPartnerUsers(store.users).catch(error => console.error("Rekonsiliasi profil Mitra yatim gagal:", error));
-    }, onDataError));
-    unsubscribers.push(onSnapshot(query(collection(db, "labelPrintRequests"), orderBy("createdAt", "desc"), limit(1000)), snap => {
-      store.labelPrintRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    unsubscribers.push(onSnapshot(query(collection(db, "labelPrintRequests"), where("status", "==", "pending"), limit(1000)), snap => {
+      store.pendingLabelPrintRequests = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+      pendingLabelPrintRequestsLoaded = true;
       updateLabelPrintNavBadge();
-      renderIfPage("labels");
     }, onDataError));
   }
-
-  if (role === "partner") {
-    // Tidak ada lagi query productSubmissions: produk didaftarkan oleh Admin/SPV.
-    // Riwayat permintaan hanya difilter berdasarkan partnerId; pengurutan dilakukan lokal.
-    const requestQuery = query(collection(db, "stockRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
-    unsubscribers.push(onSnapshot(requestQuery, snap => {
-      store.stockRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-      renderIfPage("requests", "partnerHome", "partnerSales");
-    }, onDataError));
-    const stickerRequestQuery = query(collection(db, "labelPrintRequests"), where("partnerId", "==", profile.partnerId), limit(1000));
-    unsubscribers.push(onSnapshot(stickerRequestQuery, snap => {
-      store.labelPrintRequests = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-      renderIfPage("partnerSticker");
-    }, onDataError));
-    subscribePartnerDailySummary(jakartaDateKey(new Date()));
-  }
-
-  subscribeMonthData(monthKey);
-  subscribeStockDailyDate(stockDailyDateKey);
-  if (role === "superadmin") {
-    subscribePartnerManagementTodayMovements(jakartaDateKey(new Date()));
-    subscribeDashboardRange(dashboardFrom, dashboardTo);
-    subscribeDashboardToday(dashboardDateKey);
-  } else if (role === "spv") subscribeDashboardRange(dashboardFrom, dashboardTo);
+  startPageSubscriptions(activePage);
 }
 
 function subscribeMergedDocumentQueries(queries, onRows) {
@@ -4141,17 +4280,6 @@ function subscribeMonthData(key) {
     renderPage();
   }, onDataError));
 
-  // Log stok harian memakai listener tanggal tersendiri agar dapat membuka hari/bulan lampau.
-
-  if (["superadmin", "spv"].includes(profile.role)) {
-    const cashQuery = profile.role === "spv"
-      ? query(collection(db, "cashflows"), where("source", "in", ["operational", "operational_sale"]), limit(4000))
-      : query(collection(db, "cashflows"), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), orderBy("createdAt", "desc"), limit(2500));
-    monthUnsubscribers.push(onSnapshot(cashQuery, snap => {
-      store.cashflows = sortNewest(snap.docs.map(item => ({ id: item.id, ...item.data() })));
-      renderIfPage("dashboard", "finance", "operational");
-    }, onDataError));
-  }
 }
 
 function normalizeDateRange(fromKey, toKey) {
@@ -4173,6 +4301,9 @@ function subscribeDashboardRange(fromKey = dashboardFrom, toKey = dashboardTo) {
   const build = name => query(collection(db, name), where("createdAt", ">=", startTs), where("createdAt", "<", endTs), orderBy("createdAt", "asc"), limit(10000));
   dashboardUnsubscribers.push(onSnapshot(build("transactions"), snap => {
     store.dashboardTransactions = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+    if (dashboardDateKey >= dashboardFrom && dashboardDateKey <= dashboardTo) {
+      store.dashboardTodayTransactions = store.dashboardTransactions.filter(row => transactionBusinessDate(row) === dashboardDateKey);
+    }
     renderIfPage("dashboard");
   }, onDataError));
   const movementByBusinessDate = query(collection(db, "stockMovements"),
@@ -4181,6 +4312,9 @@ function subscribeDashboardRange(fromKey = dashboardFrom, toKey = dashboardTo) {
   dashboardUnsubscribers.push(subscribeMergedDocumentQueries(
     [build("stockMovements"), movementByBusinessDate], rows => {
       store.dashboardMovements = rows;
+      if (dashboardDateKey >= dashboardFrom && dashboardDateKey <= dashboardTo) {
+        store.dashboardTodayMovements = rows.filter(row => movementBusinessDate(row) === dashboardDateKey);
+      }
       renderIfPage("dashboard");
     }
   ));
@@ -4188,11 +4322,24 @@ function subscribeDashboardRange(fromKey = dashboardFrom, toKey = dashboardTo) {
     store.dashboardCashflows = snap.docs.map(item => ({ id: item.id, ...item.data() }));
     renderIfPage("dashboard");
   }, onDataError));
+  if (profile?.role === "superadmin") {
+    if (dashboardDateKey >= dashboardFrom && dashboardDateKey <= dashboardTo) {
+      safeUnsubscribe(dashboardTodayUnsubscribers);
+    } else {
+      subscribeDashboardToday(dashboardDateKey);
+    }
+  }
 }
 function subscribeDashboardToday(dateKey = jakartaDateKey(new Date())) {
-  safeUnsubscribe(dashboardTodayUnsubscribers);
   dashboardDateKey = String(dateKey || jakartaDateKey(new Date()));
   if (profile?.role !== "superadmin") return;
+  if (dashboardDateKey >= dashboardFrom && dashboardDateKey <= dashboardTo) {
+    safeUnsubscribe(dashboardTodayUnsubscribers);
+    store.dashboardTodayTransactions = store.dashboardTransactions.filter(row => transactionBusinessDate(row) === dashboardDateKey);
+    store.dashboardTodayMovements = store.dashboardMovements.filter(row => movementBusinessDate(row) === dashboardDateKey);
+    return;
+  }
+  safeUnsubscribe(dashboardTodayUnsubscribers);
   const start = dateFromKey(dashboardDateKey);
   const end = new Date(start.getTime() + 86400000);
   const startTs = Timestamp.fromDate(start), endTs = Timestamp.fromDate(end);
@@ -4315,7 +4462,9 @@ function updateRequestNavBadge() {
   });
 }
 function pendingLabelPrintRequestCount() {
-  return store.labelPrintRequests.filter(row => row.status === "pending").length;
+  return pendingLabelPrintRequestsLoaded
+    ? store.pendingLabelPrintRequests.length
+    : store.labelPrintRequests.filter(row => row.status === "pending").length;
 }
 function updateLabelPrintNavBadge() {
   const count = pendingLabelPrintRequestCount();
@@ -4382,20 +4531,16 @@ function showPage(page) {
   if (page === "newMenu" && profile?.role !== "superadmin") return toast("Menu baru hanya dapat dikelola Admin.", "error");
   if (page === "profile" && profile?.role === "partner") return toast("Pengaturan profil tidak tersedia untuk akun Mitra.", "error");
   if (page === "partnerSticker" && profile?.role !== "partner") return toast("Pengajuan cetak stiker hanya tersedia untuk akun Mitra.", "error");
-  if (page === "partnerSales" && profile?.role === "partner") {
-    const todayKey = jakartaDateKey(new Date());
-    if (stockDailyDateKey !== todayKey) subscribeStockDailyDate(todayKey);
+  if (page === activePage) { renderPage(); return; }
+  stopPageSubscriptions();
+  const currentMonth = jakartaMonthKey(new Date());
+  if (["spv", "cashier", "partner"].includes(profile?.role) && currentMonth !== monthKey) monthKey = currentMonth;
+  if (page === "partnerSales" && profile?.role === "partner" && stockDailyDateKey !== jakartaDateKey(new Date())) {
+    stockDailyDateKey = jakartaDateKey(new Date());
   }
   activePage = page;
   closeSidebarDrawer();
-  if (["spv", "cashier", "partner"].includes(profile?.role) && ["dashboard", "pos", "partnerHome"].includes(page)) {
-    const currentMonth = jakartaMonthKey(new Date());
-    if (currentMonth !== monthKey) subscribeMonthData(currentMonth);
-  }
-  if (page === "partnerTransfers" && profile?.role === "superadmin") subscribePartnerTransferDate(partnerTransferDate);
-  if (page === "finance" && profile.role === "superadmin") {
-    subscribeFinanceRange(financeFromDate, financeToDate);
-  }
+  startPageSubscriptions(page);
   renderPage();
 }
 function pageHeading(title, subtitle, actions = "") {
@@ -4438,8 +4583,10 @@ function partnerSaleBusinessDate(row) {
   return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : dayKeyFromTimestamp(row?.createdAt);
 }
 function pendingStockRequestCount(dateKey = jakartaDateKey(new Date())) {
-  // Badge adalah notifikasi hari berjalan; riwayat tanggal sebelumnya tetap dapat dibuka lewat filter tanggal.
-  const active = store.stockRequests.filter(row =>
+  // Badge memakai listener kecil untuk status terbuka; riwayat lengkap hanya dimuat pada halaman pengajuan.
+  const source = store.pendingStockRequests.length || pendingStockRequestsLoaded
+    ? store.pendingStockRequests : store.stockRequests;
+  const active = source.filter(row =>
     String(row.businessDate || dayKeyFromTimestamp(row.createdAt)) === dateKey
     && ["pending", "revised"].includes(String(row.status || "pending").toLowerCase())
   );
@@ -4551,8 +4698,13 @@ function summarizeRevenueAllocation(transactions) {
 
 function renderSuperadminDashboard() {
   const today = jakartaDateKey(new Date());
-  const txs = store.dashboardTodayTransactions.filter(row => row.status !== "cancelled" && transactionBusinessDate(row) === today);
-  const dailyStock = dailyApprovedStockSummary(today, txs, store.dashboardTodayMovements);
+  const todayInDashboardRange = dashboardFrom <= today && today <= dashboardTo;
+  const todayTransactions = todayInDashboardRange ? store.dashboardTransactions : store.dashboardTodayTransactions;
+  const todayMovements = todayInDashboardRange ? store.dashboardMovements : store.dashboardTodayMovements;
+  const txs = todayTransactions.filter(row => row.status !== "cancelled"
+    && dayKeyFromTimestamp(row.createdAt) === today
+    && transactionBusinessDate(row) === today);
+  const dailyStock = dailyApprovedStockSummary(today, txs, todayMovements);
   const revenue = sumBy(txs, "total");
   const fromText = formatDate(dateFromKey(dashboardFrom), { day: "numeric", month: "short", year: "numeric" });
   const toText = formatDate(dateFromKey(dashboardTo), { day: "numeric", month: "short", year: "numeric" });
@@ -4585,7 +4737,7 @@ function renderSpvDashboard() {
       ${statCard("Pengeluaran", money(expenses), "−", "Termasuk penjualan yang dibayar KALAP")}
     </section>
     <section class="content-grid"><article class="panel">${panelHeader("Grafik penjualan", `${dashboardFrom} sampai ${dashboardTo}`, `<span class="status success">LIVE</span>`)}<div class="chart-wrap"><canvas id="sales-chart"></canvas></div><div class="chart-click-hint">Klik tanggal pada grafik untuk melihat detail barang masuk, terjual, sisa stok, transaksi, dan pengeluaran.</div></article>
-      <article class="panel">${panelHeader("Ringkasan stok", "Pergerakan pada rentang tanggal terpilih")}<div class="summary-list"><div class="summary-row"><span>Barang masuk</span><strong>${integer(received)} unit</strong></div><div class="summary-row"><span>Barang terjual</span><strong>${integer(sold)} unit</strong></div><div class="summary-row"><span>Pengajuan stok menunggu</span><strong>${integer(store.stockRequests.filter(row=>dayKeyFromTimestamp(row.createdAt)===jakartaDateKey(new Date())&&["pending","revised"].includes(row.status)).length)}</strong></div><div class="summary-divider"></div><button class="btn btn-light btn-wide" data-nav="pos">Buka kasir / POS →</button></div></article></section>
+      <article class="panel">${panelHeader("Ringkasan stok", "Pergerakan pada rentang tanggal terpilih")}<div class="summary-list"><div class="summary-row"><span>Barang masuk</span><strong>${integer(received)} unit</strong></div><div class="summary-row"><span>Barang terjual</span><strong>${integer(sold)} unit</strong></div><div class="summary-row"><span>Pengajuan stok menunggu</span><strong>${integer(pendingStockRequestCount())}</strong></div><div class="summary-divider"></div><button class="btn btn-light btn-wide" data-nav="pos">Buka kasir / POS →</button></div></article></section>
     <section class="panel">${panelHeader("Transaksi terbaru", "Aktivitas POS pada rentang tanggal terpilih", `<button class="panel-action" data-nav="transactions">Lihat semua →</button>`)}${renderTransactionTable(recent,true)}</section>`;
 }
 function destroyCharts() { chartInstances.forEach(chart => { try { chart.destroy(); } catch (_) {} }); chartInstances = []; }
@@ -7623,7 +7775,7 @@ window.addEventListener("appinstalled",()=>{$("#install-app-btn")?.classList.add
 if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")){
   window.addEventListener("load", async ()=>{
     try {
-      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.22", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./service-worker.js?v=2.2.23", { updateViaCache: "none" });
       // Ask Chrome to check the new shell immediately; the WebAPK manifest itself
       // is refreshed separately by Chrome's Android WebAPK updater.
       await registration.update().catch(()=>{});
@@ -7677,11 +7829,18 @@ setInterval(() => {
     lastJakartaDay = currentDay;
     historyDate = currentDay;
     const currentMonth = currentDay.slice(0, 7);
-    if (profile?.role === "partner") subscribePartnerDailySummary(currentDay);
+    if (profile?.role === "partner" && activePage === "partnerHome") subscribePartnerDailySummary(currentDay);
     if (profile?.role === "superadmin") {
       dashboardDateKey = currentDay;
-      subscribeDashboardToday(currentDay);
-      subscribePartnerManagementTodayMovements(currentDay);
+      const rollingStart = dateFromKey(currentDay);
+      rollingStart.setUTCDate(rollingStart.getUTCDate() - 29);
+      const rollingFrom = jakartaDateKey(rollingStart);
+      // Keep the default Dashboard period aligned with the new business day,
+      // but do not read it until the Dashboard page is actually open.
+      dashboardFrom = rollingFrom;
+      dashboardTo = currentDay;
+      if (activePage === "dashboard") subscribeDashboardRange(rollingFrom, currentDay);
+      if (activePage === "partners") subscribePartnerManagementTodayMovements(currentDay);
       // Laporan Keuangan mengikuti hari baru hanya bila rentangnya masih
       // tepat satu hari berjalan; rentang historis pilihan pengguna dipertahankan.
       if (financeFromDate === previousDay && financeToDate === previousDay) {
@@ -7691,9 +7850,6 @@ setInterval(() => {
         financeStockCurrentPage = 1;
         if (activePage === "finance") subscribeFinanceRange(currentDay, currentDay);
       }
-      const rollingStart = dateFromKey(currentDay);
-      rollingStart.setUTCDate(rollingStart.getUTCDate() - 29);
-      subscribeDashboardRange(jakartaDateKey(rollingStart), currentDay);
     }
     stockDailyDateKey = currentDay;
     stockDailySearchQuery = "";
@@ -7701,16 +7857,20 @@ setInterval(() => {
     requestCurrentPage = 1;
     requestSelectAll = false;
     if (profile) {
-      subscribeStockDailyDate(currentDay);
-      if (["superadmin", "spv", "cashier"].includes(profile.role)) subscribeTodayClosing(currentDay);
+      if (["stock", "requests", "partnerSales"].includes(activePage)) subscribeStockDailyDate(currentDay);
+      if (["pos", "stock", "requests"].includes(activePage) && ["superadmin", "spv", "cashier"].includes(profile.role)) subscribeTodayClosing(currentDay);
       updateRequestNavBadge();
-      if (["superadmin", "spv"].includes(profile.role)) {
-        rolloverPartnerStocksForDate(currentDay).catch(error => console.warn("Reset stok mitra saat pergantian hari gagal:", error));
-        expireStaleStockRequestsForDate(currentDay).catch(error => console.warn("Pengajuan hari sebelumnya gagal ditutup:", error));
+      if (activePage === "requests" && ["superadmin", "spv"].includes(profile.role) && pendingStockRequestsLoaded) {
+        stockRequestExpiryDayKey = "";
+        expireStaleStockRequestsForDate(currentDay, store.pendingStockRequests)
+          .catch(error => console.warn("Pengajuan hari sebelumnya gagal ditutup:", error));
       }
     }
+    if (profile && currentMonth !== monthKey) {
+      monthKey = currentMonth;
+      if (["transactions", "partnerHome", "partnerSales"].includes(activePage)) subscribeMonthData(currentMonth);
+    }
     if (profile && ["dashboard", "transactions", "partnerHome", "partnerMenu", "closing", "pos", "requests", "partners", "stock"].includes(activePage)) renderPage();
-    if (profile && currentMonth !== monthKey) subscribeMonthData(currentMonth);
   }
 }, 60000);
 
